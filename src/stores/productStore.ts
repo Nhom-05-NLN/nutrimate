@@ -72,6 +72,10 @@ export const useProductStore = defineStore('product', () => {
     selectedProduct.value = p;
   }
 
+  function clearSelectedProduct() {
+    selectedProduct.value = null;
+  }
+
   return {
     products,
     categories,
@@ -87,5 +91,6 @@ export const useProductStore = defineStore('product', () => {
     setProteinFilter,
     resetFilter,
     selectProduct,
+    clearSelectedProduct,
   };
 });

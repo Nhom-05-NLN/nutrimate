@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useProductStore } from '../../stores/productStore';
 import { useCartStore } from '../../stores/cartStore';
 import {
@@ -10,7 +10,6 @@ import {
   Wheat,
   Droplet,
   CandyOff,
-  ShieldAlert,
   CheckCircle2,
   Plus,
   Minus,
@@ -25,20 +24,38 @@ function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
+function closeModal() {
+  productStore.clearSelectedProduct();
+  quantity.value = 1;
+}
+
 function handleAddToCart() {
   if (productStore.selectedProduct) {
     cartStore.addItem(productStore.selectedProduct, quantity.value);
-    productStore.clearSelectedProduct();
-    quantity.value = 1;
+    closeModal();
   }
 }
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && productStore.selectedProduct) {
+    closeModal();
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown);
+});
 </script>
 
 <template>
   <div
     v-if="productStore.selectedProduct"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200"
-    @click.self="productStore.clearSelectedProduct()"
+    @click.self="closeModal"
   >
     <div
       class="relative w-full max-w-3xl bg-white rounded-4xl shadow-2xl border border-slate-200 overflow-hidden my-8"
@@ -48,8 +65,8 @@ function handleAddToCart() {
       <!-- Close Button -->
       <button
         type="button"
-        @click="productStore.clearSelectedProduct()"
-        class="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-slate-900/10 hover:bg-slate-900/20 text-slate-700 flex items-center justify-center transition-colors min-h-[44px] min-w-[44px]"
+        @click="closeModal"
+        class="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 flex items-center justify-center transition-colors min-h-[44px] min-w-[44px] shadow-xs cursor-pointer"
         aria-label="Đóng cửa sổ"
       >
         <X class="w-5 h-5" />
