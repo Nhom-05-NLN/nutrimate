@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick } from 'vue';
+import { ref, nextTick, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCartStore } from '../../stores/cartStore';
 import { useProductStore } from '../../stores/productStore';
@@ -12,6 +12,7 @@ import {
   LogOut,
   X,
   Menu,
+  ArrowRight,
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -24,30 +25,103 @@ const searchInput = ref('');
 const searchInputRef = ref<HTMLInputElement | null>(null);
 const isMobileMenuOpen = ref(false);
 
-function toggleSearch() {
-  isSearchOpen.value = !isSearchOpen.value;
-  if (isSearchOpen.value) {
-    nextTick(() => {
-      searchInputRef.value?.focus();
-    });
-  } else {
-    searchInput.value = '';
-  }
+function openSearch() {
+  isSearchOpen.value = true;
+  isMobileMenuOpen.value = false;
+  nextTick(() => {
+    searchInputRef.value?.focus();
+  });
+}
+
+function closeSearch() {
+  isSearchOpen.value = false;
+  searchInput.value = '';
 }
 
 function handleSearchSubmit() {
   if (searchInput.value.trim()) {
     productStore.setSearch(searchInput.value.trim());
     router.push({ name: 'catalog' });
-    isSearchOpen.value = false;
+    closeSearch();
   }
 }
+
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && isSearchOpen.value) {
+    closeSearch();
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown);
+});
 </script>
 
 <template>
   <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center justify-between h-20 gap-4">
+      <!-- 1. FULL-WIDTH SEARCH BAR OVERLAY (Khi mở tìm kiếm, không bao giờ đè lên menu) -->
+      <transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0 -translate-y-2"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 -translate-y-2"
+      >
+        <div v-if="isSearchOpen" class="flex items-center h-20 gap-3 w-full">
+          <form
+            @submit.prevent="handleSearchSubmit"
+            class="flex-1 flex items-center bg-slate-50 hover:bg-slate-100/70 focus-within:bg-white rounded-2xl px-4 py-2.5 border border-slate-300 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-200 transition-all shadow-xs"
+          >
+            <Search class="w-5 h-5 text-emerald-700 mr-3 shrink-0" />
+            <input
+              ref="searchInputRef"
+              type="text"
+              v-model="searchInput"
+              placeholder="Tìm kiếm món ăn kiêng, calo, đạm, keto, 0g đường..."
+              class="w-full bg-transparent text-sm sm:text-base text-slate-800 placeholder-slate-400 outline-hidden"
+            />
+            <!-- Quick clear button if text exists -->
+            <button
+              v-if="searchInput.trim()"
+              type="button"
+              @click="searchInput = ''"
+              class="p-1 text-slate-400 hover:text-slate-600 rounded-full transition-colors mr-1"
+              aria-label="Xóa văn bản"
+            >
+              <X class="w-4 h-4" />
+            </button>
+
+            <!-- Submit Action -->
+            <button
+              type="submit"
+              class="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all shrink-0 ml-1"
+            >
+              <span>Tìm kiếm</span>
+              <ArrowRight class="w-3.5 h-3.5" />
+            </button>
+          </form>
+
+          <!-- Cancel / Close Search Button -->
+          <button
+            type="button"
+            @click="closeSearch"
+            class="px-4 py-2.5 rounded-2xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 text-xs sm:text-sm font-semibold transition-all shrink-0 min-h-[44px] flex items-center justify-center gap-1.5"
+            aria-label="Đóng thanh tìm kiếm"
+          >
+            <X class="w-4 h-4" />
+            <span class="hidden sm:inline">Đóng</span>
+          </button>
+        </div>
+      </transition>
+
+      <!-- 2. NORMAL HEADER BAR (Hiển thị khi không mở tìm kiếm) -->
+      <div v-if="!isSearchOpen" class="flex items-center justify-between h-20 gap-4">
         <!-- Brand Logo -->
         <RouterLink
           to="/"
@@ -93,54 +167,18 @@ function handleSearchSubmit() {
           </RouterLink>
         </nav>
 
-        <!-- Right Side: [Search Icon] | [Cart Icon] | [Login Button] -->
+        <!-- Right Side Utilities: [Search Icon] | [Cart Icon] | [Login Button] -->
         <div class="flex items-center gap-2.5 sm:gap-3 shrink-0">
-          <!-- Search Expandable Component -->
-          <div class="relative flex items-center">
-            <!-- Expanded Input Box -->
-            <transition
-              enter-active-class="transition duration-200 ease-out"
-              enter-from-class="opacity-0 scale-95"
-              enter-to-class="opacity-100 scale-100"
-              leave-active-class="transition duration-150 ease-in"
-              leave-from-class="opacity-100 scale-100"
-              leave-to-class="opacity-0 scale-95"
-            >
-              <form
-                v-if="isSearchOpen"
-                @submit.prevent="handleSearchSubmit"
-                class="absolute right-0 top-1/2 -translate-y-1/2 flex items-center bg-white rounded-full px-3 py-1.5 w-60 sm:w-72 border border-emerald-300 shadow-lg z-20"
-              >
-                <Search class="w-4 h-4 text-emerald-700 mr-2 shrink-0" />
-                <input
-                  ref="searchInputRef"
-                  type="text"
-                  v-model="searchInput"
-                  placeholder="Tìm món, calo, đạm..."
-                  class="w-full bg-transparent text-xs sm:text-sm text-slate-800 focus:outline-hidden"
-                />
-                <button
-                  type="button"
-                  @click="toggleSearch"
-                  class="text-slate-400 hover:text-slate-600 p-1 text-xs"
-                  aria-label="Đóng tìm kiếm"
-                >
-                  <X class="w-4 h-4" />
-                </button>
-              </form>
-            </transition>
-
-            <!-- Search Trigger Icon Button -->
-            <button
-              type="button"
-              @click="toggleSearch"
-              class="w-10 h-10 rounded-full flex items-center justify-center text-slate-700 hover:text-emerald-800 hover:bg-emerald-50/80 transition-colors"
-              title="Tìm kiếm thực phẩm ăn kiêng"
-              aria-label="Mở tìm kiếm"
-            >
-              <Search class="w-5 h-5" />
-            </button>
-          </div>
+          <!-- Search Icon Button -->
+          <button
+            type="button"
+            @click="openSearch"
+            class="w-10 h-10 rounded-full flex items-center justify-center text-slate-700 hover:text-emerald-800 hover:bg-emerald-50/80 transition-colors"
+            title="Tìm kiếm thực phẩm ăn kiêng"
+            aria-label="Mở tìm kiếm"
+          >
+            <Search class="w-5 h-5" />
+          </button>
 
           <!-- Cart Icon Button (Only Icon with Count Badge) -->
           <button
@@ -194,7 +232,7 @@ function handleSearchSubmit() {
             <span>Đăng nhập</span>
           </button>
 
-          <!-- Mobile Menu Toggle -->
+          <!-- Mobile Menu Toggle Button -->
           <button
             type="button"
             @click="isMobileMenuOpen = !isMobileMenuOpen"
@@ -209,7 +247,7 @@ function handleSearchSubmit() {
 
       <!-- Mobile Dropdown Navigation -->
       <div
-        v-if="isMobileMenuOpen"
+        v-if="isMobileMenuOpen && !isSearchOpen"
         class="md:hidden py-4 border-t border-slate-100 flex flex-col gap-2 animate-in slide-in-from-top-2 duration-200"
       >
         <RouterLink
