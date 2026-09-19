@@ -11,6 +11,34 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
+function startListening(app: express.Express, initialPort: number, maxAttempts = 10): Promise<number> {
+  return new Promise((resolve, reject) => {
+    let currentPort = initialPort;
+    let attempts = 0;
+
+    function tryListen() {
+      attempts++;
+      const server = app.listen(currentPort, '0.0.0.0');
+
+      server.once('listening', () => {
+        resolve(currentPort);
+      });
+
+      server.once('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE' && attempts < maxAttempts) {
+          console.warn(`[Port Notice] Cổng ${currentPort} đang được sử dụng. Đang tự động chuyển sang cổng ${currentPort + 1}...`);
+          currentPort++;
+          tryListen();
+        } else {
+          reject(err);
+        }
+      });
+    }
+
+    tryListen();
+  });
+}
+
 async function bootstrap() {
   const app = express();
 
@@ -41,14 +69,14 @@ async function bootstrap() {
     app.use(vite.middlewares);
   }
 
-  app.listen(config.port, '0.0.0.0', () => {
-    console.log(`====================================================`);
-    console.log(` NutriMate Server is running!`);
-    console.log(` URL: http://localhost:${config.port}`);
-    console.log(` Mode: ${config.nodeEnv}`);
-    console.log(` REST API: http://localhost:${config.port}/api/health`);
-    console.log(`====================================================`);
-  });
+  const activePort = await startListening(app, config.port);
+
+  console.log(`====================================================`);
+  console.log(` NutriMate Server is running!`);
+  console.log(` URL: http://localhost:${activePort}`);
+  console.log(` Mode: ${config.nodeEnv}`);
+  console.log(` REST API: http://localhost:${activePort}/api/health`);
+  console.log(`====================================================`);
 }
 
 bootstrap().catch((err: unknown) => {
