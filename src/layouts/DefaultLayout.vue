@@ -6,6 +6,7 @@ import CheckoutModal from '../components/checkout/CheckoutModal.vue';
 import ProductDetailModal from '../components/catalog/ProductDetailModal.vue';
 import NutriBotWidget from '../components/chatbot/NutriBotWidget.vue';
 import ToastNotification from '../components/common/ToastNotification.vue';
+import AuthModal from '../components/auth/AuthModal.vue';
 </script>
 
 <template>
@@ -27,5 +28,6 @@ import ToastNotification from '../components/common/ToastNotification.vue';
     <ProductDetailModal />
     <NutriBotWidget />
     <ToastNotification />
+    <AuthModal />
   </div>
 </template>

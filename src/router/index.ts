@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import HomeView from '../views/HomeView.vue';
 import CatalogView from '../views/CatalogView.vue';
+import BlogsView from '../views/BlogsView.vue';
 import ProductDetailView from '../views/ProductDetailView.vue';
 import NotFoundView from '../views/NotFoundView.vue';
 
@@ -14,6 +15,11 @@ const routes: RouteRecordRaw[] = [
     path: '/catalog',
     name: 'catalog',
     component: CatalogView,
+  },
+  {
+    path: '/blogs',
+    name: 'blogs',
+    component: BlogsView,
   },
   {
     path: '/product/:id',
