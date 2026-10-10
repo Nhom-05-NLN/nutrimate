@@ -4,6 +4,9 @@ import { useProductStore } from '../stores/productStore';
 import HeroSection from '../components/home/HeroSection.vue';
 import DietCategories from '../components/home/DietCategories.vue';
 import FeaturedProducts from '../components/home/FeaturedProducts.vue';
+import WhyChooseUs from '../components/home/WhyChooseUs.vue';
+import AiAssistantFeature from '../components/home/AiAssistantFeature.vue';
+import TestimonialsSection from '../components/home/TestimonialsSection.vue';
 
 const productStore = useProductStore();
 
@@ -18,9 +21,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-6">
     <HeroSection />
     <DietCategories />
     <FeaturedProducts />
+    <WhyChooseUs />
+    <AiAssistantFeature />
+    <TestimonialsSection />
   </div>
 </template>
