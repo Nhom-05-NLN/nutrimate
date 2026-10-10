@@ -118,20 +118,20 @@ function addComboItem(name: string, price: number, kcal: number, protein: number
 </script>
 
 <template>
-  <div class="py-6 space-y-10">
+  <div class="max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-12">
     <!-- Breadcrumb -->
-    <nav class="flex items-center gap-2 text-xs font-medium text-[#7E8B73]">
-      <RouterLink to="/" class="hover:text-[#2D3B1E]">Trang chủ</RouterLink>
-      <ChevronRight class="w-3.5 h-3.5" />
-      <RouterLink to="/catalog" class="hover:text-[#2D3B1E]">Thực phẩm</RouterLink>
-      <ChevronRight class="w-3.5 h-3.5" />
-      <span class="hover:text-[#2D3B1E]">Hạt dinh dưỡng</span>
-      <ChevronRight class="w-3.5 h-3.5" />
-      <span class="text-[#2D3B1E] font-bold truncate max-w-xs sm:max-w-md">Granola Yến Mạch Hạt Dinh Dưỡng Siêu Hạt 500g</span>
+    <nav class="flex items-center gap-2 text-sm font-medium text-[#7E8B73]">
+      <RouterLink to="/" class="hover:text-[#242424]">Trang chủ</RouterLink>
+      <ChevronRight class="w-4 h-4" />
+      <RouterLink to="/catalog" class="hover:text-[#242424]">Thực phẩm</RouterLink>
+      <ChevronRight class="w-4 h-4" />
+      <span class="hover:text-[#242424]">Hạt dinh dưỡng</span>
+      <ChevronRight class="w-4 h-4" />
+      <span class="text-[#242424] font-bold truncate max-w-xs sm:max-w-md">Granola Yến Mạch Hạt Dinh Dưỡng Siêu Hạt 500g</span>
     </nav>
 
     <!-- Product Main Top Grid (2 Columns) -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
       <!-- Cột Trái: Gallery Ảnh & Thumbnails -->
       <div class="lg:col-span-5 space-y-4">
         <!-- Ảnh Chính -->
@@ -143,11 +143,11 @@ function addComboItem(name: string, price: number, kcal: number, protein: number
           />
 
           <!-- Badges -->
-          <div class="absolute top-4 left-4 flex flex-col gap-1.5">
-            <span class="px-3 py-1 rounded-full text-xs font-bold bg-[#FAF9F5]/90 backdrop-blur-xs text-[#2D3B1E] border border-[#CCD7BC]">
+          <div class="absolute top-4 left-4 flex flex-col gap-2">
+            <span class="px-3.5 py-1 rounded-full text-xs font-bold bg-[#FAF9F5]/95 backdrop-blur-xs text-[#242424] border border-[#CCD7BC] shadow-2xs">
               ★ Bán chạy nhất #1
             </span>
-            <span class="px-3 py-1 rounded-full text-xs font-bold bg-[#FAF9F5]/90 backdrop-blur-xs text-[#2D3B1E] border border-[#CCD7BC]">
+            <span class="px-3.5 py-1 rounded-full text-xs font-bold bg-[#FAF9F5]/95 backdrop-blur-xs text-[#242424] border border-[#CCD7BC] shadow-2xs">
               🌱 100% Tự Nhiên
             </span>
           </div>
@@ -156,7 +156,7 @@ function addComboItem(name: string, price: number, kcal: number, protein: number
           <button
             type="button"
             @click="isLiked = !isLiked"
-            class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 backdrop-blur-xs border border-[#CCD7BC] flex items-center justify-center text-[#7A866E] hover:text-rose-500 transition-colors"
+            class="absolute top-4 right-4 w-11 h-11 rounded-full bg-white/95 backdrop-blur-xs border border-[#CCD7BC] flex items-center justify-center text-[#7A866E] hover:text-rose-500 shadow-xs transition-colors"
             aria-label="Yêu thích"
           >
             <Heart class="w-5 h-5" :class="{ 'fill-rose-500 text-rose-500': isLiked }" />
@@ -164,14 +164,14 @@ function addComboItem(name: string, price: number, kcal: number, protein: number
         </div>
 
         <!-- Thumbnails 4 ảnh -->
-        <div class="grid grid-cols-4 gap-3">
+        <div class="grid grid-cols-4 gap-3.5">
           <button
             v-for="(img, idx) in gallery"
             :key="idx"
             type="button"
             @click="activeImageIndex = idx"
-            class="aspect-square rounded-2xl overflow-hidden border-2 transition-all"
-            :class="activeImageIndex === idx ? 'border-[#4D6A34] shadow-xs' : 'border-[#E3E8DC] opacity-70 hover:opacity-100'"
+            class="aspect-square rounded-2xl overflow-hidden border-2 transition-all cursor-pointer"
+            :class="activeImageIndex === idx ? 'border-[#4D6A34] shadow-md scale-102' : 'border-[#E3E8DC] opacity-75 hover:opacity-100'"
           >
             <img :src="img" alt="thumb" class="w-full h-full object-cover" />
           </button>
@@ -179,158 +179,174 @@ function addComboItem(name: string, price: number, kcal: number, protein: number
       </div>
 
       <!-- Cột Phải: Thông Tin Mua Hàng & Giá -->
-      <div class="lg:col-span-7 space-y-6">
-        <div>
-          <h1 class="font-heading text-2xl sm:text-3xl font-black text-[#2D3B1E] leading-snug">
+      <div class="lg:col-span-7 space-y-7">
+        <div class="space-y-3">
+          <h1 class="font-heading text-2xl sm:text-3xl lg:text-[34px] font-black text-[#242424] leading-snug">
             Granola Yến Mạch Hạt Dinh Dưỡng Siêu Hạt 500g - Vị Mật Ong & Vani Tự Nhiên
           </h1>
 
-          <div class="flex flex-wrap items-center gap-4 text-xs font-medium text-[#7A866E] mt-3">
-            <div class="flex items-center gap-1 font-bold text-[#E8A020]">
-              <Star v-for="i in 5" :key="i" class="w-3.5 h-3.5 fill-[#E8A020]" />
-              <span class="text-[#2D3B1E] ml-1">4.9</span>
-              <span class="text-[#7A866E] font-normal">(128 đánh giá)</span>
+          <div class="flex flex-wrap items-center gap-4 text-sm font-semibold text-[#68725F]">
+            <div class="flex items-center gap-1.5 font-bold text-[#E8A020]">
+              <Star v-for="i in 5" :key="i" class="w-4 h-4 fill-[#E8A020]" />
+              <span class="text-[#242424] ml-1 font-bold">4.9</span>
+              <span class="text-[#7A866E] font-medium">(128 đánh giá)</span>
             </div>
             <span>•</span>
-            <span>Đã bán 2.4k</span>
+            <span class="font-bold text-[#242424]">Đã bán 2.4k</span>
             <span>•</span>
-            <span class="text-[#4D6A34] font-semibold flex items-center gap-1">
-              <ShieldCheck class="w-3.5 h-3.5" /> Cam kết chính hãng
+            <span class="text-[#4D6A34] font-bold flex items-center gap-1.5">
+              <ShieldCheck class="w-4 h-4 text-[#4D6A34]" /> Cam kết chính hãng
             </span>
           </div>
         </div>
 
-        <!-- Giá tiền -->
-        <div class="flex items-baseline gap-3 p-4 rounded-2xl bg-[#F6F8F3] border border-[#E8ECE2]">
-          <span class="font-heading text-3xl font-black text-[#2D3B1E]">
+        <!-- Giá tiền lớn -->
+        <div class="flex items-baseline gap-4 p-5 rounded-2xl bg-[#F6F8F3] border border-[#E8ECE2]">
+          <span class="font-heading text-3xl sm:text-4xl font-black text-[#242424]">
             {{ formatVnd(currentPrice) }}
           </span>
-          <span class="text-xs font-medium text-[#7A866E] bg-[#EBF1E6] px-2.5 py-1 rounded-full border border-[#CCD7BC]">
+          <span class="text-xs font-bold text-[#4D6A34] bg-[#EBF7E5] px-3 py-1 rounded-full border border-[#CCD7BC]">
             Đã bao gồm thuế VAT
           </span>
         </div>
 
-        <!-- Tóm tắt dinh dưỡng nổi bật 4 ô (Figma Style) -->
-        <div class="space-y-2">
-          <span class="text-xs font-bold text-[#2D3B1E] block">
+        <!-- Tóm tắt dinh dưỡng nổi bật 4 ô (Figma Style Căn Giữa Hoàn Toàn) -->
+        <div class="space-y-2.5">
+          <span class="text-sm font-bold text-[#242424] block">
             Tóm tắt dinh dưỡng nổi bật (trên 100g)
           </span>
-          <div class="grid grid-cols-4 gap-2 text-center">
-            <div class="p-3 rounded-2xl bg-white border border-[#E3E8DC]">
-              <span class="text-[10px] text-[#7A866E] block font-medium">Năng lượng</span>
-              <span class="font-heading text-base font-extrabold text-[#2D3B1E]">380 <span class="text-xs font-normal">kcal</span></span>
+          <div class="grid grid-cols-4 gap-3 text-center">
+            <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex flex-col items-center justify-center shadow-2xs">
+              <span class="text-xs text-[#7A866E] block font-medium">Năng lượng</span>
+              <span class="font-heading text-xl font-black text-[#242424] mt-1">380 <span class="text-xs font-normal">kcal</span></span>
             </div>
-            <div class="p-3 rounded-2xl bg-white border border-[#E3E8DC]">
-              <span class="text-[10px] text-[#7A866E] block font-medium">Chất đạm</span>
-              <span class="font-heading text-base font-extrabold text-[#4D6A34]">14 <span class="text-xs font-normal">g</span></span>
+            <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex flex-col items-center justify-center shadow-2xs">
+              <span class="text-xs text-[#7A866E] block font-medium">Chất đạm</span>
+              <span class="font-heading text-xl font-black text-[#4D6A34] mt-1">14 <span class="text-xs font-normal">g</span></span>
             </div>
-            <div class="p-3 rounded-2xl bg-white border border-[#E3E8DC]">
-              <span class="text-[10px] text-[#7A866E] block font-medium">Đường tự nhiên</span>
-              <span class="font-heading text-base font-extrabold text-[#2D3B1E]">3 <span class="text-xs font-normal">g</span></span>
+            <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex flex-col items-center justify-center shadow-2xs">
+              <span class="text-xs text-[#7A866E] block font-medium">Đường tự nhiên</span>
+              <span class="font-heading text-xl font-black text-[#4D6A34] mt-1">3 <span class="text-xs font-normal">g</span></span>
             </div>
-            <div class="p-3 rounded-2xl bg-white border border-[#E3E8DC]">
-              <span class="text-[10px] text-[#7A866E] block font-medium">Chất xơ</span>
-              <span class="font-heading text-base font-extrabold text-[#2D3B1E]">8 <span class="text-xs font-normal">g</span></span>
+            <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex flex-col items-center justify-center shadow-2xs">
+              <span class="text-xs text-[#7A866E] block font-medium">Chất xơ</span>
+              <span class="font-heading text-xl font-black text-[#4D6A34] mt-1">8 <span class="text-xs font-normal">g</span></span>
             </div>
           </div>
         </div>
 
-        <!-- Phân loại & Trọng lượng -->
-        <div class="space-y-2.5">
-          <div class="flex items-center justify-between text-xs">
-            <span class="font-bold text-[#2D3B1E]">Phân loại & Trọng lượng</span>
-            <span class="text-[#4D6A34] font-semibold">Hũ 500g tiết kiệm 15%</span>
+        <!-- Phân loại & Trọng lượng (Figma Style CĂN GIỮA HOÀN TOÀN) -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between text-sm">
+            <span class="font-bold text-[#242424]">Phân loại & Trọng lượng</span>
+            <span class="text-[#4D6A34] font-bold">Hũ 500g tiết kiệm 15%</span>
           </div>
-          <div class="grid grid-cols-3 gap-3">
+
+          <div class="grid grid-cols-3 gap-3.5">
             <button
               v-for="p in portions"
               :key="p.label"
               type="button"
               @click="selectedPortion = p.label"
-              class="p-3 rounded-2xl border text-left transition-all relative"
+              class="py-4 px-3 rounded-2xl border flex flex-col items-center justify-center text-center transition-all relative cursor-pointer"
               :class="
                 selectedPortion === p.label
-                  ? 'border-[#4D6A34] bg-[#F6F8F3] shadow-xs'
-                  : 'border-[#E3E8DC] bg-white hover:border-[#CCD7BC]'
+                  ? 'border-2 border-[#536124] bg-[#EAEFE3] shadow-xs'
+                  : 'border border-[#E3E8DC] bg-white hover:border-[#CCD7BC]'
               "
             >
-              <div v-if="selectedPortion === p.label" class="absolute top-2 right-2 w-4 h-4 rounded-full bg-[#4D6A34] text-white flex items-center justify-center">
-                <Check class="w-2.5 h-2.5" />
+              <!-- Checkmark badge ở góc trên phải nổi đè lên viền -->
+              <div
+                v-if="selectedPortion === p.label"
+                class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[#536124] text-white flex items-center justify-center border-2 border-white shadow-xs"
+              >
+                <Check class="w-3 h-3 stroke-[3]" />
               </div>
-              <span class="text-xs font-bold text-[#2D3B1E] block">{{ p.label }}</span>
-              <span class="text-xs font-semibold text-[#4D6A34] mt-0.5 block">{{ formatVnd(p.price) }}</span>
+
+              <!-- Dòng 1: Tên phân loại (căn giữa) -->
+              <span class="font-heading text-base font-bold text-[#242424] text-center block">
+                {{ p.label }}
+              </span>
+
+              <!-- Dòng 2: Giá (căn giữa) -->
+              <span
+                class="text-sm font-bold text-center mt-1 block"
+                :class="selectedPortion === p.label ? 'text-[#4D6A34]' : 'text-[#7A866E]'"
+              >
+                {{ formatVnd(p.price) }}
+              </span>
             </button>
           </div>
         </div>
 
-        <!-- Số lượng & Kho -->
+        <!-- Bộ chọn số lượng & Trạng thái tồn kho -->
         <div class="flex items-center gap-6 pt-2">
-          <div class="flex items-center border border-[#CCD7BC] rounded-2xl bg-white p-1">
+          <div class="flex items-center border border-[#CCD7BC] rounded-2xl bg-white p-1 shadow-2xs">
             <button
               type="button"
               @click="quantity = Math.max(1, quantity - 1)"
-              class="w-8 h-8 rounded-xl flex items-center justify-center text-[#576449] hover:bg-[#FAF9F5]"
+              class="w-9 h-9 rounded-xl flex items-center justify-center text-[#576449] hover:bg-[#FAF9F5] transition-colors"
             >
-              <Minus class="w-3.5 h-3.5" />
+              <Minus class="w-4 h-4 stroke-[2.5]" />
             </button>
-            <span class="w-10 text-center font-bold text-sm text-[#2D3B1E]">{{ quantity }}</span>
+            <span class="w-12 text-center font-black text-base text-[#242424]">{{ quantity }}</span>
             <button
               type="button"
               @click="quantity++"
-              class="w-8 h-8 rounded-xl flex items-center justify-center text-[#576449] hover:bg-[#FAF9F5]"
+              class="w-9 h-9 rounded-xl flex items-center justify-center text-[#576449] hover:bg-[#FAF9F5] transition-colors"
             >
-              <Plus class="w-3.5 h-3.5" />
+              <Plus class="w-4 h-4 stroke-[2.5]" />
             </button>
           </div>
 
-          <span class="text-xs font-medium text-[#7A866E] flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span class="text-sm font-semibold text-[#242424] flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
             Còn hàng (142 sản phẩm có sẵn)
           </span>
         </div>
 
         <!-- 2 Nút Mua hàng to (Figma Style) -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
           <button
             type="button"
             @click="handleAddToCart"
-            class="py-3.5 px-6 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] active:bg-[#2D3B1E] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all min-h-[44px]"
+            class="py-4 px-6 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] active:bg-[#2D3B1E] text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-md transition-all min-h-[48px]"
           >
-            <ShoppingBag class="w-4 h-4" />
+            <ShoppingBag class="w-5 h-5 stroke-[2]" />
             <span>Thêm vào giỏ hàng</span>
           </button>
 
           <button
             type="button"
             @click="handleBuyNow"
-            class="py-3.5 px-6 rounded-2xl bg-[#232722] hover:bg-black active:bg-slate-900 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md transition-all min-h-[44px]"
+            class="py-4 px-6 rounded-2xl bg-[#232722] hover:bg-black active:bg-slate-900 text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-md transition-all min-h-[48px]"
           >
-            <Zap class="w-4 h-4 text-amber-400" />
+            <Zap class="w-5 h-5 text-amber-400 fill-amber-400" />
             <span>Mua ngay</span>
           </button>
         </div>
 
         <!-- 3 Cam kết dịch vụ -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-[#E3E8DC] text-[11px] text-[#576449]">
-          <div class="flex items-center gap-2 p-2 rounded-xl bg-white border border-[#F0F3EC]">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-[#E3E8DC] text-xs text-[#576449]">
+          <div class="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-[#F0F3EC]">
             <Zap class="w-4 h-4 text-[#4D6A34] shrink-0" />
             <div>
-              <span class="font-bold text-[#2D3B1E] block">Giao 2H Siêu Tốc</span>
-              <span>Tại TP.HCM & Hà Nội</span>
+              <span class="font-bold text-[#242424] block text-xs">Giao 2H Siêu Tốc</span>
+              <span class="text-[11px] text-[#7A866E]">Tại TP.HCM & Hà Nội</span>
             </div>
           </div>
-          <div class="flex items-center gap-2 p-2 rounded-xl bg-white border border-[#F0F3EC]">
+          <div class="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-[#F0F3EC]">
             <ShieldCheck class="w-4 h-4 text-[#4D6A34] shrink-0" />
             <div>
-              <span class="font-bold text-[#2D3B1E] block">Hoàn tiền 200%</span>
-              <span>Nếu phát hiện hàng giả</span>
+              <span class="font-bold text-[#242424] block text-xs">Hoàn tiền 200%</span>
+              <span class="text-[11px] text-[#7A866E]">Nếu phát hiện hàng giả</span>
             </div>
           </div>
-          <div class="flex items-center gap-2 p-2 rounded-xl bg-white border border-[#F0F3EC]">
+          <div class="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-[#F0F3EC]">
             <RefreshCw class="w-4 h-4 text-[#4D6A34] shrink-0" />
             <div>
-              <span class="font-bold text-[#2D3B1E] block">Đổi trả 7 ngày</span>
-              <span>Miễn phí nếu lỗi NSX</span>
+              <span class="font-bold text-[#242424] block text-xs">Đổi trả 7 ngày</span>
+              <span class="text-[11px] text-[#7A866E]">Miễn phí nếu lỗi NSX</span>
             </div>
           </div>
         </div>
@@ -338,30 +354,30 @@ function addComboItem(name: string, price: number, kcal: number, protein: number
     </div>
 
     <!-- Tabs Section & Nutrition Facts Table -->
-    <div class="pt-8 border-t border-[#E3E8DC]">
+    <div class="pt-10 border-t border-[#E3E8DC]">
       <!-- Tab Header Buttons -->
       <div class="flex items-center gap-8 border-b border-[#E3E8DC] mb-8 overflow-x-auto no-scrollbar">
         <button
           type="button"
           @click="activeTab = 'desc'"
-          class="pb-3 text-sm font-bold transition-all relative shrink-0"
-          :class="activeTab === 'desc' ? 'text-[#2D3B1E] border-b-2 border-[#4D6A34]' : 'text-[#7A866E] hover:text-[#2D3B1E]'"
+          class="pb-3.5 text-base font-bold transition-all relative shrink-0 cursor-pointer"
+          :class="activeTab === 'desc' ? 'text-[#242424] border-b-[3px] border-[#4D6A34]' : 'text-[#7A866E] hover:text-[#242424]'"
         >
           Mô tả sản phẩm & Hướng dẫn
         </button>
         <button
           type="button"
           @click="activeTab = 'traceability'"
-          class="pb-3 text-sm font-bold transition-all relative shrink-0"
-          :class="activeTab === 'traceability' ? 'text-[#2D3B1E] border-b-2 border-[#4D6A34]' : 'text-[#7A866E] hover:text-[#2D3B1E]'"
+          class="pb-3.5 text-base font-bold transition-all relative shrink-0 cursor-pointer"
+          :class="activeTab === 'traceability' ? 'text-[#242424] border-b-[3px] border-[#4D6A34]' : 'text-[#7A866E] hover:text-[#242424]'"
         >
           Nguồn gốc nguyên liệu (Traceability)
         </button>
         <button
           type="button"
           @click="activeTab = 'reviews'"
-          class="pb-3 text-sm font-bold transition-all relative shrink-0"
-          :class="activeTab === 'reviews' ? 'text-[#2D3B1E] border-b-2 border-[#4D6A34]' : 'text-[#7A866E] hover:text-[#2D3B1E]'"
+          class="pb-3.5 text-base font-bold transition-all relative shrink-0 cursor-pointer"
+          :class="activeTab === 'reviews' ? 'text-[#242424] border-b-[3px] border-[#4D6A34]' : 'text-[#7A866E] hover:text-[#242424]'"
         >
           Đánh giá khách hàng (128)
         </button>
@@ -370,10 +386,10 @@ function addComboItem(name: string, price: number, kcal: number, protein: number
       <!-- Tab Content Grid (Left Details + Right Nutrition Facts Box) -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
         <!-- Cột Trái: Nội dung mô tả / nguồn gốc / đánh giá -->
-        <div class="lg:col-span-7 space-y-6">
-          <div v-if="activeTab === 'desc'" class="space-y-6 text-sm text-[#4E5C3E] leading-relaxed">
+        <div class="lg:col-span-7 space-y-7">
+          <div v-if="activeTab === 'desc'" class="space-y-6 text-sm sm:text-base text-[#4E5C3E] leading-relaxed">
             <div>
-              <h3 class="font-heading text-lg font-bold text-[#2D3B1E] mb-2">
+              <h3 class="font-heading text-xl font-bold text-[#242424] mb-2.5">
                 Khởi đầu ngày mới tràn đầy năng lượng thanh sạch
               </h3>
               <p>
@@ -382,53 +398,53 @@ function addComboItem(name: string, price: number, kcal: number, protein: number
             </div>
 
             <!-- 3 Feature Cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] space-y-1">
-                <span class="text-xs font-bold text-[#2D3B1E] block">Yến mạch nguyên cám</span>
-                <p class="text-xs text-[#7A866E]">Giàu chất xơ Beta-glucan hỗ trợ ổn định đường huyết.</p>
+                <span class="text-xs font-bold text-[#242424] block">Yến mạch nguyên cám</span>
+                <p class="text-xs text-[#7A866E] leading-relaxed">Giàu chất xơ Beta-glucan hỗ trợ ổn định đường huyết.</p>
               </div>
               <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] space-y-1">
-                <span class="text-xs font-bold text-[#2D3B1E] block">Tỷ lệ hạt tới 55%</span>
-                <p class="text-xs text-[#7A866E]">Hạnh nhân Mỹ, óc chó Chile, hạt điều Bình Phước.</p>
+                <span class="text-xs font-bold text-[#242424] block">Tỷ lệ hạt tới 55%</span>
+                <p class="text-xs text-[#7A866E] leading-relaxed">Hạnh nhân Mỹ, óc chó Chile, hạt điều Bình Phước.</p>
               </div>
               <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] space-y-1">
-                <span class="text-xs font-bold text-[#2D3B1E] block">Giàu chất béo tốt</span>
-                <p class="text-xs text-[#7A866E]">Chất béo không bão hòa đơn và đa tốt cho tim mạch.</p>
+                <span class="text-xs font-bold text-[#242424] block">Giàu chất béo tốt</span>
+                <p class="text-xs text-[#7A866E] leading-relaxed">Chất béo không bão hòa đơn và đa tốt cho tim mạch.</p>
               </div>
             </div>
 
             <!-- 3 Cách thưởng thức -->
             <div class="space-y-3">
-              <h4 class="font-heading text-sm font-bold text-[#2D3B1E]">
+              <h4 class="font-heading text-base font-bold text-[#242424]">
                 3 Cách thưởng thức dinh dưỡng mỗi ngày:
               </h4>
-              <ul class="space-y-2 text-xs text-[#4E5C3E]">
-                <li class="flex items-start gap-2">
-                  <span class="w-5 h-5 rounded-full bg-[#EBF1E6] text-[#4D6A34] font-bold flex items-center justify-center shrink-0">1</span>
+              <ul class="space-y-2.5 text-xs sm:text-sm text-[#4E5C3E]">
+                <li class="flex items-start gap-2.5">
+                  <span class="w-6 h-6 rounded-full bg-[#EBF7E5] text-[#4D6A34] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">1</span>
                   <span><strong>Ăn liền trực tiếp:</strong> Dùng ngay như một món snack bổ dưỡng trong giờ làm việc hoặc trước buổi tập gym 30 phút.</span>
                 </li>
-                <li class="flex items-start gap-2">
-                  <span class="w-5 h-5 rounded-full bg-[#EBF1E6] text-[#4D6A34] font-bold flex items-center justify-center shrink-0">2</span>
+                <li class="flex items-start gap-2.5">
+                  <span class="w-6 h-6 rounded-full bg-[#EBF7E5] text-[#4D6A34] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">2</span>
                   <span><strong>Kết hợp Sữa chua Hy Lạp:</strong> Cho 40g Granola vào 1 hũ sữa chua Hy Lạp không đường, thêm một vài lát dâu tây hoặc chuối cho bữa sáng hoàn hảo 20g protein.</span>
                 </li>
-                <li class="flex items-start gap-2">
-                  <span class="w-5 h-5 rounded-full bg-[#EBF1E6] text-[#4D6A34] font-bold flex items-center justify-center shrink-0">3</span>
+                <li class="flex items-start gap-2.5">
+                  <span class="w-6 h-6 rounded-full bg-[#EBF7E5] text-[#4D6A34] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">3</span>
                   <span><strong>Topping sinh tố & Smoothie Bowl:</strong> Rắc granola lên bề mặt smoothie bơ chuối để tăng cảm giác giòn rụm và kéo dài cảm giác no.</span>
                 </li>
               </ul>
             </div>
 
             <!-- Thành phần -->
-            <div class="p-4 rounded-2xl bg-[#FAF9F5] border border-[#E3E8DC] text-xs space-y-1">
-              <span class="font-bold text-[#2D3B1E] block">Thành phần nguyên liệu chi tiết:</span>
-              <p>Yến mạch Úc nguyên cám (45%), Hạnh nhân Mỹ (15%), Quả óc chó Chile (10%), Hạt điều Bình Phước (10%), Hạt bí xanh (10%), Nho khô vàng & Việt quất sấy lạnh (8%), Mật ong hoa nhãn nguyên chất, Bột vani tự nhiên Madagascar.</p>
+            <div class="p-5 rounded-2xl bg-[#FAF9F5] border border-[#E3E8DC] text-xs sm:text-sm space-y-1.5">
+              <span class="font-bold text-[#242424] block">Thành phần nguyên liệu chi tiết:</span>
+              <p class="text-[#576449]">Yến mạch Úc nguyên cám (45%), Hạnh nhân Mỹ (15%), Quả óc chó Chile (10%), Hạt điều Bình Phước (10%), Hạt bí xanh (10%), Nho khô vàng & Việt quất sấy lạnh (8%), Mật ong hoa nhãn nguyên chất, Bột vani tự nhiên Madagascar.</p>
             </div>
           </div>
 
-          <div v-else-if="activeTab === 'traceability'" class="space-y-4 text-xs sm:text-sm text-[#4E5C3E]">
-            <h3 class="font-heading text-base font-bold text-[#2D3B1E]">Truy xuất nguồn gốc nguyên liệu sạch 100%</h3>
+          <div v-else-if="activeTab === 'traceability'" class="space-y-4 text-sm sm:text-base text-[#4E5C3E]">
+            <h3 class="font-heading text-lg font-bold text-[#242424]">Truy xuất nguồn gốc nguyên liệu sạch 100%</h3>
             <p>Toàn bộ nguyên liệu đều được thu hoạch từ các nông trại đạt tiêu chuẩn Organic USDA và GlobalGAP:</p>
-            <div class="space-y-2 text-xs">
+            <div class="space-y-2 text-sm text-[#576449]">
               <p>• <strong>Yến mạch:</strong> Nhập khẩu chính ngạch từ Victoria, Úc.</p>
               <p>• <strong>Hạt điều:</strong> Thu hoạch organic tại thủ phủ điều Bù Đăng, Bình Phước.</p>
               <p>• <strong>Hạt óc chó & Hạnh nhân:</strong> Nhập khẩu từ vùng nông trại California, Mỹ.</p>
@@ -436,65 +452,65 @@ function addComboItem(name: string, price: number, kcal: number, protein: number
             </div>
           </div>
 
-          <div v-else class="space-y-4 text-xs sm:text-sm text-[#4E5C3E]">
-            <h3 class="font-heading text-base font-bold text-[#2D3B1E]">Đánh giá từ khách hàng đã mua (128)</h3>
+          <div v-else class="space-y-4 text-sm sm:text-base text-[#4E5C3E]">
+            <h3 class="font-heading text-lg font-bold text-[#242424]">Đánh giá từ khách hàng đã mua (128)</h3>
             <div class="space-y-3">
-              <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] space-y-2">
+              <div class="p-5 rounded-2xl bg-white border border-[#E3E8DC] space-y-2">
                 <div class="flex items-center justify-between">
-                  <span class="font-bold text-[#2D3B1E]">Trần Tường Vy</span>
+                  <span class="font-bold text-[#242424]">Trần Tường Vy</span>
                   <div class="flex text-[#E8A020]">
-                    <Star v-for="i in 5" :key="i" class="w-3.5 h-3.5 fill-[#E8A020]" />
+                    <Star v-for="i in 5" :key="i" class="w-4 h-4 fill-[#E8A020]" />
                   </div>
                 </div>
-                <p class="text-xs">"Hạt rất giòn và thơm, vị ngọt thanh vừa phải, ăn với sữa chua Hy Lạp buổi sáng cực kỳ tiện lợi và no lâu!"</p>
+                <p class="text-sm text-[#576449]">"Hạt rất giòn và thơm, vị ngọt thanh vừa phải, ăn với sữa chua Hy Lạp buổi sáng cực kỳ tiện lợi và no lâu!"</p>
               </div>
             </div>
           </div>
         </div>
 
         <!-- Cột Phải: Bảng THÔNG TIN DINH DƯỠNG Chuẩn Khoa Học (Figma Style) -->
-        <div class="lg:col-span-5 bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-sm space-y-4">
-          <div class="border-b-4 border-[#2D3B1E] pb-2">
-            <h3 class="font-heading text-lg font-black text-[#2D3B1E] uppercase tracking-wider">
+        <div class="lg:col-span-5 bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-sm space-y-5">
+          <div class="border-b-4 border-[#242424] pb-2.5">
+            <h3 class="font-heading text-xl font-black text-[#242424] uppercase tracking-wider">
               Thông Tin Dinh Dưỡng
             </h3>
-            <p class="text-[11px] text-[#7A866E]">Chuẩn kiểm định Viện Dinh Dưỡng</p>
+            <p class="text-xs text-[#7A866E]">Chuẩn kiểm định Viện Dinh Dưỡng</p>
           </div>
 
-          <div class="flex justify-between text-xs py-1 border-b border-[#ECEFE7]">
-            <span class="font-bold text-[#2D3B1E]">Khẩu phần khuyến nghị (Serving size)</span>
-            <span class="font-bold text-[#2D3B1E]">40g</span>
+          <div class="flex justify-between text-sm py-1 border-b border-[#ECEFE7]">
+            <span class="font-bold text-[#242424]">Khẩu phần khuyến nghị (Serving size)</span>
+            <span class="font-bold text-[#242424]">40g</span>
           </div>
 
-          <div class="flex justify-between text-xs py-1 border-b-4 border-[#2D3B1E]">
+          <div class="flex justify-between text-sm py-1 border-b-4 border-[#242424]">
             <span class="text-[#7A866E]">Khẩu phần mỗi hũ (~500g)</span>
             <span class="text-[#7A866E]">~12.5 lần dùng</span>
           </div>
 
           <!-- Calo lớn -->
-          <div class="flex items-baseline justify-between py-2 border-b-2 border-[#2D3B1E]">
+          <div class="flex items-baseline justify-between py-3 border-b-2 border-[#242424]">
             <div>
-              <span class="text-xs font-bold text-[#2D3B1E] block uppercase">Năng Lượng / Calo</span>
-              <span class="text-[10px] text-[#7A866E]">Mỗi khẩu phần 40g</span>
+              <span class="text-sm font-bold text-[#242424] block uppercase">Năng Lượng / Calo</span>
+              <span class="text-xs text-[#7A866E]">Mỗi khẩu phần 40g</span>
             </div>
-            <span class="font-heading text-3xl font-black text-[#2D3B1E]">152 <span class="text-sm font-normal">kcal</span></span>
+            <span class="font-heading text-4xl font-black text-[#242424]">152 <span class="text-base font-normal">kcal</span></span>
           </div>
 
-          <div class="text-[10px] text-right text-[#7A866E] font-bold">
+          <div class="text-xs text-right text-[#7A866E] font-bold">
             % GIÁ TRỊ HÀNG NGÀY (DV)*
           </div>
 
           <!-- Bảng thông số -->
-          <div class="space-y-1.5 text-xs text-[#2D3B1E]">
+          <div class="space-y-2 text-sm text-[#242424]">
             <div class="flex justify-between py-1 border-b border-[#F0F3EC]">
               <span><strong>Tổng chất béo (Total Fat)</strong> 6g</span>
               <span class="font-bold">8%</span>
             </div>
-            <div class="flex justify-between pl-4 text-[#7A866E] text-[11px]">
+            <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
               <span>Chất béo bão hòa 0.8g</span>
               <span>4%</span>
             </div>
-            <div class="flex justify-between pl-4 text-[#7A866E] text-[11px]">
+            <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
               <span>Chất béo chuyển hóa (Trans fat) 0g</span>
               <span>0%</span>
             </div>
@@ -510,103 +526,103 @@ function addComboItem(name: string, price: number, kcal: number, protein: number
               <span><strong>Tổng Carbohydrate</strong> 18g</span>
               <span class="font-bold">7%</span>
             </div>
-            <div class="flex justify-between pl-4 text-[#7A866E] text-[11px]">
+            <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
               <span>Chất xơ tiêu hóa (Fiber) 3.2g</span>
               <span>11%</span>
             </div>
-            <div class="flex justify-between pl-4 text-[#7A866E] text-[11px]">
+            <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
               <span>Đường tổng (Total Sugars) 1.2g</span>
               <span>-</span>
             </div>
-            <div class="flex justify-between py-1 border-b-2 border-[#2D3B1E]">
+            <div class="flex justify-between py-1 border-b-2 border-[#242424]">
               <span><strong>Chất đạm (Protein)</strong> 5.6g</span>
               <span class="font-bold">11%</span>
             </div>
           </div>
 
           <!-- Micronutrients -->
-          <div class="grid grid-cols-2 gap-2 text-[11px] text-[#7A866E] pt-2">
+          <div class="grid grid-cols-2 gap-2 text-xs text-[#576449] pt-2">
             <div>Vitamin E: <strong>15%</strong></div>
             <div>Sắt (Iron): <strong>8%</strong></div>
             <div>Kẽm (Zinc): <strong>10%</strong></div>
             <div>Magiê (Magnesium): <strong>12%</strong></div>
           </div>
 
-          <p class="text-[9px] text-[#8C9484] pt-2 border-t border-[#ECEFE7] leading-tight">
+          <p class="text-[10px] text-[#8C9484] pt-2 border-t border-[#ECEFE7] leading-relaxed">
             * Phần trăm Giá trị Hàng ngày (% Daily Value - DV) dựa trên chế độ ăn 2.000 calo tiêu chuẩn mỗi ngày của người trưởng thành.
           </p>
         </div>
       </div>
     </div>
 
-    <!-- Section "Thường được mua cùng" (Frequently bought together) -->
+    <!-- Section "Thường được mua cùng" -->
     <div class="pt-10 border-t border-[#E3E8DC]">
       <div class="mb-6 flex items-center justify-between">
         <div>
-          <h3 class="font-heading text-xl font-extrabold text-[#2D3B1E]">Thường được mua cùng</h3>
-          <p class="text-xs text-[#7A866E]">Kết hợp hoàn hảo cho thực đơn dinh dưỡng và bữa ăn lành mạnh</p>
+          <h3 class="font-heading text-2xl font-black text-[#242424]">Thường được mua cùng</h3>
+          <p class="text-sm text-[#7A866E]">Kết hợp hoàn hảo cho thực đơn dinh dưỡng và bữa ăn lành mạnh</p>
         </div>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <!-- Combo 1 -->
-        <div class="p-5 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#4D6A34] transition-all space-y-3">
+        <div class="p-6 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#4D6A34] transition-all space-y-3.5">
           <img
             src="https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=400&q=80"
             alt="Sữa chua Hy Lạp"
-            class="w-full h-40 object-cover rounded-2xl"
+            class="w-full h-44 object-cover rounded-2xl"
           />
           <div>
-            <span class="text-[10px] text-[#7A866E]">Sản phẩm từ sữa lên men</span>
-            <h4 class="font-heading text-sm font-bold text-[#2D3B1E]">Sữa Chua Hy Lạp Nguyên Bản 450g</h4>
-            <span class="text-xs font-bold text-[#4D6A34] block mt-1">82.000đ</span>
+            <span class="text-xs text-[#7A866E]">Sản phẩm từ sữa lên men</span>
+            <h4 class="font-heading text-base font-bold text-[#242424] mt-0.5">Sữa Chua Hy Lạp Nguyên Bản 450g</h4>
+            <span class="text-sm font-bold text-[#4D6A34] block mt-1">82.000đ</span>
           </div>
           <button
             type="button"
             @click="addComboItem('Sữa Chua Hy Lạp Nguyên Bản 450g', 82000, 110, 10)"
-            class="w-full py-2.5 rounded-xl bg-[#FAF9F5] hover:bg-[#EBF1E6] text-[#4D6A34] text-xs font-bold border border-[#CCD7BC] transition-colors"
+            class="w-full py-3 rounded-2xl bg-[#FAF9F5] hover:bg-[#EBF7E5] text-[#4D6A34] text-xs font-bold border border-[#CCD7BC] transition-colors"
           >
             + Thêm vào combo (+82k)
           </button>
         </div>
 
         <!-- Combo 2 -->
-        <div class="p-5 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#4D6A34] transition-all space-y-3">
+        <div class="p-6 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#4D6A34] transition-all space-y-3.5">
           <img
             src="https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?auto=format&fit=crop&w=400&q=80"
             alt="Bơ đậu phộng"
-            class="w-full h-40 object-cover rounded-2xl"
+            class="w-full h-44 object-cover rounded-2xl"
           />
           <div>
-            <span class="text-[10px] text-[#7A866E]">Bơ hạt thuần khiết</span>
-            <h4 class="font-heading text-sm font-bold text-[#2D3B1E]">Bơ Đậu Phộng Mịn Thuần Chay 350g</h4>
-            <span class="text-xs font-bold text-[#4D6A34] block mt-1">90.000đ</span>
+            <span class="text-xs text-[#7A866E]">Bơ hạt thuần khiết</span>
+            <h4 class="font-heading text-base font-bold text-[#242424] mt-0.5">Bơ Đậu Phộng Mịn Thuần Chay 350g</h4>
+            <span class="text-sm font-bold text-[#4D6A34] block mt-1">90.000đ</span>
           </div>
           <button
             type="button"
             @click="addComboItem('Bơ Đậu Phộng Mịn Thuần Chay 350g', 90000, 190, 8)"
-            class="w-full py-2.5 rounded-xl bg-[#FAF9F5] hover:bg-[#EBF1E6] text-[#4D6A34] text-xs font-bold border border-[#CCD7BC] transition-colors"
+            class="w-full py-3 rounded-2xl bg-[#FAF9F5] hover:bg-[#EBF7E5] text-[#4D6A34] text-xs font-bold border border-[#CCD7BC] transition-colors"
           >
             + Thêm vào combo (+90k)
           </button>
         </div>
 
         <!-- Combo 3 -->
-        <div class="p-5 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#4D6A34] transition-all space-y-3">
+        <div class="p-6 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#4D6A34] transition-all space-y-3.5">
           <img
             src="https://images.unsplash.com/photo-1622484216858-a5b4819779df?auto=format&fit=crop&w=400&q=80"
             alt="NutriBar"
-            class="w-full h-40 object-cover rounded-2xl"
+            class="w-full h-44 object-cover rounded-2xl"
           />
           <div>
-            <span class="text-[10px] text-[#7A866E]">Thanh năng lượng sạch</span>
-            <h4 class="font-heading text-sm font-bold text-[#2D3B1E]">NutriBar Hạt & Socola Đen 60g</h4>
-            <span class="text-xs font-bold text-[#4D6A34] block mt-1">45.000đ</span>
+            <span class="text-xs text-[#7A866E]">Thanh năng lượng sạch</span>
+            <h4 class="font-heading text-base font-bold text-[#242424] mt-0.5">NutriBar Hạt & Socola Đen 60g</h4>
+            <span class="text-sm font-bold text-[#4D6A34] block mt-1">45.000đ</span>
           </div>
           <button
             type="button"
             @click="addComboItem('NutriBar Hạt & Socola Đen 60g', 45000, 210, 20)"
-            class="w-full py-2.5 rounded-xl bg-[#FAF9F5] hover:bg-[#EBF1E6] text-[#4D6A34] text-xs font-bold border border-[#CCD7BC] transition-colors"
+            class="w-full py-3 rounded-2xl bg-[#FAF9F5] hover:bg-[#EBF7E5] text-[#4D6A34] text-xs font-bold border border-[#CCD7BC] transition-colors"
           >
             + Thêm vào combo (+45k)
           </button>

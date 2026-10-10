@@ -14,8 +14,8 @@ import {
   ArrowRight,
   Gift,
   Bot,
-  Camera,
-  CheckCircle2,
+  Scan,
+  RefreshCw,
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -28,6 +28,7 @@ const phone = ref('');
 const password = ref('');
 const confirmPassword = ref('');
 const showPassword = ref(false);
+const showConfirmPassword = ref(false);
 const isAgreed = ref(true);
 
 function handleRegister() {
@@ -77,211 +78,257 @@ function handleRegister() {
 </script>
 
 <template>
-  <div class="min-h-[85vh] grid grid-cols-1 lg:grid-cols-12 rounded-4xl overflow-hidden bg-white border border-[#E3E8DC] shadow-xl my-6">
-    <!-- Cột Trái: Quyền lợi Thành viên Mới (Figma 16) -->
-    <div class="lg:col-span-5 bg-[#FAF9F5] p-8 sm:p-12 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-[#ECEFE7] space-y-6">
+  <div class="min-h-screen w-full flex flex-col lg:flex-row bg-white">
+    <!-- CỘT TRÁI: ĐẶC QUYỀN THÀNH VIÊN MỚI (NỀN KEM #F7F3E8 - FIGMA 16) -->
+    <div class="w-full lg:w-[480px] xl:w-[540px] bg-[#F7F3E8] p-8 sm:p-12 lg:p-14 flex flex-col justify-between shrink-0 space-y-8 border-r border-[#E8ECE2]">
       <div class="space-y-6">
-        <RouterLink to="/" class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-[#4D6A34] text-white flex items-center justify-center">
-            <Leaf class="w-5 h-5 text-[#EBF1E6]" />
+        <!-- Logo NutriMate -->
+        <RouterLink to="/" class="flex items-center gap-3.5 group">
+          <div class="w-11 h-11 rounded-2xl bg-[#6B7A3A] flex items-center justify-center text-white shadow-2xs group-hover:scale-105 transition-transform">
+            <Leaf class="w-6 h-6 text-[#EBF7E5]" />
           </div>
-          <span class="font-heading text-2xl font-black text-[#2D3B1E]">NutriMate</span>
+          <span class="font-heading text-2xl font-black tracking-tight text-[#242424]">NutriMate</span>
         </RouterLink>
 
-        <div class="space-y-2">
-          <span class="px-2.5 py-1 rounded-full bg-[#EBF1E6] text-[10px] font-bold text-[#4D6A34]">
+        <div class="space-y-2.5">
+          <span class="inline-block px-3 py-1 rounded-full bg-[#EBF7E5] text-xs font-bold text-[#536124] border border-[#CCD7BC]">
             ★ Đặc quyền thành viên mới
           </span>
-          <h2 class="font-heading text-xl sm:text-2xl font-black text-[#2D3B1E] leading-snug">
+          <h2 class="font-heading text-2xl sm:text-3xl font-black text-[#242424] leading-snug">
             Bắt đầu hành trình sống khỏe cùng NutriMate
           </h2>
-          <p class="text-xs text-[#576449] leading-relaxed">
+          <p class="text-xs sm:text-sm text-[#576449] leading-relaxed">
             Hệ thống dinh dưỡng cá nhân hóa tiên phong tại Việt Nam, kết nối bữa ăn lành mạnh và trí tuệ nhân tạo.
           </p>
         </div>
 
-        <!-- Thẻ Calo mục tiêu -->
-        <div class="p-4 rounded-3xl bg-white border border-[#CCD7BC] shadow-xs flex items-center justify-between">
-          <div>
-            <span class="text-[10px] text-[#7A866E] uppercase font-bold block">Calo mục tiêu hôm nay</span>
-            <span class="font-heading text-lg font-black text-[#2D3B1E]">1,650 kcal <span class="text-xs font-normal">/ ngày</span></span>
+        <!-- Thẻ ảnh món ăn & Calo mục tiêu hôm nay (Figma 16) -->
+        <div class="rounded-3xl overflow-hidden border border-[#CCD7BC] bg-white shadow-xs">
+          <div class="relative">
+            <img
+              src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=700&q=80"
+              alt="Healthy Meal NutriMate"
+              class="w-full h-52 object-cover"
+            />
+            <!-- Box nổi Calo mục tiêu bên dưới ảnh -->
+            <div class="absolute bottom-3 left-3 right-3 bg-white/95 backdrop-blur-md p-3.5 rounded-2xl border border-[#CCD7BC] shadow-xs flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 rounded-full bg-[#EBF7E5] text-[#536124] flex items-center justify-center shrink-0">
+                  <RefreshCw class="w-3.5 h-3.5 stroke-[2.5]" />
+                </div>
+                <div>
+                  <span class="text-[10px] text-[#7A866E] uppercase font-bold block leading-none">Calo mục tiêu hôm nay</span>
+                  <span class="font-heading text-sm font-black text-[#242424] block mt-0.5">1,650 kcal <span class="text-[10px] font-normal text-[#7A866E]">/ ngày</span></span>
+                </div>
+              </div>
+              <span class="px-2.5 py-1 rounded-full bg-[#EBF7E5] text-[10px] font-bold text-[#536124]">
+                ● Chuẩn BMI 21.4
+              </span>
+            </div>
           </div>
-          <span class="px-2.5 py-1 rounded-full bg-[#EBF1E6] text-xs font-bold text-[#4D6A34]">
-            ● Chuẩn BMI 21.4
-          </span>
         </div>
 
-        <!-- 3 Thẻ quyền lợi thành viên -->
-        <div class="space-y-3">
-          <div class="p-3.5 rounded-2xl bg-white border border-[#E3E8DC] flex items-start gap-3">
-            <div class="w-8 h-8 rounded-xl bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center shrink-0 mt-0.5">
-              <Gift class="w-4 h-4" />
+        <!-- 3 Thẻ quyền lợi thành viên (Figma 16) -->
+        <div class="space-y-3 pt-1">
+          <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex items-start gap-3.5 shadow-2xs">
+            <div class="w-9 h-9 rounded-xl bg-[#EBF7E5] text-[#536124] flex items-center justify-center shrink-0 mt-0.5">
+              <Gift class="w-4.5 h-4.5" />
             </div>
             <div>
-              <h4 class="font-bold text-xs text-[#2D3B1E]">Tặng ngay 50 NutriPoints & Voucher 15%</h4>
-              <p class="text-[11px] text-[#7A866E] mt-0.5 leading-snug">
-                Áp dụng trực tiếp cho đơn hàng thực phẩm sạch hữu cơ đầu tiên.
+              <h4 class="font-bold text-xs sm:text-sm text-[#242424]">Tặng ngay 50 NutriPoints & Voucher 15%</h4>
+              <p class="text-xs text-[#7A866E] mt-0.5 leading-relaxed">
+                Áp dụng trực tiếp cho đơn hàng thực phẩm sạch, nông sản canh tác chuẩn hữu cơ đầu tiên.
               </p>
             </div>
           </div>
 
-          <div class="p-3.5 rounded-2xl bg-white border border-[#E3E8DC] flex items-start gap-3">
-            <div class="w-8 h-8 rounded-xl bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center shrink-0 mt-0.5">
-              <Bot class="w-4 h-4" />
+          <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex items-start gap-3.5 shadow-2xs">
+            <div class="w-9 h-9 rounded-xl bg-[#EBF7E5] text-[#536124] flex items-center justify-center shrink-0 mt-0.5">
+              <Bot class="w-4.5 h-4.5" />
             </div>
             <div>
-              <h4 class="font-bold text-xs text-[#2D3B1E]">NutriBot AI xây dựng thực đơn cá nhân</h4>
-              <p class="text-[11px] text-[#7A866E] mt-0.5 leading-snug">
-                Đồng bộ tỷ lệ macro (Đạm, Carb, Chất béo) dựa theo cân nặng và vận động.
+              <h4 class="font-bold text-xs sm:text-sm text-[#242424]">NutriBot AI xây dựng thực đơn cá nhân</h4>
+              <p class="text-xs text-[#7A866E] mt-0.5 leading-relaxed">
+                Đồng bộ tỷ lệ macro (Đạm, Carb, Chất béo) dựa theo cân nặng, chiều cao và lối sống vận động.
               </p>
             </div>
           </div>
 
-          <div class="p-3.5 rounded-2xl bg-white border border-[#E3E8DC] flex items-start gap-3">
-            <div class="w-8 h-8 rounded-xl bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center shrink-0 mt-0.5">
-              <Camera class="w-4 h-4" />
+          <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex items-start gap-3.5 shadow-2xs">
+            <div class="w-9 h-9 rounded-xl bg-[#EBF7E5] text-[#536124] flex items-center justify-center shrink-0 mt-0.5">
+              <Scan class="w-4.5 h-4.5" />
             </div>
             <div>
-              <h4 class="font-bold text-xs text-[#2D3B1E]">Nhật ký Calo & Quét nhãn Nutrition miễn phí</h4>
-              <p class="text-[11px] text-[#7A866E] mt-0.5 leading-snug">
-                Quét mã vạch kiểm tra thành phần thực phẩm và phụ gia trọn đời.
+              <h4 class="font-bold text-xs sm:text-sm text-[#242424]">Nhật ký Calo & Quét nhãn Nutrition miễn phí</h4>
+              <p class="text-xs text-[#7A866E] mt-0.5 leading-relaxed">
+                Quét mã vạch kiểm tra thành phần thực phẩm và phụ gia có hại trọn đời không giới hạn.
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="pt-4 border-t border-[#ECEFE7] text-xs text-[#576449]">
-        Hơn <strong>15.000+</strong> người Việt đã tối ưu hóa bữa ăn mỗi ngày cùng NutriMate.
+      <!-- Avatar Stacks chân cột trái (Figma 16) -->
+      <div class="flex items-center gap-3 pt-5 border-t border-[#DEE5D4]">
+        <div class="flex -space-x-2">
+          <div class="w-8 h-8 rounded-full bg-[#CCD7BC] text-[#242424] font-bold text-[10px] flex items-center justify-center border-2 border-white">
+            MA
+          </div>
+          <div class="w-8 h-8 rounded-full bg-[#EBF7E5] text-[#536124] font-bold text-[10px] flex items-center justify-center border-2 border-white">
+            TN
+          </div>
+          <div class="w-8 h-8 rounded-full bg-[#A3B88C] text-white font-bold text-[10px] flex items-center justify-center border-2 border-white">
+            QD
+          </div>
+        </div>
+        <p class="text-xs text-[#576449]">
+          Hơn <strong class="text-[#242424]">15.000+</strong> người Việt đã tối ưu hóa bữa ăn mỗi ngày.
+        </p>
       </div>
     </div>
 
-    <!-- Cột Phải: Form Đăng Ký (Figma 16) -->
-    <div class="lg:col-span-7 p-8 sm:p-14 flex flex-col justify-center max-w-lg mx-auto w-full space-y-6">
-      <div class="space-y-2">
-        <h2 class="font-heading text-2xl sm:text-3xl font-black text-[#2D3B1E]">
-          Đăng ký tài khoản NutriMate 🌱
-        </h2>
-        <p class="text-xs text-[#7A866E]">
-          Khởi tạo tài khoản chỉ trong 30 giây để nhận lộ trình dinh dưỡng của bạn.
-        </p>
-      </div>
-
-      <form @submit.prevent="handleRegister" class="space-y-4">
-        <!-- Họ và tên -->
-        <div class="space-y-1">
-          <label class="text-xs font-bold text-[#2D3B1E] block">Họ và tên *</label>
-          <div class="relative">
-            <User class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A866E]" />
-            <input
-              type="text"
-              v-model="fullName"
-              required
-              placeholder="Ví dụ: Nguyễn Minh Anh"
-              class="w-full pl-11 pr-4 py-3 rounded-2xl bg-white border border-[#CCD7BC] text-xs font-semibold text-[#2D3B1E] placeholder-[#8C9882] focus:border-[#4D6A34] focus:ring-2 focus:ring-[#4D6A34]/20 outline-none shadow-2xs"
-            />
-          </div>
+    <!-- CỘT PHẢI: FORM ĐĂNG KÝ (NỀN TRẮNG TINH KHIẾT - FIGMA 16) -->
+    <div class="flex-1 bg-white p-8 sm:p-14 lg:p-20 flex flex-col justify-between min-h-screen">
+      <!-- Canh giữa form -->
+      <div class="max-w-[480px] w-full mx-auto my-auto space-y-6">
+        <div class="space-y-2">
+          <h2 class="font-heading text-3xl sm:text-4xl font-black text-[#242424]">
+            Đăng ký tài khoản NutriMate 🌱
+          </h2>
         </div>
 
-        <!-- 2 Cột: Email & SĐT -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div class="space-y-1">
-            <label class="text-xs font-bold text-[#2D3B1E] block">Email *</label>
-            <div class="relative">
-              <Mail class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A866E]" />
+        <form @submit.prevent="handleRegister" class="space-y-4.5">
+          <!-- Họ và tên * -->
+          <div class="space-y-1.5">
+            <label class="text-xs sm:text-sm font-bold text-[#242424] block">Họ và tên *</label>
+            <div class="flex items-center px-4 py-3.5 rounded-2xl border border-[#CCD7BC] bg-white focus-within:border-[#536124] focus-within:ring-2 focus-within:ring-[#536124]/20 transition-all shadow-2xs">
+              <User class="w-4.5 h-4.5 text-[#7A866E] mr-3 shrink-0" />
               <input
-                type="email"
-                v-model="email"
+                type="text"
+                v-model="fullName"
                 required
-                placeholder="minhanh.fit@gmail.com"
-                class="w-full pl-10 pr-3 py-3 rounded-2xl bg-white border border-[#CCD7BC] text-xs font-semibold text-[#2D3B1E] placeholder-[#8C9882] focus:border-[#4D6A34] outline-none shadow-2xs"
+                placeholder="Ví dụ: Nguyễn Minh Anh"
+                class="w-full bg-transparent text-sm text-[#242424] placeholder-[#8C9882] outline-none"
               />
             </div>
           </div>
 
-          <div class="space-y-1">
-            <label class="text-xs font-bold text-[#2D3B1E] block">Số điện thoại *</label>
-            <div class="relative">
-              <Phone class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A866E]" />
-              <input
-                type="tel"
-                v-model="phone"
-                required
-                placeholder="0912 345 678 (Giao 2H)"
-                class="w-full pl-10 pr-3 py-3 rounded-2xl bg-white border border-[#CCD7BC] text-xs font-semibold text-[#2D3B1E] placeholder-[#8C9882] focus:border-[#4D6A34] outline-none shadow-2xs"
-              />
+          <!-- 2 Cột: Email & SĐT (Cùng dòng Figma 16) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div class="space-y-1.5">
+              <label class="text-xs sm:text-sm font-bold text-[#242424] block">Email *</label>
+              <div class="flex items-center px-4 py-3.5 rounded-2xl border border-[#CCD7BC] bg-white focus-within:border-[#536124] focus-within:ring-2 focus-within:ring-[#536124]/20 transition-all shadow-2xs">
+                <Mail class="w-4.5 h-4.5 text-[#7A866E] mr-2.5 shrink-0" />
+                <input
+                  type="email"
+                  v-model="email"
+                  required
+                  placeholder="minhanh.fit@gmail.com"
+                  class="w-full bg-transparent text-sm text-[#242424] placeholder-[#8C9882] outline-none"
+                />
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="text-xs sm:text-sm font-bold text-[#242424] block">Số điện thoại *</label>
+              <div class="flex items-center px-4 py-3.5 rounded-2xl border border-[#CCD7BC] bg-white focus-within:border-[#536124] focus-within:ring-2 focus-within:ring-[#536124]/20 transition-all shadow-2xs">
+                <Phone class="w-4.5 h-4.5 text-[#7A866E] mr-2.5 shrink-0" />
+                <input
+                  type="tel"
+                  v-model="phone"
+                  required
+                  placeholder="0912 345 678 (Giao 2H)"
+                  class="w-full bg-transparent text-sm text-[#242424] placeholder-[#8C9882] outline-none"
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Mật khẩu -->
-        <div class="space-y-1">
-          <div class="flex justify-between text-xs">
-            <label class="font-bold text-[#2D3B1E]">Mật khẩu *</label>
-            <span class="text-[#7A866E] text-[10px]">Tối thiểu 8 ký tự & số</span>
+          <!-- Mật khẩu * -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between items-center text-xs">
+              <label class="font-bold text-[#242424]">Mật khẩu *</label>
+              <span class="text-[#7A866E] font-medium">Tối thiểu 8 ký tự</span>
+            </div>
+            <div class="flex items-center px-4 py-3.5 rounded-2xl border border-[#CCD7BC] bg-white focus-within:border-[#536124] focus-within:ring-2 focus-within:ring-[#536124]/20 transition-all shadow-2xs">
+              <Lock class="w-4.5 h-4.5 text-[#7A866E] mr-3 shrink-0" />
+              <input
+                :type="showPassword ? 'text' : 'password'"
+                v-model="password"
+                required
+                minlength="8"
+                placeholder="Nhập ít nhất 8 ký tự & số"
+                class="w-full bg-transparent text-sm text-[#242424] placeholder-[#8C9882] outline-none"
+              />
+              <button
+                type="button"
+                @click="showPassword = !showPassword"
+                class="text-[#7A866E] hover:text-[#242424] ml-2 cursor-pointer"
+              >
+                <EyeOff v-if="showPassword" class="w-4.5 h-4.5" />
+                <Eye v-else class="w-4.5 h-4.5" />
+              </button>
+            </div>
           </div>
-          <div class="relative">
-            <Lock class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A866E]" />
-            <input
-              :type="showPassword ? 'text' : 'password'"
-              v-model="password"
-              required
-              minlength="8"
-              placeholder="Nhập ít nhất 8 ký tự & số"
-              class="w-full pl-11 pr-11 py-3 rounded-2xl bg-white border border-[#CCD7BC] text-xs font-semibold text-[#2D3B1E] placeholder-[#8C9882] focus:border-[#4D6A34] outline-none shadow-2xs"
-            />
-            <button
-              type="button"
-              @click="showPassword = !showPassword"
-              class="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#7A866E]"
-            >
-              <EyeOff v-if="showPassword" class="w-4 h-4" />
-              <Eye v-else class="w-4 h-4" />
-            </button>
+
+          <!-- Xác nhận mật khẩu * -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between items-center text-xs">
+              <label class="font-bold text-[#242424]">Xác nhận mật khẩu *</label>
+              <span class="text-[#7A866E] font-medium">Tối thiểu 8 ký tự</span>
+            </div>
+            <div class="flex items-center px-4 py-3.5 rounded-2xl border border-[#CCD7BC] bg-white focus-within:border-[#536124] focus-within:ring-2 focus-within:ring-[#536124]/20 transition-all shadow-2xs">
+              <Lock class="w-4.5 h-4.5 text-[#7A866E] mr-3 shrink-0" />
+              <input
+                :type="showConfirmPassword ? 'text' : 'password'"
+                v-model="confirmPassword"
+                required
+                placeholder="Nhập ít nhất 8 ký tự & số"
+                class="w-full bg-transparent text-sm text-[#242424] placeholder-[#8C9882] outline-none"
+              />
+              <button
+                type="button"
+                @click="showConfirmPassword = !showConfirmPassword"
+                class="text-[#7A866E] hover:text-[#242424] ml-2 cursor-pointer"
+              >
+                <EyeOff v-if="showConfirmPassword" class="w-4.5 h-4.5" />
+                <Eye v-else class="w-4.5 h-4.5" />
+              </button>
+            </div>
           </div>
+
+          <!-- Checkbox Điều Khoản -->
+          <label class="flex items-start gap-3 pt-1 text-xs text-[#576449] cursor-pointer">
+            <input type="checkbox" v-model="isAgreed" class="accent-[#536124] w-4.5 h-4.5 rounded mt-0.5" />
+            <span>Tôi đồng ý với <a href="#" class="underline font-bold text-[#242424]">Điều khoản dịch vụ</a> và <a href="#" class="underline font-bold text-[#242424]">Chính sách bảo vệ dữ liệu sức khỏe</a> của NutriMate.</span>
+          </label>
+
+          <!-- Nút Submit (Xanh rêu đậm Figma 16) -->
+          <button
+            type="submit"
+            class="w-full py-4 rounded-2xl bg-[#6B7A3A] hover:bg-[#536124] active:bg-[#434F1D] text-white font-bold text-base shadow-md flex items-center justify-center gap-2 transition-all min-h-[48px] cursor-pointer"
+          >
+            <span>Đăng Ký Tài Khoản Ngay</span>
+            <ArrowRight class="w-4.5 h-4.5" />
+          </button>
+        </form>
+
+        <!-- Chuyển sang Đăng nhập -->
+        <div class="text-center text-sm text-[#576449]">
+          Bạn đã có tài khoản NutriMate?
+          <RouterLink to="/login" class="font-bold text-[#242424] hover:underline ml-1">
+            Đăng nhập tại đây
+          </RouterLink>
         </div>
-
-        <!-- Xác nhận Mật khẩu -->
-        <div class="space-y-1">
-          <label class="text-xs font-bold text-[#2D3B1E] block">Xác nhận mật khẩu *</label>
-          <div class="relative">
-            <Lock class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A866E]" />
-            <input
-              :type="showPassword ? 'text' : 'password'"
-              v-model="confirmPassword"
-              required
-              placeholder="Nhập lại mật khẩu"
-              class="w-full pl-11 pr-4 py-3 rounded-2xl bg-white border border-[#CCD7BC] text-xs font-semibold text-[#2D3B1E] placeholder-[#8C9882] focus:border-[#4D6A34] outline-none shadow-2xs"
-            />
-          </div>
-        </div>
-
-        <!-- Checkbox Điều Khoản -->
-        <label class="flex items-start gap-2.5 pt-1 text-xs text-[#576449] cursor-pointer">
-          <input type="checkbox" v-model="isAgreed" class="accent-[#4D6A34] w-4 h-4 rounded mt-0.5" />
-          <span>Tôi đồng ý với Điều khoản dịch vụ và Chính sách bảo vệ dữ liệu sức khỏe của NutriMate.</span>
-        </label>
-
-        <!-- Submit Button -->
-        <button
-          type="submit"
-          class="w-full py-3.5 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] active:bg-[#2D3B1E] text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all min-h-[44px]"
-        >
-          <span>Đăng Ký Tài Khoản Ngay</span>
-          <ArrowRight class="w-4 h-4" />
-        </button>
-      </form>
-
-      <!-- Switch to Login -->
-      <div class="text-center text-xs text-[#576449]">
-        Bạn đã có tài khoản NutriMate?
-        <RouterLink to="/login" class="font-bold text-[#4D6A34] hover:underline ml-1">
-          Đăng nhập tại đây
-        </RouterLink>
       </div>
 
-      <div class="text-[10px] text-center text-[#8C9484] pt-4 border-t border-[#F0F3EC]">
-        © 2026 NutriMate Vietnam. Nền tảng thực phẩm sạch và dinh dưỡng AI.
+      <!-- Footer chân trang cột phải (Figma 16) -->
+      <div class="w-full max-w-[480px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#7A866E] pt-8 border-t border-[#F0F3EC]">
+        <span>© 2026 NutriMate Vietnam. Nền tảng thực phẩm sạch và dinh dưỡng AI.</span>
+        <div class="flex items-center gap-4 font-semibold text-[#242424]">
+          <a href="#" class="hover:underline">Trợ giúp</a>
+          <a href="#" class="hover:underline">Chính sách bảo mật</a>
+        </div>
       </div>
     </div>
   </div>

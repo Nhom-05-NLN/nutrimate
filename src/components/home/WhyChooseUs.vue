@@ -31,37 +31,39 @@ const reasons = [
 </script>
 
 <template>
-  <section class="py-14 text-center">
-    <div class="max-w-2xl mx-auto mb-10 space-y-2">
-      <span class="text-xs font-bold text-[#647C47] uppercase tracking-wider block">
-        TIÊU CHUẨN NUTRIMATE
-      </span>
-      <h2 class="font-heading text-2xl sm:text-3xl font-extrabold text-[#2D3B1E]">
-        Tại sao hàng ngàn người chọn NutriMate?
-      </h2>
-      <p class="text-xs sm:text-sm text-[#68725F]">
-        Chúng tôi kết hợp nguồn nông sản sạch kiểm định chặt chẽ cùng thuật toán AI cá nhân hóa giúp bạn ăn ngon mà không lo lệch chuẩn dinh dưỡng.
-      </p>
-    </div>
+  <section class="w-full bg-[#F7F3E8] py-16 text-center">
+    <div class="max-w-[1316px] mx-auto px-4 sm:px-8">
+      <div class="max-w-2xl mx-auto mb-12 space-y-2">
+        <span class="text-xs font-bold text-[#6B7A3A] uppercase tracking-wider block">
+          TIÊU CHUẨN NUTRIMATE
+        </span>
+        <h2 class="font-heading text-2xl sm:text-3xl font-black text-[#242424]">
+          Tại sao hàng ngàn người chọn NutriMate?
+        </h2>
+        <p class="text-xs sm:text-sm text-[#7A866E] leading-relaxed">
+          Chúng tôi kết hợp nguồn nông sản sạch kiểm định chặt chẽ cùng thuật toán AI cá nhân hóa giúp bạn ăn ngon mà không lo lệch chuẩn dinh dưỡng.
+        </p>
+      </div>
 
-    <!-- 4 Cards Grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
-      <div
-        v-for="item in reasons"
-        :key="item.title"
-        class="p-6 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#4D6A34] hover:shadow-md transition-all space-y-4"
-      >
-        <div class="w-12 h-12 rounded-2xl bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center">
-          <component :is="item.icon" class="w-6 h-6 stroke-[1.8]" />
-        </div>
+      <!-- 4 Cards Grid (Figma 01) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
+        <div
+          v-for="item in reasons"
+          :key="item.title"
+          class="p-7 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#6B7A3A] hover:shadow-xl transition-all space-y-4 flex flex-col justify-between"
+        >
+          <div class="w-12 h-12 rounded-2xl bg-[#EBF7E5] text-[#6B7A3A] flex items-center justify-center">
+            <component :is="item.icon" class="w-6 h-6 stroke-[1.8]" />
+          </div>
 
-        <div>
-          <h3 class="font-heading text-sm font-bold text-[#2D3B1E]">
-            {{ item.title }}
-          </h3>
-          <p class="text-xs text-[#6B7562] mt-2 leading-relaxed">
-            {{ item.desc }}
-          </p>
+          <div>
+            <h3 class="font-heading text-sm font-bold text-[#242424]">
+              {{ item.title }}
+            </h3>
+            <p class="text-xs text-[#7A866E] mt-2 leading-relaxed">
+              {{ item.desc }}
+            </p>
+          </div>
         </div>
       </div>
     </div>

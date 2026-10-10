@@ -66,246 +66,250 @@ function handleFinishOrder() {
 </script>
 
 <template>
-  <div class="py-6 space-y-8 max-w-7xl mx-auto">
+  <div class="max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-10">
     <!-- Breadcrumb -->
-    <nav class="flex items-center gap-2 text-xs font-medium text-[#7E8B73]">
-      <RouterLink to="/" class="hover:text-[#2D3B1E]">Trang chủ</RouterLink>
-      <ChevronRight class="w-3.5 h-3.5" />
-      <RouterLink to="/cart" class="hover:text-[#2D3B1E]">Giỏ hàng</RouterLink>
-      <ChevronRight class="w-3.5 h-3.5" />
-      <span class="text-[#2D3B1E] font-bold">Thanh toán</span>
+    <nav class="flex items-center gap-2 text-sm font-medium text-[#7E8B73]">
+      <RouterLink to="/" class="hover:text-[#242424]">Trang chủ</RouterLink>
+      <ChevronRight class="w-4 h-4" />
+      <RouterLink to="/cart" class="hover:text-[#242424]">Giỏ hàng</RouterLink>
+      <ChevronRight class="w-4 h-4" />
+      <span class="text-[#242424] font-bold">Thanh toán</span>
     </nav>
 
     <!-- 3-Step Stepper Header (Figma 05) -->
-    <div class="bg-white p-4 sm:p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs">
+    <div class="bg-white p-5 sm:p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs">
       <div class="flex items-center justify-between max-w-3xl mx-auto">
         <!-- Bước 1 -->
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-full bg-[#4D6A34] text-white flex items-center justify-center font-bold text-xs">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-[#4D6A34] text-white flex items-center justify-center font-bold text-sm shadow-xs">
             ✓
           </div>
           <div class="hidden sm:block text-left">
-            <span class="text-[10px] text-[#7A866E] uppercase font-bold block">Bước 1</span>
-            <span class="text-xs font-bold text-[#2D3B1E]">Thông tin giao hàng</span>
+            <span class="text-xs text-[#7A866E] uppercase font-bold block">Bước 1</span>
+            <span class="text-sm font-bold text-[#242424]">Thông tin giao hàng</span>
           </div>
         </div>
 
-        <div class="flex-1 h-0.5 bg-[#4D6A34] mx-4"></div>
+        <div class="flex-1 h-0.5 bg-[#4D6A34] mx-4 sm:mx-6"></div>
 
         <!-- Bước 2 (Hiện tại) -->
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-full bg-[#4D6A34] text-white flex items-center justify-center font-bold text-xs shadow-sm">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-[#4D6A34] text-white flex items-center justify-center font-bold text-sm shadow-md ring-4 ring-[#EBF7E5]">
             2
           </div>
           <div class="hidden sm:block text-left">
-            <span class="text-[10px] text-[#4D6A34] uppercase font-bold block">Bước 2 (Hiện tại)</span>
-            <span class="text-xs font-bold text-[#2D3B1E]">Vận chuyển & Dinh dưỡng</span>
+            <span class="text-xs text-[#4D6A34] uppercase font-bold block">Bước 2 (Hiện tại)</span>
+            <span class="text-sm font-bold text-[#242424]">Vận chuyển & Dinh dưỡng</span>
           </div>
         </div>
 
-        <div class="flex-1 h-0.5 bg-[#DCE4D2] mx-4"></div>
+        <div class="flex-1 h-0.5 bg-[#DCE4D2] mx-4 sm:mx-6"></div>
 
         <!-- Bước 3 -->
-        <div class="flex items-center gap-2.5 opacity-60">
-          <div class="w-8 h-8 rounded-full bg-[#EBF1E6] text-[#6B7562] flex items-center justify-center font-bold text-xs">
+        <div class="flex items-center gap-3 opacity-60">
+          <div class="w-9 h-9 rounded-full bg-[#EBF1E6] text-[#6B7562] flex items-center justify-center font-bold text-sm">
             3
           </div>
           <div class="hidden sm:block text-left">
-            <span class="text-[10px] text-[#7A866E] uppercase font-bold block">Bước 3</span>
-            <span class="text-xs font-bold text-[#6B7562]">Thanh toán & Xác nhận</span>
+            <span class="text-xs text-[#7A866E] uppercase font-bold block">Bước 3</span>
+            <span class="text-sm font-bold text-[#6B7562]">Thanh toán & Xác nhận</span>
           </div>
         </div>
       </div>
     </div>
 
     <!-- 2 Columns Grid: Form Checkout + Summary -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
       <!-- Cột Trái: Form 3 phần (Thông tin, Vận chuyển, Thanh toán) -->
-      <div class="lg:col-span-7 space-y-6">
+      <div class="lg:col-span-7 space-y-7">
         <!-- 1. Thông tin người nhận & Địa chỉ -->
-        <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-4">
-          <div class="flex items-center justify-between border-b border-[#F0F3EC] pb-3">
-            <div class="flex items-center gap-2 font-heading text-sm font-bold text-[#2D3B1E]">
-              <span class="w-6 h-6 rounded-full bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center text-xs">1</span>
+        <div class="bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-5">
+          <div class="flex items-center justify-between border-b border-[#F0F3EC] pb-4">
+            <div class="flex items-center gap-2.5 font-heading text-base font-bold text-[#242424]">
+              <span class="w-7 h-7 rounded-full bg-[#EBF7E5] text-[#4D6A34] flex items-center justify-center text-xs font-black">1</span>
               <span>Thông tin người nhận & Địa chỉ</span>
             </div>
-            <button type="button" class="text-xs font-bold text-[#4D6A34] hover:underline">
+            <button type="button" class="text-xs font-bold text-[#4D6A34] hover:underline cursor-pointer">
               ✎ Thay đổi
             </button>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="text-[11px] font-bold text-[#7A866E] block mb-1">Họ và tên</label>
+              <label class="text-xs font-bold text-[#576449] block mb-1.5">Họ và tên</label>
               <input
                 type="text"
                 v-model="customer.name"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-xs font-semibold text-[#2D3B1E] focus:bg-white focus:border-[#4D6A34] outline-none"
+                class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm font-bold text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
               />
             </div>
             <div>
-              <label class="text-[11px] font-bold text-[#7A866E] block mb-1">Số điện thoại</label>
+              <label class="text-xs font-bold text-[#576449] block mb-1.5">Số điện thoại</label>
               <input
                 type="text"
                 v-model="customer.phone"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-xs font-semibold text-[#2D3B1E] focus:bg-white focus:border-[#4D6A34] outline-none"
+                class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm font-bold text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label class="text-[11px] font-bold text-[#7A866E] block mb-1">Email nhận báo cáo dinh dưỡng & Hóa đơn</label>
+            <label class="text-xs font-bold text-[#576449] block mb-1.5">Email nhận báo cáo dinh dưỡng & Hóa đơn</label>
             <input
               type="email"
               v-model="customer.email"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-xs font-semibold text-[#2D3B1E] focus:bg-white focus:border-[#4D6A34] outline-none"
+              class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm font-bold text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
             />
           </div>
 
           <div>
-            <label class="text-[11px] font-bold text-[#7A866E] block mb-1">Địa chỉ giao hàng thực tế</label>
+            <label class="text-xs font-bold text-[#576449] block mb-1.5">Địa chỉ giao hàng thực tế</label>
             <input
               type="text"
               v-model="customer.address"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-xs font-semibold text-[#2D3B1E] focus:bg-white focus:border-[#4D6A34] outline-none"
+              class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm font-bold text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
             />
           </div>
 
           <div>
-            <label class="text-[11px] font-bold text-[#7A866E] block mb-1">Ghi chú giao hàng</label>
+            <label class="text-xs font-bold text-[#576449] block mb-1.5">Ghi chú giao hàng</label>
             <input
               type="text"
               v-model="customer.note"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-xs text-[#2D3B1E] focus:bg-white focus:border-[#4D6A34] outline-none"
+              class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
             />
           </div>
         </div>
 
         <!-- 2. Phương thức vận chuyển thực phẩm sạch -->
-        <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-4">
-          <div class="flex items-center gap-2 font-heading text-sm font-bold text-[#2D3B1E] border-b border-[#F0F3EC] pb-3">
-            <span class="w-6 h-6 rounded-full bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center text-xs">2</span>
+        <div class="bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-5">
+          <div class="flex items-center gap-2.5 font-heading text-base font-bold text-[#242424] border-b border-[#F0F3EC] pb-4">
+            <span class="w-7 h-7 rounded-full bg-[#EBF7E5] text-[#4D6A34] flex items-center justify-center text-xs font-black">2</span>
             <span>Phương thức vận chuyển thực phẩm sạch</span>
           </div>
 
           <!-- Radio 1: Giao tiêu chuẩn -->
           <label
-            class="flex items-start justify-between p-4 rounded-2xl border cursor-pointer transition-all"
-            :class="shippingMethod === 'standard' ? 'border-[#4D6A34] bg-[#F6F8F3]' : 'border-[#E3E8DC] bg-white'"
+            class="flex items-start justify-between p-5 rounded-2xl border cursor-pointer transition-all"
+            :class="shippingMethod === 'standard' ? 'border-2 border-[#4D6A34] bg-[#F6F8F3]' : 'border border-[#E3E8DC] bg-white'"
           >
-            <div class="flex items-start gap-3">
-              <input type="radio" value="standard" v-model="shippingMethod" class="accent-[#4D6A34] mt-1" />
+            <div class="flex items-start gap-3.5">
+              <input type="radio" value="standard" v-model="shippingMethod" class="accent-[#4D6A34] w-4.5 h-4.5 mt-1" />
               <div>
-                <div class="flex items-center gap-2">
-                  <span class="text-xs font-bold text-[#2D3B1E]">Giao tiêu chuẩn (2-3 ngày)</span>
-                  <span class="px-2 py-0.5 rounded-full bg-[#EBF1E6] text-[10px] font-bold text-[#4D6A34]">FREESHIP</span>
+                <div class="flex items-center gap-2.5">
+                  <span class="text-sm font-bold text-[#242424]">Giao tiêu chuẩn (2-3 ngày)</span>
+                  <span class="px-2.5 py-0.5 rounded-full bg-[#EBF7E5] text-xs font-bold text-[#4D6A34]">FREESHIP</span>
                 </div>
-                <p class="text-xs text-[#7A866E] mt-1">Đóng thùng cách nhiệt sinh thái, bảo toàn trọn vẹn chất lượng hạt và thanh dinh dưỡng.</p>
+                <p class="text-xs text-[#7A866E] mt-1 leading-relaxed">
+                  Đóng thùng cách nhiệt sinh thái, bảo toàn trọn vẹn chất lượng hạt và thanh dinh dưỡng.
+                </p>
               </div>
             </div>
             <div class="text-right">
-              <span class="text-xs font-bold text-[#4D6A34] block">Miễn phí</span>
-              <span class="text-[10px] text-[#8C9484] line-through">25.000đ</span>
+              <span class="text-sm font-bold text-[#4D6A34] block">Miễn phí</span>
+              <span class="text-xs text-[#8C9484] line-through">25.000đ</span>
             </div>
           </label>
 
           <!-- Radio 2: Giao siêu tốc 2H -->
           <label
-            class="flex items-start justify-between p-4 rounded-2xl border cursor-pointer transition-all"
-            :class="shippingMethod === 'express_2h' ? 'border-[#4D6A34] bg-[#F6F8F3]' : 'border-[#E3E8DC] bg-white'"
+            class="flex items-start justify-between p-5 rounded-2xl border cursor-pointer transition-all"
+            :class="shippingMethod === 'express_2h' ? 'border-2 border-[#4D6A34] bg-[#F6F8F3]' : 'border border-[#E3E8DC] bg-white'"
           >
-            <div class="flex items-start gap-3">
-              <input type="radio" value="express_2h" v-model="shippingMethod" class="accent-[#4D6A34] mt-1" />
+            <div class="flex items-start gap-3.5">
+              <input type="radio" value="express_2h" v-model="shippingMethod" class="accent-[#4D6A34] w-4.5 h-4.5 mt-1" />
               <div>
-                <div class="flex items-center gap-2">
-                  <span class="text-xs font-bold text-[#2D3B1E]">Giao siêu tốc 2H (Nội thành TP.HCM & Hà Nội)</span>
-                  <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-800">Giữ mát tươi sống</span>
+                <div class="flex items-center gap-2.5">
+                  <span class="text-sm font-bold text-[#242424]">Giao siêu tốc 2H (Nội thành TP.HCM & Hà Nội)</span>
+                  <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">Giữ mát tươi sống</span>
                 </div>
-                <p class="text-xs text-[#7A866E] mt-1">Được vận chuyển bằng túi giữ lạnh chuyên dụng, thích hợp cho bơ hạt và snack tươi.</p>
+                <p class="text-xs text-[#7A866E] mt-1 leading-relaxed">
+                  Được vận chuyển bằng túi giữ lạnh chuyên dụng, thích hợp cho bơ hạt và snack tươi.
+                </p>
               </div>
             </div>
             <div class="text-right">
-              <span class="text-xs font-bold text-[#2D3B1E] block">35.000đ</span>
+              <span class="text-sm font-bold text-[#242424] block">35.000đ</span>
             </div>
           </label>
         </div>
 
         <!-- 3. Phương thức thanh toán (VietQR với QR Code động) -->
-        <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-4">
-          <div class="flex items-center gap-2 font-heading text-sm font-bold text-[#2D3B1E] border-b border-[#F0F3EC] pb-3">
-            <span class="w-6 h-6 rounded-full bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center text-xs">3</span>
+        <div class="bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-5">
+          <div class="flex items-center gap-2.5 font-heading text-base font-bold text-[#242424] border-b border-[#F0F3EC] pb-4">
+            <span class="w-7 h-7 rounded-full bg-[#EBF7E5] text-[#4D6A34] flex items-center justify-center text-xs font-black">3</span>
             <span>Phương thức thanh toán</span>
           </div>
 
-          <!-- VietQR Option (Active & Expanded by default) -->
-          <div class="p-4 rounded-2xl border border-[#4D6A34] bg-[#F6F8F3] space-y-4">
+          <!-- VietQR Option (Expanded) -->
+          <div class="p-5 rounded-2xl border-2 border-[#4D6A34] bg-[#F6F8F3] space-y-4">
             <label class="flex items-center justify-between cursor-pointer">
-              <div class="flex items-center gap-2.5">
-                <input type="radio" value="vietqr" v-model="paymentMethod" class="accent-[#4D6A34]" />
-                <span class="text-xs font-bold text-[#2D3B1E]">Chuyển khoản QR Napas / VietQR</span>
-                <span class="px-2 py-0.5 rounded-full bg-[#4D6A34] text-white text-[10px] font-bold">Khuyên dùng</span>
+              <div class="flex items-center gap-3">
+                <input type="radio" value="vietqr" v-model="paymentMethod" class="accent-[#4D6A34] w-4.5 h-4.5" />
+                <span class="text-sm font-bold text-[#242424]">Chuyển khoản QR Napas / VietQR</span>
+                <span class="px-2.5 py-0.5 rounded-full bg-[#4D6A34] text-white text-[11px] font-bold">Khuyên dùng</span>
               </div>
             </label>
 
-            <!-- Tặng yến mạch note -->
-            <p class="text-[11px] text-[#4D6A34] font-medium pl-6">
+            <!-- Note -->
+            <p class="text-xs text-[#4D6A34] font-medium pl-7">
               🎁 Tặng 500g yến mạch cho đơn đầu. Quét tức thì qua hơn 40 ứng dụng ngân hàng và ví số. Kích hoạt đơn lập tức.
             </p>
 
-            <!-- VietQR Box Details -->
-            <div class="p-4 rounded-2xl bg-white border border-[#DEE5D4] grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+            <!-- VietQR Box Details (Figma 05) -->
+            <div class="p-5 rounded-2xl bg-white border border-[#DEE5D4] grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
               <!-- Mockup QR Image -->
-              <div class="sm:col-span-5 flex flex-col items-center justify-center p-3 bg-[#FAF9F5] rounded-xl border border-[#CCD7BC]">
-                <div class="w-28 h-28 bg-white border-2 border-[#4D6A34] rounded-xl flex items-center justify-center p-1">
-                  <div class="w-full h-full bg-[#EBF1E6] rounded flex flex-col items-center justify-center text-[#4D6A34]">
-                    <QrCode class="w-16 h-16" />
-                    <span class="text-[9px] font-extrabold uppercase mt-1">VietQR</span>
+              <div class="sm:col-span-5 flex flex-col items-center justify-center p-3.5 bg-[#FAF9F5] rounded-2xl border border-[#CCD7BC]">
+                <div class="w-32 h-32 bg-white border-2 border-[#4D6A34] rounded-2xl flex items-center justify-center p-1.5 shadow-2xs">
+                  <div class="w-full h-full bg-[#EBF7E5] rounded-xl flex flex-col items-center justify-center text-[#4D6A34]">
+                    <QrCode class="w-20 h-20" />
+                    <span class="text-[10px] font-black uppercase mt-1">VietQR</span>
                   </div>
                 </div>
-                <span class="text-[10px] text-[#7A866E] font-medium mt-1 flex items-center gap-1">
+                <span class="text-xs text-[#7A866E] font-bold mt-1.5 flex items-center gap-1">
                   ⚡ Quét tự động
                 </span>
               </div>
 
               <!-- Banking Info Rows -->
-              <div class="sm:col-span-7 space-y-2 text-xs">
+              <div class="sm:col-span-7 space-y-2.5 text-xs sm:text-sm">
                 <div class="flex justify-between">
                   <span class="text-[#7A866E]">Ngân hàng:</span>
-                  <span class="font-bold text-[#2D3B1E]">Techcombank (TCB)</span>
+                  <span class="font-bold text-[#242424]">Techcombank (TCB)</span>
                 </div>
                 <div class="flex justify-between">
                   <span class="text-[#7A866E]">Chủ tài khoản:</span>
-                  <span class="font-bold text-[#2D3B1E]">CONG TY NUTRIMATE VN</span>
+                  <span class="font-bold text-[#242424]">CONG TY NUTRIMATE VN</span>
                 </div>
                 <div class="flex justify-between items-center">
                   <span class="text-[#7A866E]">Số tài khoản:</span>
-                  <div class="flex items-center gap-1.5 font-bold text-[#2D3B1E]">
-                    <span>1903 8899 7620 18</span>
+                  <div class="flex items-center gap-2 font-bold text-[#242424]">
+                    <span class="font-mono text-sm">1903 8899 7620 18</span>
                     <button
                       type="button"
                       @click="copyToClipboard('19038899762018', 'Số tài khoản')"
-                      class="p-1 hover:text-[#4D6A34]"
+                      class="p-1 hover:text-[#4D6A34] cursor-pointer"
                     >
-                      <Copy class="w-3.5 h-3.5" />
+                      <Copy class="w-4 h-4" />
                     </button>
                   </div>
                 </div>
                 <div class="flex justify-between items-center">
                   <span class="text-[#7A866E]">Nội dung chuyển:</span>
-                  <div class="flex items-center gap-1.5 font-bold text-[#4D6A34] bg-[#EBF1E6] px-2 py-0.5 rounded-md">
-                    <span>NUTRI98234</span>
+                  <div class="flex items-center gap-2 font-bold text-[#4D6A34] bg-[#EBF7E5] px-2.5 py-1 rounded-lg">
+                    <span class="font-mono text-sm">NUTRI98234</span>
                     <button
                       type="button"
                       @click="copyToClipboard('NUTRI98234', 'Nội dung chuyển khoản')"
-                      class="p-1"
+                      class="p-1 cursor-pointer"
                     >
-                      <Copy class="w-3.5 h-3.5" />
+                      <Copy class="w-4 h-4" />
                     </button>
                   </div>
                 </div>
-                <div class="flex justify-between pt-1 border-t border-[#F0F3EC]">
-                  <span class="text-[#7A866E]">Số tiền cần thanh toán:</span>
-                  <span class="font-heading text-sm font-extrabold text-[#2D3B1E]">
+                <div class="flex justify-between pt-2 border-t border-[#F0F3EC]">
+                  <span class="text-[#7A866E]">Số tiền cần chuyển:</span>
+                  <span class="font-heading text-base font-black text-[#242424]">
                     {{ formatVnd(grandTotal) }}
                   </span>
                 </div>
@@ -314,42 +318,42 @@ function handleFinishOrder() {
           </div>
 
           <!-- Other Payment Options -->
-          <label class="flex items-center justify-between p-4 rounded-2xl border border-[#E3E8DC] cursor-pointer hover:bg-[#FAF9F5]">
-            <div class="flex items-center gap-2.5">
-              <input type="radio" value="cod" v-model="paymentMethod" class="accent-[#4D6A34]" />
+          <label class="flex items-center justify-between p-4.5 rounded-2xl border border-[#E3E8DC] cursor-pointer hover:bg-[#FAF9F5] transition-colors">
+            <div class="flex items-center gap-3">
+              <input type="radio" value="cod" v-model="paymentMethod" class="accent-[#4D6A34] w-4.5 h-4.5" />
               <div>
-                <span class="text-xs font-bold text-[#2D3B1E] block">Thanh toán khi nhận hàng (COD)</span>
-                <span class="text-[11px] text-[#7A866E]">Kiểm tra tem niêm phong và đóng gói dinh dưỡng trước khi gửi tiền mặt.</span>
+                <span class="text-sm font-bold text-[#242424] block">Thanh toán khi nhận hàng (COD)</span>
+                <span class="text-xs text-[#7A866E]">Kiểm tra tem niêm phong và đóng gói dinh dưỡng trước khi gửi tiền mặt.</span>
               </div>
             </div>
-            <Truck class="w-4 h-4 text-[#7A866E]" />
+            <Truck class="w-5 h-5 text-[#7A866E]" />
           </label>
 
-          <label class="flex items-center justify-between p-4 rounded-2xl border border-[#E3E8DC] cursor-pointer hover:bg-[#FAF9F5]">
-            <div class="flex items-center gap-2.5">
-              <input type="radio" value="momo" v-model="paymentMethod" class="accent-[#4D6A34]" />
+          <label class="flex items-center justify-between p-4.5 rounded-2xl border border-[#E3E8DC] cursor-pointer hover:bg-[#FAF9F5] transition-colors">
+            <div class="flex items-center gap-3">
+              <input type="radio" value="momo" v-model="paymentMethod" class="accent-[#4D6A34] w-4.5 h-4.5" />
               <div>
-                <span class="text-xs font-bold text-[#2D3B1E] block">Ví điện tử MoMo / ZaloPay</span>
-                <span class="text-[11px] text-[#7A866E]">Liên kết một chạm nhanh chóng và tiện lợi.</span>
+                <span class="text-sm font-bold text-[#242424] block">Ví điện tử MoMo / ZaloPay</span>
+                <span class="text-xs text-[#7A866E]">Liên kết một chạm nhanh chóng và tiện lợi.</span>
               </div>
             </div>
-            <span class="text-[10px] font-bold text-[#7A866E]">MOMO • ZALOPAY</span>
+            <span class="text-xs font-bold text-[#7A866E]">MOMO • ZALOPAY</span>
           </label>
 
-          <label class="flex items-center justify-between p-4 rounded-2xl border border-[#E3E8DC] cursor-pointer hover:bg-[#FAF9F5]">
-            <div class="flex items-center gap-2.5">
-              <input type="radio" value="card" v-model="paymentMethod" class="accent-[#4D6A34]" />
+          <label class="flex items-center justify-between p-4.5 rounded-2xl border border-[#E3E8DC] cursor-pointer hover:bg-[#FAF9F5] transition-colors">
+            <div class="flex items-center gap-3">
+              <input type="radio" value="card" v-model="paymentMethod" class="accent-[#4D6A34] w-4.5 h-4.5" />
               <div>
-                <span class="text-xs font-bold text-[#2D3B1E] block">Thẻ ATM nội địa / Visa / Mastercard</span>
-                <span class="text-[11px] text-[#7A866E]">Cổng thanh toán bảo mật 3D-Secure tiêu chuẩn quốc tế.</span>
+                <span class="text-sm font-bold text-[#242424] block">Thẻ ATM nội địa / Visa / Mastercard</span>
+                <span class="text-xs text-[#7A866E]">Cổng thanh toán bảo mật 3D-Secure tiêu chuẩn quốc tế.</span>
               </div>
             </div>
-            <CreditCard class="w-4 h-4 text-[#7A866E]" />
+            <CreditCard class="w-5 h-5 text-[#7A866E]" />
           </label>
 
           <!-- Checkbox Điều Khoản -->
-          <label class="flex items-start gap-2.5 pt-2 text-xs text-[#576449] cursor-pointer">
-            <input type="checkbox" v-model="isAgreed" class="accent-[#4D6A34] w-4 h-4 rounded mt-0.5" />
+          <label class="flex items-start gap-3 pt-2 text-xs sm:text-sm text-[#576449] cursor-pointer">
+            <input type="checkbox" v-model="isAgreed" class="accent-[#4D6A34] w-4.5 h-4.5 rounded mt-0.5" />
             <span>Tôi đồng ý với Điều khoản dịch vụ và Chính sách giao hàng bảo quản dinh dưỡng của NutriMate.</span>
           </label>
 
@@ -358,13 +362,13 @@ function handleFinishOrder() {
             type="button"
             @click="handleFinishOrder"
             :disabled="isSubmitting"
-            class="w-full py-4 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] active:bg-[#2D3B1E] text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all min-h-[44px]"
+            class="w-full py-4.5 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] active:bg-[#2D3B1E] text-white font-bold text-base shadow-md flex items-center justify-center gap-2.5 transition-all min-h-[48px] cursor-pointer"
           >
-            <Lock class="w-4 h-4" />
+            <Lock class="w-5 h-5" />
             <span>Xác nhận & Hoàn tất đặt hàng ({{ formatVnd(grandTotal) }})</span>
           </button>
 
-          <p class="text-[11px] text-center text-[#7A866E]">
+          <p class="text-xs text-center text-[#7A866E]">
             🛡️ NutriMate cam kết bồi hoàn 100% nếu hạt bị ẩm hoặc mất độ giòn tươi.
           </p>
         </div>
@@ -372,87 +376,87 @@ function handleFinishOrder() {
 
       <!-- Cột Phải: Order Summary & Voucher -->
       <aside class="lg:col-span-5 space-y-6">
-        <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-sm space-y-5">
-          <div class="flex items-center justify-between border-b border-[#F0F3EC] pb-3">
-            <h2 class="font-heading text-sm font-bold text-[#2D3B1E]">
+        <div class="bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-sm space-y-6">
+          <div class="flex items-center justify-between border-b border-[#F0F3EC] pb-4">
+            <h2 class="font-heading text-base font-bold text-[#242424]">
               Đơn hàng của bạn (3 sản phẩm)
             </h2>
-            <span class="px-2 py-0.5 rounded-full bg-[#EBF1E6] text-[10px] font-bold text-[#4D6A34]">
+            <span class="px-3 py-1 rounded-full bg-[#EBF7E5] text-xs font-bold text-[#4D6A34]">
               3 món sạch
             </span>
           </div>
 
           <!-- 3 Sản phẩm xem trước -->
-          <div class="space-y-3">
-            <div class="flex items-center justify-between gap-3 text-xs">
-              <div class="flex items-center gap-3">
+          <div class="space-y-4">
+            <div class="flex items-center justify-between gap-4 text-xs sm:text-sm">
+              <div class="flex items-center gap-3.5">
                 <img
-                  src="https://images.unsplash.com/photo-1517673132405-a56a62b18caf?auto=format&fit=crop&w=100&q=80"
+                  src="https://images.unsplash.com/photo-1517673132405-a56a62b18caf?auto=format&fit=crop&w=120&q=80"
                   alt="item"
-                  class="w-12 h-12 rounded-xl object-cover"
+                  class="w-14 h-14 rounded-2xl object-cover border border-[#E8ECE2]"
                 />
                 <div>
-                  <h4 class="font-bold text-[#2D3B1E]">Granola Yến Mạch Hạt Siêu Hạt</h4>
-                  <span class="text-[11px] text-[#7A866E]">Túi 500g • Số lượng: 1</span>
+                  <h4 class="font-bold text-[#242424]">Granola Yến Mạch Hạt Siêu Hạt</h4>
+                  <span class="text-xs text-[#7A866E]">Túi 500g • Số lượng: 1</span>
                 </div>
               </div>
-              <span class="font-bold text-[#2D3B1E]">185.000đ</span>
+              <span class="font-bold text-[#242424]">185.000đ</span>
             </div>
 
-            <div class="flex items-center justify-between gap-3 text-xs">
-              <div class="flex items-center gap-3">
+            <div class="flex items-center justify-between gap-4 text-xs sm:text-sm">
+              <div class="flex items-center gap-3.5">
                 <img
-                  src="https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=100&q=80"
+                  src="https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=120&q=80"
                   alt="item"
-                  class="w-12 h-12 rounded-xl object-cover"
+                  class="w-14 h-14 rounded-2xl object-cover border border-[#E8ECE2]"
                 />
                 <div>
-                  <h4 class="font-bold text-[#2D3B1E]">Ức Gà Sấy Giòn Vị Thảo Mộc</h4>
-                  <span class="text-[11px] text-[#7A866E]">Hộp 150g • Số lượng: 2</span>
+                  <h4 class="font-bold text-[#242424]">Ức Gà Sấy Giòn Vị Thảo Mộc</h4>
+                  <span class="text-xs text-[#7A866E]">Hộp 150g • Số lượng: 2</span>
                 </div>
               </div>
-              <span class="font-bold text-[#2D3B1E]">220.000đ</span>
+              <span class="font-bold text-[#242424]">220.000đ</span>
             </div>
 
-            <div class="flex items-center justify-between gap-3 text-xs">
-              <div class="flex items-center gap-3">
+            <div class="flex items-center justify-between gap-4 text-xs sm:text-sm">
+              <div class="flex items-center gap-3.5">
                 <img
-                  src="https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?auto=format&fit=crop&w=100&q=80"
+                  src="https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?auto=format&fit=crop&w=120&q=80"
                   alt="item"
-                  class="w-12 h-12 rounded-xl object-cover"
+                  class="w-14 h-14 rounded-2xl object-cover border border-[#E8ECE2]"
                 />
                 <div>
-                  <h4 class="font-bold text-[#2D3B1E]">Bơ Đậu Phộng Mịn Thuần Chay</h4>
-                  <span class="text-[11px] text-[#7A866E]">Hũ 350g • Số lượng: 1</span>
+                  <h4 class="font-bold text-[#242424]">Bơ Đậu Phộng Mịn Thuần Chay</h4>
+                  <span class="text-xs text-[#7A866E]">Hũ 350g • Số lượng: 1</span>
                 </div>
               </div>
-              <span class="font-bold text-[#2D3B1E]">90.000đ</span>
+              <span class="font-bold text-[#242424]">90.000đ</span>
             </div>
           </div>
 
           <!-- Voucher Apply -->
-          <div class="pt-3 border-t border-[#F0F3EC]">
-            <div class="flex items-center gap-2 p-1.5 bg-[#FAF9F5] border border-[#CCD7BC] rounded-2xl">
+          <div class="pt-4 border-t border-[#F0F3EC]">
+            <div class="flex items-center gap-2 p-2 bg-[#FAF9F5] border border-[#CCD7BC] rounded-2xl">
               <input
                 type="text"
                 v-model="voucherCode"
-                class="flex-1 bg-transparent px-3 text-xs font-bold text-[#2D3B1E] uppercase outline-none"
+                class="flex-1 bg-transparent px-3 text-xs sm:text-sm font-bold text-[#242424] uppercase outline-none"
               />
-              <span class="px-3 py-1.5 rounded-xl bg-[#EBF1E6] text-[11px] font-bold text-[#4D6A34] shrink-0">
+              <span class="px-3 py-1.5 rounded-xl bg-[#EBF7E5] text-xs font-bold text-[#4D6A34] shrink-0">
                 ✓ Đã áp dụng
               </span>
             </div>
           </div>
 
           <!-- Bảng tính tiền -->
-          <div class="space-y-2 text-xs text-[#576449] pt-2 border-t border-[#F0F3EC]">
+          <div class="space-y-2.5 text-sm text-[#576449] pt-2 border-t border-[#F0F3EC]">
             <div class="flex justify-between">
               <span>Tạm tính (3 món):</span>
-              <span class="font-bold text-[#2D3B1E]">{{ formatVnd(subtotal) }}</span>
+              <span class="font-bold text-[#242424]">{{ formatVnd(subtotal) }}</span>
             </div>
             <div class="flex justify-between">
               <span>Phí vận chuyển dự kiến:</span>
-              <span class="font-bold text-[#2D3B1E]">{{ formatVnd(shippingFee) }}</span>
+              <span class="font-bold text-[#242424]">{{ formatVnd(shippingFee) }}</span>
             </div>
             <div class="flex justify-between text-[#4D6A34] font-semibold">
               <span>Voucher NUTRIFREESHIP:</span>
@@ -460,29 +464,29 @@ function handleFinishOrder() {
             </div>
           </div>
 
-          <div class="pt-4 border-t border-[#E3E8DC] flex items-baseline justify-between">
+          <div class="pt-5 border-t border-[#E3E8DC] flex items-baseline justify-between">
             <div>
-              <span class="font-heading text-base font-bold text-[#2D3B1E] block">Tổng thanh toán:</span>
-              <span class="text-[10px] text-[#7A866E]">Đã bao gồm VAT & bảo hiểm hàng tươi</span>
+              <span class="font-heading text-lg font-bold text-[#242424] block">Tổng thanh toán:</span>
+              <span class="text-xs text-[#7A866E]">Đã bao gồm VAT & bảo hiểm hàng tươi</span>
             </div>
             <div class="text-right">
-              <span class="font-heading text-2xl font-black text-[#2D3B1E] block">
+              <span class="font-heading text-2xl sm:text-3xl font-black text-[#242424] block">
                 {{ formatVnd(grandTotal) }}
               </span>
-              <span class="text-[10px] text-[#4D6A34] font-bold">Tiết kiệm: 25.000đ</span>
+              <span class="text-xs text-[#4D6A34] font-bold">Tiết kiệm: 25.000đ</span>
             </div>
           </div>
 
           <!-- Hộp Hỗ Trợ Đơn Hàng 24/7 -->
-          <div class="p-3.5 rounded-2xl bg-[#F6F8F3] border border-[#E3E8DC] flex items-center justify-between text-xs">
-            <div class="flex items-center gap-2 text-[#4D6A34]">
-              <PhoneCall class="w-4 h-4" />
+          <div class="p-4 rounded-2xl bg-[#F6F8F3] border border-[#E3E8DC] flex items-center justify-between text-xs sm:text-sm">
+            <div class="flex items-center gap-3 text-[#4D6A34]">
+              <PhoneCall class="w-5 h-5 shrink-0" />
               <div>
-                <span class="font-bold text-[#2D3B1E] block text-[11px]">Hỗ trợ đơn hàng 24/7</span>
-                <span class="text-[10px] text-[#7A866E]">Đội ngũ chuyên viên dinh dưỡng NutriMate</span>
+                <span class="font-bold text-[#242424] block text-xs">Hỗ trợ đơn hàng 24/7</span>
+                <span class="text-[11px] text-[#7A866E]">Đội ngũ chuyên viên dinh dưỡng NutriMate</span>
               </div>
             </div>
-            <a href="tel:19008899" class="font-heading font-extrabold text-[#4D6A34] hover:underline">
+            <a href="tel:19008899" class="font-heading font-black text-[#4D6A34] text-base hover:underline">
               1900 8899
             </a>
           </div>

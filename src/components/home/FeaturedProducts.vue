@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCartStore } from '../../stores/cartStore';
 import { Product } from '../../types';
-import { ShoppingBag, ArrowRight } from 'lucide-vue-next';
+import { ShoppingBag } from 'lucide-vue-next';
 
 const router = useRouter();
 const cartStore = useCartStore();
@@ -141,114 +141,116 @@ function goToDetail(id: string) {
 </script>
 
 <template>
-  <section class="py-10">
-    <!-- Header with Tabs -->
-    <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
-      <div>
-        <span class="text-xs font-bold text-[#647C47] uppercase tracking-wider block mb-1">
-          LỰA CHỌN HÀNG ĐẦU
-        </span>
-        <h2 class="font-heading text-2xl sm:text-3xl font-extrabold text-[#2D3B1E]">
-          Thực phẩm bán chạy nhất <span class="text-[#4D6A34]">NutriMate</span>
-        </h2>
-      </div>
-
-      <!-- Filter Pills -->
-      <div class="flex items-center gap-1.5 p-1 bg-white rounded-full border border-[#E3E8DC] shadow-2xs self-start sm:self-auto">
-        <button
-          type="button"
-          @click="activeTab = 'all'"
-          class="px-4 py-1.5 rounded-full text-xs font-bold transition-all"
-          :class="activeTab === 'all' ? 'bg-[#4D6A34] text-white shadow-xs' : 'text-[#6B7562] hover:text-[#2D3B1E]'"
-        >
-          Tất cả
-        </button>
-        <button
-          type="button"
-          @click="activeTab = 'fat-loss'"
-          class="px-4 py-1.5 rounded-full text-xs font-bold transition-all"
-          :class="activeTab === 'fat-loss' ? 'bg-[#4D6A34] text-white shadow-xs' : 'text-[#6B7562] hover:text-[#2D3B1E]'"
-        >
-          Giảm mỡ
-        </button>
-        <button
-          type="button"
-          @click="activeTab = 'muscle-gain'"
-          class="px-4 py-1.5 rounded-full text-xs font-bold transition-all"
-          :class="activeTab === 'muscle-gain' ? 'bg-[#4D6A34] text-white shadow-xs' : 'text-[#6B7562] hover:text-[#2D3B1E]'"
-        >
-          Tăng cơ
-        </button>
-      </div>
-    </div>
-
-    <!-- Product Grid 4 items -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      <div
-        v-for="prod in filteredProducts"
-        :key="prod.id"
-        class="group bg-white rounded-3xl border border-[#E3E8DC] hover:border-[#4D6A34] hover:shadow-xl transition-all duration-200 overflow-hidden flex flex-col justify-between"
-      >
-        <!-- Image & Badges -->
-        <div class="relative overflow-hidden cursor-pointer" @click="goToDetail(prod.id)">
-          <img
-            :src="prod.image"
-            :alt="prod.name"
-            class="w-full h-52 object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-          <div class="absolute top-3 left-3 flex flex-col gap-1">
-            <span
-              v-for="badge in prod.badges"
-              :key="badge"
-              class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#FAF9F5]/90 backdrop-blur-xs text-[#3B4E24] border border-[#CCD7BC] shadow-2xs"
-            >
-              {{ badge }}
-            </span>
-          </div>
+  <section class="w-full bg-[#C0C59F] py-16">
+    <div class="max-w-[1316px] mx-auto px-4 sm:px-8">
+      <!-- Header with Tabs (Figma 01) -->
+      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
+        <div>
+          <span class="text-xs font-bold text-[#2D3B1E] uppercase tracking-wider block mb-1.5">
+            LỰA CHỌN HÀNG ĐẦU
+          </span>
+          <h2 class="font-heading text-2xl sm:text-3xl font-black text-[#242424]">
+            Thực phẩm bán chạy nhất <span class="text-[#2D3B1E]">NutriMate</span>
+          </h2>
         </div>
 
-        <!-- Info & Macros -->
-        <div class="p-5 flex-1 flex flex-col justify-between space-y-4">
-          <div class="cursor-pointer" @click="goToDetail(prod.id)">
-            <h3 class="font-heading text-sm font-bold text-[#2D3B1E] group-hover:text-[#4D6A34] transition-colors line-clamp-2 leading-snug">
-              {{ prod.name }}
-            </h3>
-          </div>
+        <!-- Filter Pills -->
+        <div class="flex items-center gap-1.5 p-1 bg-white/60 backdrop-blur-xs rounded-full border border-[#B0B68E] shadow-2xs self-start sm:self-auto">
+          <button
+            type="button"
+            @click="activeTab = 'all'"
+            class="px-5 py-2 rounded-full text-xs font-bold transition-all"
+            :class="activeTab === 'all' ? 'bg-[#3B4E24] text-white shadow-xs' : 'text-[#3E4A2E] hover:text-[#242424]'"
+          >
+            Tất cả
+          </button>
+          <button
+            type="button"
+            @click="activeTab = 'fat-loss'"
+            class="px-5 py-2 rounded-full text-xs font-bold transition-all"
+            :class="activeTab === 'fat-loss' ? 'bg-[#3B4E24] text-white shadow-xs' : 'text-[#3E4A2E] hover:text-[#242424]'"
+          >
+            Giảm mỡ
+          </button>
+          <button
+            type="button"
+            @click="activeTab = 'muscle-gain'"
+            class="px-5 py-2 rounded-full text-xs font-bold transition-all"
+            :class="activeTab === 'muscle-gain' ? 'bg-[#3B4E24] text-white shadow-xs' : 'text-[#3E4A2E] hover:text-[#242424]'"
+          >
+            Tăng cơ
+          </button>
+        </div>
+      </div>
 
-          <!-- Macro 3 columns (Figma style) -->
-          <div class="grid grid-cols-3 gap-1.5 p-2 rounded-2xl bg-[#F6F8F3] border border-[#E8ECE2] text-center">
-            <div>
-              <span class="text-[9px] text-[#7A866E] uppercase block font-medium">Năng lượng</span>
-              <span class="text-xs font-bold text-[#2D3B1E]">{{ prod.nutrition.calories }} kcal</span>
-            </div>
-            <div>
-              <span class="text-[9px] text-[#7A866E] uppercase block font-medium">Protein</span>
-              <span class="text-xs font-bold text-[#4D6A34]">{{ prod.nutrition.protein }}g</span>
-            </div>
-            <div>
-              <span class="text-[9px] text-[#7A866E] uppercase block font-medium">Đường</span>
-              <span class="text-xs font-bold text-[#2D3B1E]">{{ prod.nutrition.sugar }}g</span>
-            </div>
-          </div>
-
-          <!-- Price & Add Cart Button -->
-          <div class="pt-2 flex items-center justify-between border-t border-[#F0F3EC]">
-            <div>
-              <span class="text-[10px] text-[#7A866E] block font-medium">Giá niêm yết</span>
-              <span class="font-heading text-base font-extrabold text-[#2D3B1E]">
-                {{ formatVnd(prod.price) }}
+      <!-- Product Grid 4 items (Figma 01 Style) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div
+          v-for="prod in filteredProducts"
+          :key="prod.id"
+          class="group bg-white rounded-3xl border border-[#D5DFC8] hover:border-[#3B4E24] hover:shadow-2xl transition-all duration-200 overflow-hidden flex flex-col justify-between"
+        >
+          <!-- Image & Badges -->
+          <div class="relative overflow-hidden cursor-pointer" @click="goToDetail(prod.id)">
+            <img
+              :src="prod.image"
+              :alt="prod.name"
+              class="w-full h-56 object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+            <div class="absolute top-3.5 left-3.5 flex flex-col gap-1 z-10">
+              <span
+                v-for="badge in prod.badges"
+                :key="badge"
+                class="px-3 py-1 rounded-full text-[10px] font-bold bg-white/95 backdrop-blur-xs text-[#242424] border border-[#CCD7BC] shadow-2xs"
+              >
+                {{ badge }}
               </span>
             </div>
+          </div>
 
-            <button
-              type="button"
-              @click="handleAdd(prod)"
-              class="w-10 h-10 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] active:bg-[#2D3B1E] text-white flex items-center justify-center transition-all shadow-sm"
-              title="Thêm vào giỏ hàng"
-              aria-label="Thêm vào giỏ hàng"
-            >
-              <ShoppingBag class="w-4 h-4" />
-            </button>
+          <!-- Info & Macros -->
+          <div class="p-6 flex-1 flex flex-col justify-between space-y-4">
+            <div class="cursor-pointer" @click="goToDetail(prod.id)">
+              <h3 class="font-heading text-sm font-bold text-[#242424] group-hover:text-[#6B7A3A] transition-colors line-clamp-2 leading-snug">
+                {{ prod.name }}
+              </h3>
+            </div>
+
+            <!-- Macro 3 columns (Figma style) -->
+            <div class="grid grid-cols-3 gap-1.5 p-2.5 rounded-2xl bg-[#F6F8F3] border border-[#E8ECE2] text-center">
+              <div>
+                <span class="text-[9px] text-[#7A866E] uppercase block font-medium">Năng lượng</span>
+                <span class="text-xs font-bold text-[#242424]">{{ prod.nutrition.calories }} kcal</span>
+              </div>
+              <div>
+                <span class="text-[9px] text-[#7A866E] uppercase block font-medium">Protein</span>
+                <span class="text-xs font-bold text-[#6B7A3A]">{{ prod.nutrition.protein }}g</span>
+              </div>
+              <div>
+                <span class="text-[9px] text-[#7A866E] uppercase block font-medium">Đường</span>
+                <span class="text-xs font-bold text-[#242424]">{{ prod.nutrition.sugar }}g</span>
+              </div>
+            </div>
+
+            <!-- Price & Add Cart Button -->
+            <div class="pt-2 flex items-center justify-between border-t border-[#F0F3EC]">
+              <div>
+                <span class="text-[10px] text-[#7A866E] block font-medium">Giá niêm yết</span>
+                <span class="font-heading text-base font-extrabold text-[#242424]">
+                  {{ formatVnd(prod.price) }}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                @click="handleAdd(prod)"
+                class="w-10 h-10 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] active:bg-[#2D3B1E] text-white flex items-center justify-center transition-all shadow-sm"
+                title="Thêm vào giỏ hàng"
+                aria-label="Thêm vào giỏ hàng"
+              >
+                <ShoppingBag class="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>

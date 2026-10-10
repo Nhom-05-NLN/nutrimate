@@ -64,11 +64,13 @@ const routes: RouteRecordRaw[] = [
     path: '/login',
     name: 'login',
     component: LoginView,
+    meta: { layout: 'blank' },
   },
   {
     path: '/register',
     name: 'register',
     component: RegisterView,
+    meta: { layout: 'blank' },
   },
   {
     path: '/blogs',
