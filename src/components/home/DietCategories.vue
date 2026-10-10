@@ -1,111 +1,100 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
 import { useProductStore } from '../../stores/productStore';
-import { Flame, Dumbbell, CandyOff, ArrowRight } from 'lucide-vue-next';
+import {
+  Flame,
+  Dumbbell,
+  CandyOff,
+  Sparkles,
+  ArrowRight,
+} from 'lucide-vue-next';
 
 const router = useRouter();
 const productStore = useProductStore();
 
-function selectCategory(catSlug: string) {
-  productStore.setCategory(catSlug);
+interface CategoryItem {
+  key: string;
+  title: string;
+  desc: string;
+  count: string;
+  icon: typeof Flame;
+}
+
+const categories: CategoryItem[] = [
+  {
+    key: 'low-carb',
+    title: 'Low-Carb & Keto',
+    desc: 'Giảm tinh bột tối đa, đốt mỡ tự nhiên và duy trì năng lượng bền bỉ.',
+    count: '48+ Sản phẩm',
+    icon: Flame,
+  },
+  {
+    key: 'high-protein',
+    title: 'High-Protein (Tăng cơ)',
+    desc: 'Ức gà, whey sạch, protein bars hỗ trợ phục hồi và phát triển cơ bắp.',
+    count: '62+ Sản phẩm',
+    icon: Dumbbell,
+  },
+  {
+    key: 'sugar-free',
+    title: 'Sugar-Free (Không đường)',
+    desc: 'Ngọt dịu từ cỏ ngọt stevia, an toàn cho đường huyết và kiểm soát cân nặng.',
+    count: '35+ Sản phẩm',
+    icon: CandyOff,
+  },
+  {
+    key: 'snacks-nuts',
+    title: 'Healthy Snacks & Hạt',
+    desc: 'Hạt sấy mộc nguyên vị, granola giòn rụm cho bữa xế lành mạnh không lo béo.',
+    count: '54+ Sản phẩm',
+    icon: Sparkles,
+  },
+];
+
+function selectCategory(catKey: string) {
+  productStore.setCategory(catKey);
   router.push({ name: 'catalog' });
 }
 </script>
 
 <template>
   <section class="py-10">
-    <div class="text-center max-w-2xl mx-auto mb-10 space-y-2">
-      <span class="text-xs font-bold text-emerald-700 tracking-wider uppercase bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-        Phân Loại Dinh Dưỡng Mục Tiêu
+    <div class="mb-8">
+      <span class="text-xs font-bold text-[#647C47] uppercase tracking-wider block mb-1">
+        DANH MỤC CHUYÊN BIỆT
       </span>
-      <h2 class="font-heading text-2xl sm:text-3xl font-extrabold text-slate-900">
-        3 Chế Độ Ăn Kiêng Chuyên Sâu
+      <h2 class="font-heading text-2xl sm:text-3xl font-extrabold text-[#2D3B1E]">
+        Lựa chọn theo chế độ ăn của bạn
       </h2>
-      <p class="text-sm text-slate-600">
-        Lựa chọn thực phẩm được thiết kế chuẩn xác theo chế độ ăn uống và mục tiêu thể hình của bạn.
-      </p>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <!-- 1. Low Carb / Keto -->
+    <!-- 4 Cards Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
       <div
-        class="group relative bg-white rounded-3xl p-7 border border-slate-200/90 hover:border-amber-400 hover:shadow-xl hover:shadow-amber-900/5 transition-all duration-300 flex flex-col justify-between"
+        v-for="cat in categories"
+        :key="cat.key"
+        @click="selectCategory(cat.key)"
+        class="group p-6 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#4D6A34] hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between"
       >
-        <div>
-          <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-            <Flame class="w-6 h-6" />
+        <div class="space-y-4">
+          <div class="w-12 h-12 rounded-2xl bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center transition-transform group-hover:scale-110">
+            <component :is="cat.icon" class="w-6 h-6 stroke-[1.8]" />
           </div>
-          <span class="text-xs font-bold text-amber-700 tracking-wider uppercase">Chế độ đốt mỡ</span>
-          <h3 class="font-heading text-xl font-bold text-slate-900 mt-1 mb-2.5">
-            Low-Carb & KETO
-          </h3>
-          <p class="text-sm text-slate-600 leading-relaxed mb-6">
-            Cắt giảm tối đa tinh bột thuần (&lt; 20g net-carbs), thay thế bằng chất xơ Glucomannan từ củ nưa và chất béo lành mạnh từ hạnh nhân, hạt macca.
-          </p>
+
+          <div>
+            <h3 class="font-heading text-base font-bold text-[#2D3B1E] group-hover:text-[#4D6A34] transition-colors">
+              {{ cat.title }}
+            </h3>
+            <p class="text-xs text-[#6B7562] mt-2 leading-relaxed">
+              {{ cat.desc }}
+            </p>
+          </div>
         </div>
 
-        <button
-          type="button"
-          @click="selectCategory('low-carb')"
-          class="inline-flex items-center gap-2 text-sm font-bold text-amber-700 hover:text-amber-800 transition-colors group-hover:translate-x-1 duration-200"
-        >
-          <span>Khám phá món Low-Carb</span>
-          <ArrowRight class="w-4 h-4" />
-        </button>
-      </div>
-
-      <!-- 2. High Protein -->
-      <div
-        class="group relative bg-white rounded-3xl p-7 border border-slate-200/90 hover:border-emerald-400 hover:shadow-xl hover:shadow-emerald-900/5 transition-all duration-300 flex flex-col justify-between"
-      >
-        <div>
-          <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-            <Dumbbell class="w-6 h-6" />
-          </div>
-          <span class="text-xs font-bold text-emerald-700 tracking-wider uppercase">Tăng cơ & Giữ cơ</span>
-          <h3 class="font-heading text-xl font-bold text-slate-900 mt-1 mb-2.5">
-            High-Protein (Giàu đạm)
-          </h3>
-          <p class="text-sm text-slate-600 leading-relaxed mb-6">
-            Nạp từ 20g - 35g protein tinh khiết mỗi bữa qua ức gà nấu chậm sous-vide mọng nước, thanh hạt dinh dưỡng whey isolate và bơ đậu phộng mộc 100%.
-          </p>
+        <div class="pt-6 flex items-center justify-between text-xs font-bold text-[#4D6A34]">
+          <span>{{ cat.count }}</span>
+          <ArrowRight class="w-4 h-4 transition-transform group-hover:translate-x-1" />
         </div>
-
-        <button
-          type="button"
-          @click="selectCategory('high-protein')"
-          class="inline-flex items-center gap-2 text-sm font-bold text-emerald-700 hover:text-emerald-800 transition-colors group-hover:translate-x-1 duration-200"
-        >
-          <span>Khám phá món Giàu Đạm</span>
-          <ArrowRight class="w-4 h-4" />
-        </button>
-      </div>
-
-      <!-- 3. Sugar Free -->
-      <div
-        class="group relative bg-white rounded-3xl p-7 border border-slate-200/90 hover:border-rose-400 hover:shadow-xl hover:shadow-rose-900/5 transition-all duration-300 flex flex-col justify-between"
-      >
-        <div>
-          <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-            <CandyOff class="w-6 h-6" />
-          </div>
-          <span class="text-xs font-bold text-rose-600 tracking-wider uppercase">0% Đường tinh luyện</span>
-          <h3 class="font-heading text-xl font-bold text-slate-900 mt-1 mb-2.5">
-            Sugar-Free & Tiểu Đường
-          </h3>
-          <p class="text-sm text-slate-600 leading-relaxed mb-6">
-            Hoàn toàn không làm tăng vọt chỉ số đường huyết (GI). Vị ngọt dịu nhẹ từ cỏ ngọt Stevia tự nhiên và nấm men Kombucha hỗ trợ hệ tiêu hóa.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          @click="selectCategory('sugar-free')"
-          class="inline-flex items-center gap-2 text-sm font-bold text-rose-600 hover:text-rose-700 transition-colors group-hover:translate-x-1 duration-200"
-        >
-          <span>Khám phá món 0g Đường</span>
-          <ArrowRight class="w-4 h-4" />
-        </button>
       </div>
     </div>
   </section>

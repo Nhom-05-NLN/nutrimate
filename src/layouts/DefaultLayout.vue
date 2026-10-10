@@ -10,7 +10,7 @@ import AuthModal from '../components/auth/AuthModal.vue';
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col bg-[#fcfdfa] text-slate-900 selection:bg-emerald-200 selection:text-emerald-950">
+  <div class="min-h-screen flex flex-col bg-[#FAF9F5] text-[#2D3B1E] selection:bg-[#EBF1E6] selection:text-[#3B4E24]">
     <!-- Navbar Header -->
     <Navbar />
 
