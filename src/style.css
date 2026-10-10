@@ -1,28 +1,29 @@
 @import "tailwindcss";
 
 @theme {
-  --color-nutri-bg: #faf8f5;
-  --color-nutri-surface: #ffffff;
-  --color-nutri-cream: #f4efe6;
-  --color-nutri-green: #4d6a34;
-  --color-nutri-green-dark: #3b4e24;
-  --color-nutri-green-light: #ebf1e6;
-  --color-nutri-sage: #ccd7bc;
-  --color-nutri-sage-dark: #556b2f;
-  --color-nutri-text: #2d3b1e;
-  --color-nutri-text-dark: #1f2716;
-  --color-nutri-text-muted: #6b7562;
+  --color-nutri-sand: #f7f3e8;
+  --color-nutri-sage: #c0c59f;
+  --color-nutri-hero-from: #edede1;
+  --color-nutri-hero-to: #dfe3ce;
+  --color-nutri-nav: #fefdf8;
+  --color-nutri-primary: #6b7a3a;
+  --color-nutri-primary-dark: #3b4e24;
+  --color-nutri-search: #ebf7e5;
+  --color-nutri-text: #242424;
+  --color-nutri-text-muted: #576449;
+  --color-nutri-text-sub: #7a866e;
   --color-nutri-border: #e3e8dc;
-  --color-nutri-card: #ffffff;
-  --color-nutri-accent: #d34538;
+  --color-nutri-border-sage: #ccd7bc;
+  --color-nutri-red: #c5281c;
   --color-nutri-gold: #e8a020;
 }
 
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    background-color: #faf8f5;
-    color: #2d3b1e;
+    background-color: #f7f3e8;
+    color: #242424;
+    line-height: 1.5;
   }
 
   h1, h2, h3, h4, h5, h6, .font-heading {

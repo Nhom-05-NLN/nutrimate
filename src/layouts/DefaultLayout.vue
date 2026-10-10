@@ -10,16 +10,16 @@ import AuthModal from '../components/auth/AuthModal.vue';
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col bg-[#FAF9F5] text-[#2D3B1E] selection:bg-[#EBF1E6] selection:text-[#3B4E24]">
-    <!-- Navbar Header -->
+  <div class="min-h-screen flex flex-col bg-[#F7F3E8] text-[#242424] selection:bg-[#EBF7E5] selection:text-[#3B4E24]">
+    <!-- Navbar Header (Full Width) -->
     <Navbar />
 
-    <!-- Main Content Container -->
-    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Main Content (Full Width allowing Sections to stretch 100%) -->
+    <main class="flex-1 w-full">
       <slot />
     </main>
 
-    <!-- Footer -->
+    <!-- Footer (Full Width) -->
     <Footer />
 
     <!-- Overlays, Drawers & Modals -->

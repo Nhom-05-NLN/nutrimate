@@ -34,94 +34,94 @@ function handleSearchSubmit() {
 </script>
 
 <template>
-  <header class="sticky top-0 z-40 bg-[#FAF9F5]/95 backdrop-blur-md border-b border-[#ECEFE7] transition-all">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center justify-between h-20 gap-4">
+  <header class="sticky top-0 z-40 bg-[#FEFDF8] border-b border-[#E8E7DD] transition-all">
+    <div class="max-w-[1316px] mx-auto px-4 sm:px-8">
+      <div class="flex items-center justify-between h-[82px] gap-4">
         <!-- 1. BRAND LOGO -->
         <RouterLink
           to="/"
           class="flex items-center gap-3 group shrink-0 focus-visible:outline-none"
         >
-          <div class="w-10 h-10 rounded-2xl bg-[#556B2F] flex items-center justify-center text-white shadow-sm transition-transform group-hover:scale-105">
-            <Leaf class="w-5 h-5 text-[#EBF1E6]" />
+          <div class="w-10 h-10 rounded-2xl bg-[#6B7A3A] flex items-center justify-center text-white shadow-2xs transition-transform group-hover:scale-105">
+            <Leaf class="w-5 h-5 text-[#EBF7E5]" />
           </div>
-          <span class="font-heading text-2xl font-black tracking-tight text-[#2D3B1E]">
+          <span class="font-heading text-2xl font-black tracking-tight text-[#242424]">
             NutriMate
           </span>
         </RouterLink>
 
         <!-- 2. SEARCH BAR (Oval Green Tint Pill) -->
-        <div class="hidden md:flex flex-1 max-w-xs lg:max-w-sm mx-2">
+        <div class="hidden md:flex flex-1 max-w-xs lg:max-w-sm mx-4">
           <form
             @submit.prevent="handleSearchSubmit"
-            class="w-full flex items-center bg-[#EBF1E6] hover:bg-[#E5ECE0] focus-within:bg-white rounded-full px-4 py-2 border border-[#C8D7BE] focus-within:border-[#556B2F] focus-within:ring-2 focus-within:ring-[#556B2F]/20 transition-all shadow-2xs"
+            class="w-full flex items-center bg-[#EBF7E5] hover:bg-[#E2F0DC] focus-within:bg-white rounded-full px-4 py-2 border border-[#C8D7BE] focus-within:border-[#6B7A3A] focus-within:ring-2 focus-within:ring-[#6B7A3A]/20 transition-all shadow-2xs"
           >
-            <Search class="w-4 h-4 text-[#556B2F] mr-2.5 shrink-0" />
+            <Search class="w-4 h-4 text-[#6B7A3A] mr-2.5 shrink-0" />
             <input
               type="text"
               v-model="searchInput"
               placeholder="Bạn muốn tìm gì ..."
-              class="w-full bg-transparent text-sm text-[#2D3B1E] placeholder-[#7E8B73] outline-none"
+              class="w-full bg-transparent text-sm text-[#242424] placeholder-[#7A866E] outline-none"
             />
           </form>
         </div>
 
         <!-- 3. MAIN NAVIGATION MENU LINKS -->
-        <nav class="hidden lg:flex items-center gap-8 text-sm font-semibold text-[#4A5538]">
+        <nav class="hidden lg:flex items-center gap-8 text-sm font-bold text-[#333333]">
           <RouterLink
             to="/"
-            exact-active-class="text-[#2D3B1E] font-bold border-b-2 border-[#556B2F]"
-            class="py-2 hover:text-[#2D3B1E] transition-colors relative"
+            exact-active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
+            class="py-1 hover:text-[#6B7A3A] transition-colors relative"
           >
             Trang chủ
           </RouterLink>
 
           <RouterLink
             to="/catalog"
-            active-class="text-[#2D3B1E] font-bold border-b-2 border-[#556B2F]"
-            class="py-2 hover:text-[#2D3B1E] transition-colors relative"
+            active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
+            class="py-1 hover:text-[#6B7A3A] transition-colors relative"
           >
             Thực phẩm
           </RouterLink>
 
           <RouterLink
             to="/nutrition"
-            active-class="text-[#2D3B1E] font-bold border-b-2 border-[#556B2F]"
-            class="py-2 hover:text-[#2D3B1E] transition-colors relative"
+            active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
+            class="py-1 hover:text-[#6B7A3A] transition-colors relative"
           >
             Dinh dưỡng
           </RouterLink>
 
           <RouterLink
             to="/orders"
-            active-class="text-[#2D3B1E] font-bold border-b-2 border-[#556B2F]"
-            class="py-2 hover:text-[#2D3B1E] transition-colors relative"
+            active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
+            class="py-1 hover:text-[#6B7A3A] transition-colors relative"
           >
             Đơn hàng
           </RouterLink>
 
           <RouterLink
             to="/profile"
-            active-class="text-[#2D3B1E] font-bold border-b-2 border-[#556B2F]"
-            class="py-2 hover:text-[#2D3B1E] transition-colors relative"
+            active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
+            class="py-1 hover:text-[#6B7A3A] transition-colors relative"
           >
             Tài khoản
           </RouterLink>
         </nav>
 
         <!-- 4. RIGHT SIDE UTILITIES -->
-        <div class="flex items-center gap-3 shrink-0">
-          <!-- Cart Icon Button with Red Badge -->
+        <div class="flex items-center gap-3.5 shrink-0">
+          <!-- Cart Icon Button with Red Badge (Figma Style) -->
           <RouterLink
             to="/cart"
-            class="relative w-11 h-11 rounded-full flex items-center justify-center text-[#2D3B1E] hover:bg-[#EBF1E6] transition-colors"
+            class="relative w-11 h-11 rounded-full flex items-center justify-center text-[#242424] hover:bg-[#EBF7E5] transition-colors"
             title="Xem giỏ hàng của bạn"
             aria-label="Giỏ hàng"
           >
             <ShoppingBag class="w-6 h-6 stroke-[1.8]" />
             <span
               v-if="cartStore.totalCount > 0"
-              class="absolute 1 top-1 right-1 bg-[#D34538] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs"
+              class="absolute top-1 right-1 bg-[#C5281C] text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-xs"
             >
               {{ cartStore.totalCount }}
             </span>
@@ -132,24 +132,24 @@ function handleSearchSubmit() {
             <button
               type="button"
               @click="isUserDropdownOpen = !isUserDropdownOpen"
-              class="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#D5DFC8] bg-white hover:bg-[#FAF9F5] text-xs font-bold text-[#2D3B1E] shadow-2xs transition-all"
+              class="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#D0D3BE] bg-white hover:bg-[#FEFDF8] text-xs font-bold text-[#242424] shadow-2xs transition-all"
             >
-              <User class="w-4 h-4 text-[#556B2F]" />
+              <User class="w-4 h-4 text-[#6B7A3A]" />
               <span class="max-w-[110px] truncate">
                 {{ authStore.currentUser ? authStore.currentUser.name : 'Tài khoản' }}
               </span>
-              <ChevronDown class="w-3.5 h-3.5 text-[#7E8B73]" />
+              <ChevronDown class="w-3.5 h-3.5 text-[#7A866E]" />
             </button>
 
-            <!-- User Dropdown Menu -->
+            <!-- Dropdown Menu -->
             <div
               v-if="isUserDropdownOpen"
               class="absolute right-0 mt-2 w-56 bg-white rounded-3xl shadow-xl border border-[#E3E8DC] py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
             >
               <div v-if="authStore.currentUser" class="px-4 py-3 border-b border-[#ECEFE7]">
-                <p class="text-xs text-[#7E8B73]">Đang đăng nhập với tư cách</p>
-                <p class="text-sm font-bold text-[#2D3B1E] truncate">{{ authStore.currentUser.name }}</p>
-                <span class="inline-block px-2 py-0.5 mt-1 rounded-full bg-[#EBF1E6] text-[10px] font-bold text-[#556B2F]">
+                <p class="text-xs text-[#7A866E]">Tài khoản cá nhân</p>
+                <p class="text-sm font-bold text-[#242424] truncate">{{ authStore.currentUser.name }}</p>
+                <span class="inline-block px-2 py-0.5 mt-1 rounded-full bg-[#EBF7E5] text-[10px] font-bold text-[#6B7A3A]">
                   {{ authStore.currentUser.membershipTier }} Member • {{ authStore.currentUser.nutriPoints }} pts
                 </span>
               </div>
@@ -157,27 +157,27 @@ function handleSearchSubmit() {
               <RouterLink
                 to="/profile"
                 @click="isUserDropdownOpen = false"
-                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#2D3B1E] hover:bg-[#F6F8F3] transition-colors"
+                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#242424] hover:bg-[#F6F8F3] transition-colors"
               >
-                <User class="w-4 h-4 text-[#556B2F]" />
+                <User class="w-4 h-4 text-[#6B7A3A]" />
                 Hồ sơ & Thể trạng BMI
               </RouterLink>
 
               <RouterLink
                 to="/nutrition"
                 @click="isUserDropdownOpen = false"
-                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#2D3B1E] hover:bg-[#F6F8F3] transition-colors"
+                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#242424] hover:bg-[#F6F8F3] transition-colors"
               >
-                <Leaf class="w-4 h-4 text-[#556B2F]" />
+                <Leaf class="w-4 h-4 text-[#6B7A3A]" />
                 Nhật ký Dinh dưỡng & Calo
               </RouterLink>
 
               <RouterLink
                 to="/orders"
                 @click="isUserDropdownOpen = false"
-                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#2D3B1E] hover:bg-[#F6F8F3] transition-colors"
+                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#242424] hover:bg-[#F6F8F3] transition-colors"
               >
-                <ShoppingBag class="w-4 h-4 text-[#556B2F]" />
+                <ShoppingBag class="w-4 h-4 text-[#6B7A3A]" />
                 Đơn hàng & Vận chuyển
               </RouterLink>
 
@@ -186,9 +186,9 @@ function handleSearchSubmit() {
               <RouterLink
                 to="/admin"
                 @click="isUserDropdownOpen = false"
-                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#556B2F] hover:bg-[#EBF1E6] transition-colors"
+                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#6B7A3A] hover:bg-[#EBF7E5] transition-colors"
               >
-                <ShieldCheck class="w-4 h-4 text-[#556B2F]" />
+                <ShieldCheck class="w-4 h-4 text-[#6B7A3A]" />
                 Trang Quản trị (Admin Portal)
               </RouterLink>
 
@@ -206,7 +206,7 @@ function handleSearchSubmit() {
                 v-else
                 to="/login"
                 @click="isUserDropdownOpen = false"
-                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#556B2F] hover:bg-[#EBF1E6]"
+                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#6B7A3A] hover:bg-[#EBF7E5]"
               >
                 Đăng nhập / Đăng ký
               </RouterLink>
@@ -217,7 +217,7 @@ function handleSearchSubmit() {
           <button
             type="button"
             @click="isMobileMenuOpen = !isMobileMenuOpen"
-            class="lg:hidden w-10 h-10 rounded-xl flex items-center justify-center text-[#2D3B1E] hover:bg-[#EBF1E6]"
+            class="lg:hidden w-10 h-10 rounded-xl flex items-center justify-center text-[#242424] hover:bg-[#EBF7E5]"
             aria-label="Menu"
           >
             <X v-if="isMobileMenuOpen" class="w-6 h-6" />
@@ -234,42 +234,42 @@ function handleSearchSubmit() {
         <RouterLink
           to="/"
           @click="isMobileMenuOpen = false"
-          class="px-4 py-2 rounded-xl text-sm font-semibold text-[#2D3B1E] hover:bg-[#EBF1E6]"
+          class="px-4 py-2.5 rounded-xl text-sm font-semibold text-[#242424] hover:bg-[#EBF7E5]"
         >
           Trang chủ
         </RouterLink>
         <RouterLink
           to="/catalog"
           @click="isMobileMenuOpen = false"
-          class="px-4 py-2 rounded-xl text-sm font-semibold text-[#2D3B1E] hover:bg-[#EBF1E6]"
+          class="px-4 py-2.5 rounded-xl text-sm font-semibold text-[#242424] hover:bg-[#EBF7E5]"
         >
           Thực phẩm
         </RouterLink>
         <RouterLink
           to="/nutrition"
           @click="isMobileMenuOpen = false"
-          class="px-4 py-2 rounded-xl text-sm font-semibold text-[#2D3B1E] hover:bg-[#EBF1E6]"
+          class="px-4 py-2.5 rounded-xl text-sm font-semibold text-[#242424] hover:bg-[#EBF7E5]"
         >
           Dinh dưỡng
         </RouterLink>
         <RouterLink
           to="/orders"
           @click="isMobileMenuOpen = false"
-          class="px-4 py-2 rounded-xl text-sm font-semibold text-[#2D3B1E] hover:bg-[#EBF1E6]"
+          class="px-4 py-2.5 rounded-xl text-sm font-semibold text-[#242424] hover:bg-[#EBF7E5]"
         >
           Đơn hàng
         </RouterLink>
         <RouterLink
           to="/profile"
           @click="isMobileMenuOpen = false"
-          class="px-4 py-2 rounded-xl text-sm font-semibold text-[#2D3B1E] hover:bg-[#EBF1E6]"
+          class="px-4 py-2.5 rounded-xl text-sm font-semibold text-[#242424] hover:bg-[#EBF7E5]"
         >
           Tài khoản
         </RouterLink>
         <RouterLink
           to="/admin"
           @click="isMobileMenuOpen = false"
-          class="px-4 py-2 rounded-xl text-sm font-bold text-[#556B2F] bg-[#EBF1E6]"
+          class="px-4 py-2.5 rounded-xl text-sm font-bold text-[#6B7A3A] bg-[#EBF7E5]"
         >
           Quản trị viên (Admin)
         </RouterLink>

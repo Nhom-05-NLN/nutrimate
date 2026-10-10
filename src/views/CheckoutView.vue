@@ -66,7 +66,7 @@ function handleFinishOrder() {
 </script>
 
 <template>
-  <div class="py-6 space-y-8 max-w-7xl mx-auto">
+  <div class="max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-8">
     <!-- Breadcrumb -->
     <nav class="flex items-center gap-2 text-xs font-medium text-[#7E8B73]">
       <RouterLink to="/" class="hover:text-[#2D3B1E]">Trang chủ</RouterLink>

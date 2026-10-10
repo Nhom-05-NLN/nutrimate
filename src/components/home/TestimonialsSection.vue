@@ -24,49 +24,51 @@ const reviews = [
 </script>
 
 <template>
-  <section class="py-14 text-center">
-    <div class="max-w-2xl mx-auto mb-10 space-y-2">
-      <span class="text-xs font-bold text-[#647C47] uppercase tracking-wider block">
-        CỘNG ĐỒNG NUTRIMATE
-      </span>
-      <h2 class="font-heading text-2xl sm:text-3xl font-extrabold text-[#2D3B1E]">
-        Trải nghiệm thực tế từ người dùng
-      </h2>
-      <p class="text-xs sm:text-sm text-[#68725F]">
-        Đồng hành cùng hơn 35.000 khách hàng trên hành trình thay đổi vóc dáng và duy trì thói quen ăn uống tích cực.
-      </p>
-    </div>
+  <section class="w-full bg-[#F7F3E8] py-16 text-center">
+    <div class="max-w-[1316px] mx-auto px-4 sm:px-8">
+      <div class="max-w-2xl mx-auto mb-12 space-y-2">
+        <span class="text-xs font-bold text-[#6B7A3A] uppercase tracking-wider block">
+          CỘNG ĐỒNG NUTRIMATE
+        </span>
+        <h2 class="font-heading text-2xl sm:text-3xl font-black text-[#242424]">
+          Trải nghiệm thực tế từ người dùng
+        </h2>
+        <p class="text-xs sm:text-sm text-[#7A866E] leading-relaxed">
+          Đồng hành cùng hơn 35.000 khách hàng trên hành trình thay đổi vóc dáng và duy trì thói quen ăn uống tích cực.
+        </p>
+      </div>
 
-    <!-- 3 Review Cards Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-      <div
-        v-for="item in reviews"
-        :key="item.name"
-        class="p-6 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#4D6A34] hover:shadow-lg transition-all flex flex-col justify-between space-y-6"
-      >
-        <div class="space-y-4">
-          <!-- Star Rating -->
-          <div class="flex items-center gap-1 text-[#E8A020]">
-            <Star v-for="i in 5" :key="i" class="w-4 h-4 fill-[#E8A020]" />
-          </div>
+      <!-- 3 Review Cards Grid (Figma 01) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+        <div
+          v-for="item in reviews"
+          :key="item.name"
+          class="p-7 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#6B7A3A] hover:shadow-xl transition-all flex flex-col justify-between space-y-6"
+        >
+          <div class="space-y-4">
+            <!-- Star Rating -->
+            <div class="flex items-center gap-1 text-[#E8A020]">
+              <Star v-for="i in 5" :key="i" class="w-4 h-4 fill-[#E8A020]" />
+            </div>
 
-          <p class="text-xs sm:text-sm text-[#4E5C3E] leading-relaxed italic">
-            "{{ item.quote }}"
-          </p>
-        </div>
-
-        <!-- User Info -->
-        <div class="flex items-center gap-3 pt-4 border-t border-[#F0F3EC]">
-          <div class="w-10 h-10 rounded-full bg-[#EBF1E6] text-[#4D6A34] font-bold text-xs flex items-center justify-center shrink-0">
-            {{ item.initials }}
-          </div>
-          <div class="min-w-0">
-            <h4 class="font-heading text-xs font-bold text-[#2D3B1E] truncate">
-              {{ item.name }}
-            </h4>
-            <p class="text-[11px] text-[#7A866E] truncate">
-              {{ item.role }}
+            <p class="text-xs sm:text-sm text-[#3E4A2E] leading-relaxed italic">
+              "{{ item.quote }}"
             </p>
+          </div>
+
+          <!-- User Info -->
+          <div class="flex items-center gap-3 pt-4 border-t border-[#F0F3EC]">
+            <div class="w-10 h-10 rounded-full bg-[#EBF7E5] text-[#6B7A3A] font-bold text-xs flex items-center justify-center shrink-0">
+              {{ item.initials }}
+            </div>
+            <div class="min-w-0">
+              <h4 class="font-heading text-xs font-bold text-[#242424] truncate">
+                {{ item.name }}
+              </h4>
+              <p class="text-[11px] text-[#7A866E] truncate">
+                {{ item.role }}
+              </p>
+            </div>
           </div>
         </div>
       </div>

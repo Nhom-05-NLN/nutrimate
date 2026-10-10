@@ -77,7 +77,8 @@ function handleRegister() {
 </script>
 
 <template>
-  <div class="min-h-[85vh] grid grid-cols-1 lg:grid-cols-12 rounded-4xl overflow-hidden bg-white border border-[#E3E8DC] shadow-xl my-6">
+  <div class="max-w-[1200px] mx-auto px-4 sm:px-6 py-8">
+    <div class="min-h-[80vh] grid grid-cols-1 lg:grid-cols-12 rounded-4xl overflow-hidden bg-white border border-[#E3E8DC] shadow-xl">
     <!-- Cột Trái: Quyền lợi Thành viên Mới (Figma 16) -->
     <div class="lg:col-span-5 bg-[#FAF9F5] p-8 sm:p-12 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-[#ECEFE7] space-y-6">
       <div class="space-y-6">
@@ -285,4 +286,5 @@ function handleRegister() {
       </div>
     </div>
   </div>
+</div>
 </template>
