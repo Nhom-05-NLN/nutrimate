@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import { useChatStore } from '../../stores/chatStore';
 import { useCartStore } from '../../stores/cartStore';
 import { useProductStore } from '../../stores/productStore';
@@ -13,6 +13,7 @@ import {
 } from 'lucide-vue-next';
 
 const chatStore = useChatStore();
+const chatBlocked = computed(() => chatStore.isThinking || chatStore.requiresAuthentication || chatStore.guestSessionExpired);
 const cartStore = useCartStore();
 const productStore = useProductStore();
 
@@ -42,7 +43,7 @@ watch(
 );
 
 function handleSend() {
-  if (inputText.value.trim() && !chatStore.isThinking) {
+  if (inputText.value.trim() && !chatBlocked.value) {
     const txt = inputText.value;
     inputText.value = '';
     chatStore.sendMessage(txt);
@@ -126,16 +127,16 @@ function handleAddToCartFromChat(product: Product) {
 
       <!-- Messages Stream -->
       <div class="px-4 py-2 flex gap-2 border-b border-[#E3E8DC] text-xs">
-        <select :value="chatStore.conversationId || ''" :disabled="chatStore.isThinking" aria-label="Chọn hội thoại" class="flex-1 min-w-0" @change="chatStore.selectConversation(($event.target as HTMLSelectElement).value)">
+        <select :value="chatStore.conversationId || ''" :disabled="chatBlocked" aria-label="Chọn hội thoại" class="flex-1 min-w-0" @change="chatStore.selectConversation(($event.target as HTMLSelectElement).value)">
           <option v-for="(conversation, index) in chatStore.conversations" :key="conversation.id" :value="conversation.id">Hội thoại {{ index + 1 }} · {{ new Date(conversation.createdAt).toLocaleDateString('vi-VN') }}</option>
         </select>
-        <button type="button" :disabled="chatStore.isThinking" @click="chatStore.newConversation()">Chat mới</button>
+        <button type="button" :disabled="chatBlocked" @click="chatStore.newConversation()">Chat mới</button>
       </div>
       <div
         ref="messagesContainer"
         class="flex-1 overflow-y-auto p-4 space-y-4 bg-[#FAF9F5]"
       >
-        <button v-if="chatStore.hasEarlier" type="button" :disabled="chatStore.isThinking" class="text-xs text-[#4D6A34] underline" @click="chatStore.loadEarlier()">Tải tin nhắn trước</button>
+        <button v-if="chatStore.hasEarlier" type="button" :disabled="chatBlocked" class="text-xs text-[#4D6A34] underline" @click="chatStore.loadEarlier()">Tải tin nhắn trước</button>
         <div
           v-for="msg in chatStore.messages"
           :key="msg.id"
@@ -153,7 +154,7 @@ function handleAddToCartFromChat(product: Product) {
           >
             {{ msg.text }}
           </div>
-          <button v-if="msg.failed" type="button" :disabled="chatStore.isThinking" class="text-xs text-red-700 underline" @click="chatStore.retryMessage(msg)">Gửi lại tin nhắn</button>
+          <button v-if="msg.failed" type="button" :disabled="chatBlocked" class="text-xs text-red-700 underline" @click="chatStore.retryMessage(msg)">Gửi lại tin nhắn</button>
 
           <!-- Suggested Products Card in Bot Reply -->
           <div
@@ -217,7 +218,9 @@ function handleAddToCartFromChat(product: Product) {
       <!-- Quick Prompt Suggestions -->
       <div v-if="chatStore.error" role="alert" class="px-4 py-2 bg-red-50 text-red-800 text-xs">
         {{ chatStore.error }}
-        <button v-if="!chatStore.conversationId" type="button" :disabled="chatStore.isThinking" class="underline ml-2" @click="chatStore.initialize()">Thử kết nối lại</button>
+        <RouterLink v-if="chatStore.requiresAuthentication" to="/login" class="underline ml-2">Đăng nhập lại</RouterLink>
+        <button v-else-if="chatStore.guestSessionExpired" type="button" :disabled="chatStore.isThinking" class="underline ml-2" @click="chatStore.restartGuestSession()">Bắt đầu phiên Guest mới</button>
+        <button v-else-if="!chatStore.conversationId" type="button" :disabled="chatStore.isThinking" class="underline ml-2" @click="chatStore.initialize()">Thử kết nối lại</button>
       </div>
       <div class="px-4 py-2 border-t border-[#ECEFE7] bg-white overflow-x-auto flex gap-1.5 no-scrollbar">
         <button
@@ -225,7 +228,7 @@ function handleAddToCartFromChat(product: Product) {
           :key="qp"
           type="button"
           @click="handleQuickPrompt(qp)"
-          :disabled="chatStore.isThinking"
+          :disabled="chatBlocked"
           class="shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#F3F6EE] hover:bg-[#EBF1E6] hover:text-[#2D3B1E] text-[#556345] transition-colors border border-[#DEE5D4]"
         >
           {{ qp }}
@@ -238,13 +241,14 @@ function handleAddToCartFromChat(product: Product) {
           type="text"
           v-model="inputText"
           maxlength="4000"
+          :disabled="chatBlocked"
           aria-label="Câu hỏi gửi NutriBot"
           placeholder="Hỏi về calo, đạm, thực đơn giảm cân..."
           class="flex-1 px-3.5 py-2.5 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-xs sm:text-sm text-[#2D3B1E] placeholder-[#8C9882] focus:bg-white focus:border-[#4D6A34] outline-none"
         />
         <button
           type="submit"
-          :disabled="!inputText.trim() || chatStore.isThinking"
+          :disabled="!inputText.trim() || chatBlocked"
           class="p-2.5 rounded-xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white disabled:opacity-40 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
           aria-label="Gửi tin nhắn"
         >

@@ -4,6 +4,7 @@ import { createChatController } from '../controllers/chatController.js';
 const router = Router();
 
 const controller = createChatController();
+router.post('/session', controller.session);
 router.post('/conversations', controller.create);
 router.get('/conversations', controller.list);
 router.get('/conversations/:id/messages', controller.history);

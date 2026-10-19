@@ -33,16 +33,27 @@ Migration chạy trong transaction, thêm `chat_conversations`, `chat_messages` 
 
 - Customer gửi `Authorization: Bearer <JWT>`. Adapter hiện nhận HS256, `sub` là chuỗi ID số của `users.id`, có `exp`, kiểm tra `nbf` nếu có. Server kiểm tra chữ ký bằng `JWT_SECRET`, rồi đọc vai trò hiện tại trong `users` và chỉ chấp nhận `customer`. Không tin `userId`, `role` hoặc history gửi từ client. Hợp đồng JWT khác cần phối hợp với module tài khoản trước khi kết nối.
 - Frontend có điểm tích hợp `authStore.login(profile, accessToken)`; JWT giữ trong bộ nhớ, không lưu vào localStorage. Đăng nhập mẫu không có token vẫn là Guest đối với API chat, không được giả làm Customer.
-- Guest gọi API tạo hội thoại để nhận cookie `nutrimate_guest`: ngẫu nhiên 256 bit, HttpOnly, SameSite=Strict, thời hạn 7 ngày, path `/api/chat`; Secure ở production. Database chỉ lưu SHA-256 của token, không trả token trong JSON. Mất cookie thì không thể khôi phục lịch sử Guest bằng ID hội thoại đơn thuần.
+- Guest gọi `POST /api/chat/session` trước để nhận hoặc khôi phục cookie `nutrimate_guest`: ngẫu nhiên 256 bit, HttpOnly, SameSite=Strict, thời hạn 7 ngày, path `/api/chat`; Secure ở production. Sau đó mới lấy danh sách hội thoại và lịch sử. Database chỉ lưu SHA-256 của token, không trả token trong JSON. Mất cookie thì không thể khôi phục lịch sử Guest bằng ID hội thoại đơn thuần.
 - Đọc lịch sử, danh sách hoặc gửi khi không có JWT/cookie hợp lệ trả 401. JWT sai/hết hạn không được tự hạ thành Guest. Sai vai trò trả 403. Hội thoại không thuộc danh tính hiện tại trả 404, kể cả khi ID tồn tại, để tránh tiết lộ sự tồn tại.
 - Không tự chuyển hội thoại Guest vào tài khoản khi đăng nhập; hai không gian tách riêng. UI xóa lịch sử trong bộ nhớ và bỏ qua phản hồi cũ khi JWT thay đổi.
+- JWT lỗi/hết hạn: widget giữ hội thoại hiện tại, khóa gửi/thao tác lịch sử và hiện liên kết “Đăng nhập lại”; không xóa JWT hay tự chuyển sang Guest. Khi module đăng nhập cung cấp token mới, widget tải lại lịch sử theo token đó. Trang đăng nhập hiện có vẫn là phần mô phỏng của module tài khoản; kiểm thử CN_25 xác minh điểm tích hợp `authStore.login(profile, token)` với JWT được server kiểm tra, không thay thế kiểm thử đăng nhập bằng mật khẩu của module tài khoản.
+- Guest mất cookie giữa phiên: giữ ngữ cảnh đang hiển thị và thông báo hết phiên; chỉ xóa trạng thái cũ/tạo phiên mới sau khi người dùng chọn “Bắt đầu phiên Guest mới”. Không tự gửi lại câu hỏi vào danh tính mới.
 - API trả `Cache-Control: no-store`, từ chối yêu cầu cross-site và Origin không trùng host. Khi triển khai sau reverse proxy HTTPS cần cấu hình proxy/host của Express phù hợp để Origin chính xác.
+- Vite dùng URL `/api` cùng origin và giữ `Host` của trình duyệt (`changeOrigin: false`) khi proxy tới Express 3000. Không gọi URL backend khác host trực tiếp từ frontend; cookie HttpOnly không được đọc/chép vào JavaScript. Khi sửa routes backend phải khởi động lại Express, HMR frontend không nạp lại routes server.
 
 ## API
 
 Mọi phản hồi dùng `{ "success": true, "data": ... }` hoặc `{ "success": false, "message": "..." }`. API dùng cookie cùng origin; Customer bổ sung Bearer JWT. UUID ví dụ bên dưới chỉ là giá trị minh họa.
 
 ### Tạo hội thoại
+
+Trước bước này, gọi `POST /api/chat/session` với body `{}`. Customer gửi Bearer JWT; Guest gửi cookie hiện có nếu có, trình duyệt tự nhận cookie mới khi cần. Response 200:
+
+```json
+{ "success": true, "data": { "kind": "guest", "created": true } }
+```
+
+`created: false` nghĩa là phiên hiện tại được khôi phục; `kind: "customer"` khi JWT hợp lệ. Endpoint này không tạo hội thoại hoặc trả token/ID người dùng. JWT sai/hết hạn trả 401 ngay cả khi request có cookie Guest. Sau response thành công mới gọi `GET /api/chat/conversations`; nếu danh sách rỗng thì tạo hội thoại, nếu có thì tải lịch sử của hội thoại đã chọn. Gọi GET trực tiếp bằng curl/trình duyệt mới không có cookie/JWT vẫn phải trả 401; đây là bảo vệ đúng thiết kế, không phải lỗi cần bỏ middleware.
 
 `POST /api/chat/conversations`, body `{}`. Guest mới nhận Set-Cookie. Response 201:
 
@@ -132,3 +143,7 @@ Bộ này tạo schema riêng trong một transaction để chạy DDL migration
 Kiểm tra cả LLM thật và PostgreSQL thật (hai lượt hỏi không chứa dữ liệu cá nhân, có thể tiêu tốn quota): đặt `CHAT_TEST_LIVE=1` rồi chạy `npm run test:chat:live`. Bộ này dùng schema test rollback như trên, đọc sản phẩm/tri thức hiện có qua luồng service thật và không để lại hội thoại thử trong dữ liệu ứng dụng.
 
 Sau khi migration và cấu hình thật sẵn sàng, chạy `npm run dev`; kiểm tra Guest hỏi hai lượt, tải lại trang để phục hồi lịch sử, tạo chat mới/chuyển chat, giả lập lỗi mạng và gửi lại; kiểm tra Customer bằng JWT của module tài khoản và hai tài khoản khác nhau. Xác nhận secrets không nằm trong Network response/bundle frontend. Chỉ commit/push khi các kiểm tra bắt buộc và kiểm thử thực tế đạt.
+
+Kiểm thử widget bằng Edge headless và backend đang chạy thật: đặt `CHAT_TEST_BROWSER=1`, tùy chọn `CHAT_BROWSER_URL=http://127.0.0.1:3000` hoặc `http://127.0.0.1:5173`, rồi chạy `npm run test:chat:browser`. Cần migration trong database ứng dụng. Bộ này dùng cookie trình duyệt thật, gọi LLM thật, khôi phục sau reload, đăng nhập qua điểm tích hợp JWT với tài khoản test mới, kiểm tra hết hạn/khác chủ sở hữu rồi chỉ dọn các bản ghi do chính test tạo. Có thể đặt `CHAT_BROWSER_PATH` nếu Edge ở đường dẫn khác.
+
+Nguyên nhân lỗi mở widget đã sửa: luồng cũ gọi GET trước rồi bắt 401 để tạo Guest; proxy Vite đổi Host làm kiểm tra Origin không khớp; UI chưa có trạng thái xử lý phiên hết hạn. Ngoài ra, thiếu migration gây 503 khi tạo hội thoại, không phải lỗi xác thực. Trước khi kiểm tra thực tế phải áp dụng migration và khởi động lại backend.

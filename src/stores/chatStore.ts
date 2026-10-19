@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
 import type { ChatMessage } from '../types';
-import { ApiError, createChatConversation, fetchChatConversations, fetchChatHistory, postChatMessage, type ChatConversation, type ChatHistoryMessage } from '../services/api';
+import { ApiError, ensureChatSession, createChatConversation, fetchChatConversations, fetchChatHistory, postChatMessage, type ChatConversation, type ChatHistoryMessage } from '../services/api';
 import { useAuthStore } from './authStore';
 
 export const useChatStore = defineStore('chat', () => {
@@ -9,6 +9,8 @@ export const useChatStore = defineStore('chat', () => {
   const isOpen = ref(false);
   const isThinking = ref(false);
   const error = ref('');
+  const requiresAuthentication = ref(false);
+  const guestSessionExpired = ref(false);
   const conversationId = ref<string | null>(null);
   const conversations = ref<ChatConversation[]>([]);
   const hasEarlier = ref(false);
@@ -17,6 +19,7 @@ export const useChatStore = defineStore('chat', () => {
   });
   const messages = ref<ChatMessage[]>([welcome()]);
   let epoch = 0;
+  let sessionReady = false;
 
   function display(message: ChatHistoryMessage): ChatMessage {
     return { id: message.id, requestId: message.requestId, sender: message.role === 'user' ? 'user' : 'bot',
@@ -24,6 +27,9 @@ export const useChatStore = defineStore('chat', () => {
   }
   function resetIdentity() {
     epoch++;
+    sessionReady = false;
+    requiresAuthentication.value = false;
+    guestSessionExpired.value = false;
     conversationId.value = null;
     conversations.value = [];
     messages.value = [welcome()];
@@ -33,28 +39,58 @@ export const useChatStore = defineStore('chat', () => {
   }
   watch(() => auth.accessToken, () => { resetIdentity(); if (isOpen.value) void initialize(); });
 
+  function reportError(reason: unknown, fallback: string) {
+    if (reason instanceof ApiError && reason.status === 401) {
+      sessionReady = false;
+      if (auth.accessToken) {
+        requiresAuthentication.value = true;
+        error.value = 'Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại để tiếp tục hội thoại của bạn.';
+      } else {
+        guestSessionExpired.value = true;
+        error.value = 'Phiên Guest đã hết hạn hoặc không còn cookie. Hãy bắt đầu phiên Guest mới; lịch sử cũ sẽ không chuyển sang phiên mới.';
+      }
+    } else error.value = reason instanceof Error ? reason.message : fallback;
+  }
+  async function prepareSession(token: string | null, active: number) {
+    const session = await ensureChatSession(token);
+    if (active !== epoch) return false;
+    if (!token && session.created && conversationId.value) {
+      reportError(new ApiError(401, ''), '');
+      return false;
+    }
+    sessionReady = true;
+    return true;
+  }
+  async function restartGuestSession() {
+    if (auth.accessToken || isThinking.value) return;
+    resetIdentity();
+    await initialize();
+  }
+
   async function initialize() {
-    if (isThinking.value || conversationId.value) return;
+    if (isThinking.value || requiresAuthentication.value || guestSessionExpired.value) return;
     const active = epoch;
     const token = auth.accessToken;
     isThinking.value = true;
     error.value = '';
     try {
-      let list: ChatConversation[];
-      try { list = await fetchChatConversations(token); }
-      catch (reason) { if (reason instanceof ApiError && reason.status === 401 && !token) list = []; else throw reason; }
-      const conversation = list[0] || await createChatConversation(token);
+      if (!await prepareSession(token, active)) return;
+      const list = await fetchChatConversations(token);
+      if (active !== epoch) return;
+      const conversation = list.find(item => item.id === conversationId.value) || list[0] || await createChatConversation(token);
       const history = await fetchChatHistory(conversation.id, token);
       if (active !== epoch) return;
+      const savedRequests = new Set(history.map(message => message.requestId));
+      const unsent = conversationId.value === conversation.id ? messages.value.filter(message => message.failed && !savedRequests.has(message.requestId || '')) : [];
       conversations.value = list.length ? list : [conversation];
       conversationId.value = conversation.id;
-      messages.value = history.length ? history.map(display) : [welcome()];
+      messages.value = [...(history.length ? history.map(display) : [welcome()]), ...unsent];
       hasEarlier.value = history.length === 50;
-    } catch (reason) { if (active === epoch) error.value = reason instanceof Error ? reason.message : 'Không tải được hội thoại.'; }
+    } catch (reason) { if (active === epoch) reportError(reason, 'Không tải được hội thoại.'); }
     finally { if (active === epoch) isThinking.value = false; }
   }
   async function selectConversation(id: string) {
-    if (isThinking.value || !id) return;
+    if (isThinking.value || requiresAuthentication.value || guestSessionExpired.value || !id) return;
     const active = epoch;
     isThinking.value = true;
     error.value = '';
@@ -64,27 +100,28 @@ export const useChatStore = defineStore('chat', () => {
       conversationId.value = id;
       messages.value = history.length ? history.map(display) : [welcome()];
       hasEarlier.value = history.length === 50;
-    } catch (reason) { if (active === epoch) error.value = reason instanceof Error ? reason.message : 'Không tải được hội thoại.'; }
+    } catch (reason) { if (active === epoch) reportError(reason, 'Không tải được hội thoại.'); }
     finally { if (active === epoch) isThinking.value = false; }
   }
   async function newConversation() {
-    if (isThinking.value) return;
+    if (isThinking.value || requiresAuthentication.value || guestSessionExpired.value) return;
     const active = epoch;
     isThinking.value = true;
     error.value = '';
     try {
+      if (!await prepareSession(auth.accessToken, active)) return;
       const conversation = await createChatConversation(auth.accessToken);
       if (active !== epoch) return;
       conversations.value = [conversation, ...conversations.value].slice(0, 50);
       conversationId.value = conversation.id;
       messages.value = [welcome()];
       hasEarlier.value = false;
-    } catch (reason) { if (active === epoch) error.value = reason instanceof Error ? reason.message : 'Không tạo được hội thoại.'; }
+    } catch (reason) { if (active === epoch) reportError(reason, 'Không tạo được hội thoại.'); }
     finally { if (active === epoch) isThinking.value = false; }
   }
   async function loadEarlier() {
     const first = messages.value[0];
-    if (isThinking.value || !conversationId.value || !first || !hasEarlier.value) return;
+    if (isThinking.value || requiresAuthentication.value || guestSessionExpired.value || !conversationId.value || !first || !hasEarlier.value) return;
     const active = epoch;
     isThinking.value = true;
     error.value = '';
@@ -93,11 +130,11 @@ export const useChatStore = defineStore('chat', () => {
       if (active !== epoch) return;
       messages.value.unshift(...history.map(display));
       hasEarlier.value = history.length === 50;
-    } catch (reason) { if (active === epoch) error.value = reason instanceof Error ? reason.message : 'Không tải được lịch sử.'; }
+    } catch (reason) { if (active === epoch) reportError(reason, 'Không tải được lịch sử.'); }
     finally { if (active === epoch) isThinking.value = false; }
   }
   async function sendMessage(text: string, retryId?: string) {
-    if (!text.trim() || text.trim().length > 4000 || isThinking.value) return;
+    if (!text.trim() || text.trim().length > 4000 || isThinking.value || requiresAuthentication.value || guestSessionExpired.value) return;
     const active = epoch;
     const requestId = retryId || crypto.randomUUID();
     const userMessage = messages.value.find(message => message.sender === 'user' && message.requestId === requestId);
@@ -106,6 +143,7 @@ export const useChatStore = defineStore('chat', () => {
     isThinking.value = true;
     error.value = '';
     try {
+      if (!sessionReady && !await prepareSession(auth.accessToken, active)) return;
       if (!conversationId.value) {
         const conversation = await createChatConversation(auth.accessToken);
         if (active !== epoch) return;
@@ -120,13 +158,13 @@ export const useChatStore = defineStore('chat', () => {
       if (active !== epoch) return;
       const failed = messages.value.find(message => message.sender === 'user' && message.requestId === requestId);
       if (failed) failed.failed = true;
-      error.value = reason instanceof Error ? reason.message : 'NutriBot đang bận, vui lòng gửi lại.';
+      reportError(reason, 'NutriBot đang bận, vui lòng gửi lại.');
     } finally { if (active === epoch) isThinking.value = false; }
   }
   function retryMessage(message: ChatMessage) { if (message.failed && message.requestId) void sendMessage(message.text, message.requestId); }
   function openChat() { isOpen.value = true; void initialize(); }
   function closeChat() { isOpen.value = false; }
   function toggleChat() { if (isOpen.value) closeChat(); else openChat(); }
-  return { isOpen, isThinking, messages, error, conversationId, conversations, hasEarlier, openChat, closeChat, toggleChat,
+  return { isOpen, isThinking, messages, error, requiresAuthentication, guestSessionExpired, restartGuestSession, conversationId, conversations, hasEarlier, openChat, closeChat, toggleChat,
     sendMessage, retryMessage, initialize, selectConversation, newConversation, loadEarlier };
 });

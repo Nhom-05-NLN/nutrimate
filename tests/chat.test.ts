@@ -68,6 +68,7 @@ const identity = createChatIdentity(async id => id === 9 ? 'admin' : id <= 2 ? '
 const controller = createChatController(service, identity);
 const app = express();
 app.use(express.json());
+app.post('/api/chat/session', controller.session);
 app.post('/api/chat/conversations', controller.create);
 app.get('/api/chat/conversations', controller.list);
 app.get('/api/chat/conversations/:id/messages', controller.history);
@@ -113,6 +114,25 @@ test('Customer: successful chat persists user/assistant, history and multi-turn 
   assert.equal(captured[1]?.content, 'Tôi muốn ăn uống hợp lý');
   const history = await request(`/conversations/${id}/messages`, undefined, jwt());
   assert.equal((await history.json()).data.messages.length, 4);
+});
+test('session bootstrap creates/restores Guest without creating conversations and rejects expired Customer JWT', async () => {
+  const before = repository.records.size;
+  const response = await request('/session', {});
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).data.kind, 'guest');
+  const cookie = response.headers.get('set-cookie')!.split(';')[0]!;
+  const restored = await request('/session', {}, undefined, cookie);
+  assert.equal(restored.status, 200);
+  assert.equal((await restored.json()).data.created, false);
+  assert.equal(restored.headers.get('set-cookie'), null);
+  assert.equal((await request('/conversations', undefined, undefined, cookie)).status, 200);
+  const customer = await request('/session', {}, jwt());
+  assert.equal((await customer.json()).data.kind, 'customer');
+  assert.equal(customer.headers.get('set-cookie'), null);
+  const expired = await request('/session', {}, jwt('1', 1), cookie);
+  assert.equal(expired.status, 401);
+  assert.equal(expired.headers.get('set-cookie'), null);
+  assert.equal(repository.records.size, before);
 });
 test('empty, non-string and oversized questions return 400 without calling AI', async () => {
   const id = await create();

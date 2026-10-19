@@ -26,6 +26,10 @@ export function createChatController(service: ChatService = createChatService(),
     };
   }
   return {
+    session: handle(async (req, res) => {
+      const owner = await identity(req, res, true);
+      return { kind: owner.userId === null ? 'guest' : 'customer', created: res.hasHeader('Set-Cookie') };
+    }),
     create: handle(async (req, res) => service.create(await identity(req, res, true)), 201),
     list: handle(async (req, res) => service.list(await identity(req, res))),
     history: handle(async (req, res) => {

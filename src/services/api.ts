@@ -105,6 +105,13 @@ export interface ChatHistoryMessage {
 function chatHeaders(token?: string | null): Record<string, string> {
   return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 }
+export async function ensureChatSession(token?: string | null): Promise<{ kind: 'guest' | 'customer'; created: boolean }> {
+  const res = await fetchJson<ApiResponse<{ kind: 'guest' | 'customer'; created: boolean }>>('/chat/session', {
+    method: 'POST', credentials: 'same-origin', headers: chatHeaders(token), body: '{}',
+  });
+  if (!res.data) throw new Error('Không thể khôi phục phiên chat.');
+  return res.data;
+}
 export async function createChatConversation(token?: string | null): Promise<ChatConversation> {
   const res = await fetchJson<ApiResponse<ChatConversation>>('/chat/conversations', { method: 'POST', headers: chatHeaders(token) });
   if (!res.data) throw new Error('Không thể tạo hội thoại.');
