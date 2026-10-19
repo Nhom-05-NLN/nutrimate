@@ -10,6 +10,7 @@
     "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.js",
     "build": "vite build && esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.js",
     "start": "node dist/server.js",
+    "seed:db": "tsx server/db/seed.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --deny-warnings",
     "lint:ox": "oxlint --fix",
