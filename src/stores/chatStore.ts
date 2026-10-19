@@ -72,5 +72,9 @@ export const useChatStore = defineStore('chat', () => {
     closeChat,
     toggleChat,
     sendMessage,
+    askAboutOrder: (orderCode: string) => {
+      isOpen.value = true;
+      sendMessage(`NutriBot ơi, kiểm tra giúp mình tiến độ đơn hàng #${orderCode} nhé!`);
+    },
   };
 });
