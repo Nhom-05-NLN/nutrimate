@@ -10,15 +10,15 @@ interface KnowledgeRow {
   recommended_category: string | null;
 }
 
-export async function getAllKnowledge(): Promise<ChatbotKnowledge[]> {
-  if (isDbConnected()) {
+export async function getAllKnowledge(requirePostgres = false, executeQuery = queryPostgres): Promise<ChatbotKnowledge[]> {
+  if (requirePostgres || isDbConnected()) {
     try {
       const sql = `
         SELECT id, intent_tag, keyword_patterns, answer_template, recommended_category
         FROM chatbot_knowledge
       `;
-      const res = await queryPostgres<KnowledgeRow>(sql);
-      if (res.rows.length > 0) {
+      const res = await executeQuery<KnowledgeRow>(sql);
+      if (requirePostgres || res.rows.length > 0) {
         return res.rows.map((r) => ({
           id: r.id,
           intentTag: r.intent_tag,
@@ -28,6 +28,7 @@ export async function getAllKnowledge(): Promise<ChatbotKnowledge[]> {
         }));
       }
     } catch (err: unknown) {
+      if (requirePostgres) throw err;
       const msg = err instanceof Error ? err.message : 'Knowledge query error';
       console.warn('[ChatRepository Fallback]:', msg);
     }

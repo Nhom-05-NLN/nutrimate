@@ -63,8 +63,8 @@ function mapRowToProduct(row: ProductRow): Product {
   };
 }
 
-export async function findProducts(filter: ProductFilterQuery): Promise<Product[]> {
-  if (isDbConnected()) {
+export async function findProducts(filter: ProductFilterQuery, requirePostgres = false, executeQuery = queryPostgres): Promise<Product[]> {
+  if (requirePostgres || isDbConnected()) {
     try {
       const conditions: string[] = ['is_active = TRUE'];
       const values: unknown[] = [];
@@ -104,13 +104,15 @@ export async function findProducts(filter: ProductFilterQuery): Promise<Product[
         FROM products
         WHERE ${conditions.join(' AND ')}
         ORDER BY is_featured DESC, id ASC
+        ${requirePostgres ? 'LIMIT 3' : ''}
       `;
 
-      const result = await queryPostgres<ProductRow>(sql, values);
-      if (result.rows.length > 0) {
+      const result = await executeQuery<ProductRow>(sql, values);
+      if (requirePostgres || result.rows.length > 0) {
         return result.rows.map(mapRowToProduct);
       }
     } catch (err: unknown) {
+      if (requirePostgres) throw err;
       const msg = err instanceof Error ? err.message : 'Product query error';
       console.warn('[ProductRepository Fallback]:', msg);
     }

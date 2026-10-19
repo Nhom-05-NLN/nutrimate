@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "test:chat": "tsx --test tests/chat.test.ts tests/chatStore.test.ts",
+    "test:chat:postgres": "tsx --test tests/chatPostgres.test.ts",
+    "test:chat:live": "tsx --test tests/chatLive.test.ts",
     "dev": "tsx server/index.ts",
     "dev:fe": "vite",
     "build:fe": "vite build",

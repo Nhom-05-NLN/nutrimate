@@ -40,6 +40,8 @@ export const useAuthStore = defineStore('auth', () => {
   });
 
   const isAuthModalOpen = ref<boolean>(false);
+  // Set only from the real authentication module's response. Demo login has no JWT.
+  const accessToken = ref<string | null>(null);
   const toast = useToastStore();
 
   function openAuthModal() {
@@ -57,18 +59,21 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function login(profile: UserProfile) {
+  function login(profile: UserProfile, token?: string) {
+    accessToken.value = token || null;
     currentUser.value = profile;
     isAuthModalOpen.value = false;
     toast.show(`Chào mừng ${profile.name} đã đăng nhập NutriMate!`);
   }
 
   function logout() {
+    accessToken.value = null;
     currentUser.value = null;
     toast.show('Đã đăng xuất tài khoản thành công.', 'info');
   }
 
   return {
+    accessToken,
     currentUser,
     isAuthModalOpen,
     openAuthModal,

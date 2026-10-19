@@ -149,6 +149,8 @@ export interface CreateOrderPayload {
 }
 
 export interface ChatMessage {
+  requestId?: string;
+  failed?: boolean;
   id: string;
   sender: 'user' | 'bot';
   text: string;

@@ -2,6 +2,10 @@ import { ApiResponse, Category, Product, ProductFilterQuery, Order, CreateOrderP
 
 const API_BASE = '/api';
 
+export class ApiError extends Error {
+  constructor(public status: number, message: string) { super(message); }
+}
+
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
   try {
@@ -22,11 +26,12 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
       } catch {
         // Fallback error message
       }
-      throw new Error(errorMsg);
+      throw new ApiError(res.status, errorMsg);
     }
 
     return (await res.json()) as T;
   } catch (err: unknown) {
+    if (err instanceof ApiError) throw err;
     const message = err instanceof Error ? err.message : 'Lỗi không xác định khi kết nối máy chủ';
     throw new Error(message);
   }
@@ -81,15 +86,44 @@ export async function postOrder(payload: CreateOrderPayload): Promise<Order> {
 }
 
 export interface ChatbotResponse {
+  conversationId: string;
+  messages: ChatHistoryMessage[];
   reply: string;
   suggestedProducts: Product[];
   intent?: string;
 }
 
-export async function postChatMessage(message: string): Promise<ChatbotResponse> {
+export interface ChatConversation { id: string; createdAt: string; updatedAt: string }
+export interface ChatHistoryMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+  requestId: string;
+  suggestedProducts: Product[];
+}
+function chatHeaders(token?: string | null): Record<string, string> {
+  return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+}
+export async function createChatConversation(token?: string | null): Promise<ChatConversation> {
+  const res = await fetchJson<ApiResponse<ChatConversation>>('/chat/conversations', { method: 'POST', headers: chatHeaders(token) });
+  if (!res.data) throw new Error('Không thể tạo hội thoại.');
+  return res.data;
+}
+export async function fetchChatConversations(token?: string | null): Promise<ChatConversation[]> {
+  const res = await fetchJson<ApiResponse<ChatConversation[]>>('/chat/conversations', { headers: chatHeaders(token) });
+  return res.data || [];
+}
+export async function fetchChatHistory(id: string, token?: string | null, before?: string): Promise<ChatHistoryMessage[]> {
+  const res = await fetchJson<ApiResponse<{ messages: ChatHistoryMessage[] }>>(`/chat/conversations/${encodeURIComponent(id)}/messages${before ? `?before=${encodeURIComponent(before)}` : ''}`, { headers: chatHeaders(token) });
+  if (!res.data) throw new Error('Không thể tải lịch sử.');
+  return res.data.messages;
+}
+export async function postChatMessage(message: string, conversationId: string, requestId: string, token?: string | null): Promise<ChatbotResponse> {
   const res = await fetchJson<ApiResponse<ChatbotResponse>>('/chat/ask', {
     method: 'POST',
-    body: JSON.stringify({ message }),
+    headers: chatHeaders(token),
+    body: JSON.stringify({ message, conversationId, requestId }),
   });
   if (!res.data) {
     throw new Error('Không nhận được phản hồi từ NutriBot');
