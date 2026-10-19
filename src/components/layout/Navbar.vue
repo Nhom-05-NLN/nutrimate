@@ -111,21 +111,22 @@ function handleSearchSubmit() {
 
         <!-- 4. RIGHT SIDE UTILITIES -->
         <div class="flex items-center gap-3.5 shrink-0">
-          <!-- Cart Icon Button with Red Badge (Figma Style) -->
-          <RouterLink
-            to="/cart"
-            class="relative w-11 h-11 rounded-full flex items-center justify-center text-[#242424] hover:bg-[#EBF7E5] transition-colors"
+          <!-- Cart Icon Button with Red Badge (Figma Style & Drawer Trigger) -->
+          <button
+            type="button"
+            @click="cartStore.openCart()"
+            class="relative w-11 h-11 rounded-full flex items-center justify-center text-[#242424] hover:bg-[#EBF7E5] transition-colors cursor-pointer"
             title="Xem giỏ hàng của bạn"
             aria-label="Giỏ hàng"
           >
             <ShoppingBag class="w-6 h-6 stroke-[1.8]" />
             <span
               v-if="cartStore.totalCount > 0"
-              class="absolute top-1 right-1 bg-[#C5281C] text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-xs"
+              class="absolute top-1 right-1 bg-[#C5281C] text-white text-[10px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-xs"
             >
               {{ cartStore.totalCount }}
             </span>
-          </RouterLink>
+          </button>
 
           <!-- User Account Pill Button -->
           <div class="relative">

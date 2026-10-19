@@ -27,6 +27,11 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
     rating: 4.9,
     reviewCount: 124,
     badges: ['Keto Friendly', 'Giàu Chất Xơ'],
+    portions: [
+      { label: 'Hũ 500g', weight: '500g', price: 185000, inStock: true, savingBadge: 'Tiết kiệm 15%' },
+      { label: 'Hũ 250g', weight: '250g', price: 105000, inStock: true },
+      { label: 'Túi refill 1000g', weight: '1000g', price: 330000, inStock: true, savingBadge: 'Tiết kiệm 25%' },
+    ],
     isFeatured: true,
     bestFor: 'Bữa sáng & Ăn xế thanh sạch',
   },
@@ -53,6 +58,10 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
     rating: 5.0,
     reviewCount: 208,
     badges: ['High-Protein', '0g Sugar'],
+    portions: [
+      { label: 'Gói 200g', weight: '200g', price: 110000, inStock: true },
+      { label: 'Combo 3 gói (600g)', weight: '600g', price: 310000, inStock: true, savingBadge: 'Tiết kiệm 20k' },
+    ],
     isFeatured: true,
     bestFor: 'Gymer nạp đạm siết cơ',
   },
@@ -157,6 +166,10 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
     rating: 4.7,
     reviewCount: 142,
     badges: ['0g Sugar', 'Keto Friendly'],
+    portions: [
+      { label: 'Hũ 350g', weight: '350g', price: 89000, inStock: true },
+      { label: 'Hũ 500g', weight: '500g', price: 120000, inStock: true, savingBadge: 'Tiết kiệm 15%' },
+    ],
     isFeatured: true,
     bestFor: 'Ăn kèm bánh mì đen & smoothie',
   },
