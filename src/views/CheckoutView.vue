@@ -1,19 +1,26 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { useCartStore } from '../stores/cartStore';
+import { useCartStore, getCartItemKey } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
+import { postOrder } from '../services/api';
+import { CustomerInfo, Order, PaymentMethod, CreateOrderPayload } from '../types';
+import ShippingAddressForm from '../components/checkout/ShippingAddressForm.vue';
+import VietQrModal from '../components/checkout/VietQrModal.vue';
 import {
   ChevronRight,
-  CheckCircle2,
   Truck,
   CreditCard,
   QrCode,
   ShieldCheck,
   PhoneCall,
-  Copy,
   Lock,
+  Flame,
+  Dumbbell,
+  AlertCircle,
+  Tag,
+  ShoppingBag,
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -23,11 +30,14 @@ const toastStore = useToastStore();
 
 const isAgreed = ref(true);
 const shippingMethod = ref<'standard' | 'express_2h'>('standard');
-const paymentMethod = ref<'vietqr' | 'cod' | 'momo' | 'card'>('vietqr');
-const voucherCode = ref('NUTRIFREESHIP');
+const paymentMethod = ref<PaymentMethod>('vietqr');
+const voucherInput = ref('NUTRIFREESHIP');
+const appliedVoucher = ref<string>('NUTRIFREESHIP');
 const isSubmitting = ref(false);
+const showVietQrModal = ref(false);
+const createdOrder = ref<Order | null>(null);
 
-const customer = ref({
+const customer = ref<CustomerInfo>({
   name: authStore.currentUser?.name || 'Nguyễn Minh Anh',
   phone: authStore.currentUser?.phone || '0912 345 678',
   email: authStore.currentUser?.email || 'minhanh.fit@gmail.com',
@@ -39,41 +49,138 @@ function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
-const subtotal = computed(() => (cartStore.totalAmount > 0 ? cartStore.totalAmount : 495000));
-const shippingFee = computed(() => (shippingMethod.value === 'express_2h' ? 35000 : 0));
-const voucherDiscount = computed(() => 25000);
-const grandTotal = computed(() => Math.max(0, subtotal.value + shippingFee.value - (shippingMethod.value === 'standard' ? 0 : 0)));
+// Lấy danh sách sản phẩm checkout: ưu tiên các món được tick chọn
+const checkoutItems = computed(() => {
+  if (cartStore.selectedItems.length > 0) {
+    return cartStore.selectedItems;
+  }
+  return cartStore.items;
+});
 
-function copyToClipboard(text: string, label: string) {
-  navigator.clipboard.writeText(text);
-  toastStore.show(`Đã sao chép ${label}`, 'success', text);
+const subtotal = computed(() => {
+  return checkoutItems.value.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+});
+
+const totalKcal = computed(() => {
+  return Math.round(checkoutItems.value.reduce((sum, item) => sum + item.product.nutrition.calories * item.quantity, 0));
+});
+
+const totalProtein = computed(() => {
+  return Math.round(checkoutItems.value.reduce((sum, item) => sum + item.product.nutrition.protein * item.quantity, 0) * 10) / 10;
+});
+
+const baseShippingFee = computed(() => {
+  if (shippingMethod.value === 'express_2h') return 35000;
+  return subtotal.value >= 300000 ? 0 : 25000;
+});
+
+const voucherDiscount = computed(() => {
+  if (!appliedVoucher.value) return 0;
+  const code = appliedVoucher.value.trim().toUpperCase();
+  if (code === 'NUTRIFREESHIP' || code === 'FREESHIP') {
+    return Math.min(baseShippingFee.value, 25000);
+  }
+  if (code === 'HEALTHY20K') {
+    return 20000;
+  }
+  if (code === 'CLEANEAT10') {
+    return Math.round(subtotal.value * 0.1);
+  }
+  return 0;
+});
+
+const shippingFee = computed(() => {
+  return baseShippingFee.value;
+});
+
+const grandTotal = computed(() => {
+  return Math.max(0, subtotal.value + shippingFee.value - voucherDiscount.value);
+});
+
+function applyVoucher() {
+  const code = voucherInput.value.trim().toUpperCase();
+  if (!code) {
+    appliedVoucher.value = '';
+    toastStore.show('Đã gỡ bỏ mã giảm giá', 'info');
+    return;
+  }
+  if (['NUTRIFREESHIP', 'FREESHIP', 'HEALTHY20K', 'CLEANEAT10'].includes(code)) {
+    appliedVoucher.value = code;
+    toastStore.show(`Áp dụng thành công mã ${code}`, 'success');
+  } else {
+    toastStore.show('Mã voucher không hợp lệ hoặc đã hết hạn', 'warning');
+  }
 }
 
-function handleFinishOrder() {
+async function handleFinishOrder() {
+  if (checkoutItems.value.length === 0) {
+    toastStore.show('Giỏ hàng trống! Vui lòng chọn món trước khi đặt hàng', 'warning');
+    router.push('/catalog');
+    return;
+  }
+
+  if (!customer.value.name.trim() || !customer.value.phone.trim() || !customer.value.address.trim()) {
+    toastStore.show('Vui lòng điền đầy đủ Họ tên, Số điện thoại và Địa chỉ nhận hàng', 'error');
+    return;
+  }
+
   if (!isAgreed.value) {
-    toastStore.show('Vui lòng đồng ý điều khoản dịch vụ để tiếp tục', 'error');
+    toastStore.show('Vui lòng đồng ý với Điều khoản dịch vụ để tiếp tục', 'error');
     return;
   }
 
   isSubmitting.value = true;
-  setTimeout(() => {
-    isSubmitting.value = false;
+
+  try {
+    const payload: CreateOrderPayload = {
+      customer: customer.value,
+      items: checkoutItems.value.map((i) => ({
+        productId: i.product.id,
+        productName: i.product.name,
+        productImage: i.product.image,
+        price: i.product.price,
+        quantity: i.quantity,
+        calories: i.product.nutrition.calories,
+        protein: i.product.nutrition.protein,
+        portion: i.selectedPortion,
+      })),
+      shippingMethod: shippingMethod.value,
+      paymentMethod: paymentMethod.value,
+      voucherCode: appliedVoucher.value || undefined,
+      notes: customer.value.note,
+    };
+
+    const newOrder = await postOrder(payload);
+    createdOrder.value = newOrder;
+
+    // Dọn giỏ hàng sau khi tạo đơn thành công
     cartStore.clearCart();
-    toastStore.show('Đặt hàng thành công!', 'success', 'Mã đơn hàng: #NM-98234', 'Theo dõi đơn', '/orders');
-    router.push('/orders');
-  }, 1000);
+
+    if (paymentMethod.value === 'vietqr') {
+      // Mở modal VietQR để quét mã và mô phỏng thanh toán
+      showVietQrModal.value = true;
+    } else {
+      toastStore.show('Đặt hàng thành công!', 'success', `Mã đơn hàng: #${newOrder.orderCode}`, 'Theo dõi đơn', '/orders');
+      router.push('/orders');
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Lỗi khi tạo đơn hàng';
+    toastStore.show(msg, 'error');
+  } finally {
+    isSubmitting.value = false;
+  }
 }
 </script>
 
 <template>
   <div class="max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-10">
     <!-- Breadcrumb -->
-    <nav class="flex items-center gap-2 text-sm font-medium text-[#7E8B73]">
+    <nav class="flex items-center gap-2 text-sm font-medium text-[#7E8B73]" aria-label="Breadcrumb">
       <RouterLink to="/" class="hover:text-[#242424]">Trang chủ</RouterLink>
       <ChevronRight class="w-4 h-4" />
       <RouterLink to="/cart" class="hover:text-[#242424]">Giỏ hàng</RouterLink>
       <ChevronRight class="w-4 h-4" />
-      <span class="text-[#242424] font-bold">Thanh toán</span>
+      <span class="text-[#242424] font-bold">Thanh toán & Đặt hàng</span>
     </nav>
 
     <!-- 3-Step Stepper Header (Figma 05) -->
@@ -86,7 +193,7 @@ function handleFinishOrder() {
           </div>
           <div class="hidden sm:block text-left">
             <span class="text-xs text-[#7A866E] uppercase font-bold block">Bước 1</span>
-            <span class="text-sm font-bold text-[#242424]">Thông tin giao hàng</span>
+            <span class="text-sm font-bold text-[#242424]">Giỏ hàng & Dinh dưỡng</span>
           </div>
         </div>
 
@@ -99,7 +206,7 @@ function handleFinishOrder() {
           </div>
           <div class="hidden sm:block text-left">
             <span class="text-xs text-[#4D6A34] uppercase font-bold block">Bước 2 (Hiện tại)</span>
-            <span class="text-sm font-bold text-[#242424]">Vận chuyển & Dinh dưỡng</span>
+            <span class="text-sm font-bold text-[#242424]">Địa chỉ & Vận chuyển</span>
           </div>
         </div>
 
@@ -112,76 +219,37 @@ function handleFinishOrder() {
           </div>
           <div class="hidden sm:block text-left">
             <span class="text-xs text-[#7A866E] uppercase font-bold block">Bước 3</span>
-            <span class="text-sm font-bold text-[#6B7562]">Thanh toán & Xác nhận</span>
+            <span class="text-sm font-bold text-[#6B7562]">Thanh toán & Hoàn tất</span>
           </div>
         </div>
       </div>
     </div>
 
+    <!-- Empty State nếu không có món nào -->
+    <div v-if="checkoutItems.length === 0" class="p-16 text-center bg-white rounded-3xl border border-[#E3E8DC] space-y-4 shadow-2xs">
+      <div class="w-20 h-20 rounded-full bg-[#FAF9F5] text-[#7A866E] flex items-center justify-center mx-auto border border-[#E8ECE2]">
+        <ShoppingBag class="w-10 h-10 stroke-[1.5]" />
+      </div>
+      <h3 class="font-heading text-xl font-bold text-[#242424]">Không có sản phẩm nào để thanh toán</h3>
+      <p class="text-sm text-[#7A866E] max-w-md mx-auto">
+        Vui lòng quay lại giỏ hàng và chọn các sản phẩm bạn muốn đặt nhé.
+      </p>
+      <RouterLink
+        to="/cart"
+        class="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-[#4D6A34] text-white text-sm font-bold shadow-md hover:bg-[#3B4E24] transition-all"
+      >
+        <span>Quay lại Giỏ hàng</span>
+      </RouterLink>
+    </div>
+
     <!-- 2 Columns Grid: Form Checkout + Summary -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-      <!-- Cột Trái: Form 3 phần (Thông tin, Vận chuyển, Thanh toán) -->
+    <div v-else class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+      <!-- Cột Trái: Form 3 phần (Thông tin nhận hàng, Vận chuyển, Thanh toán) -->
       <div class="lg:col-span-7 space-y-7">
-        <!-- 1. Thông tin người nhận & Địa chỉ -->
-        <div class="bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-5">
-          <div class="flex items-center justify-between border-b border-[#F0F3EC] pb-4">
-            <div class="flex items-center gap-2.5 font-heading text-base font-bold text-[#242424]">
-              <span class="w-7 h-7 rounded-full bg-[#EBF7E5] text-[#4D6A34] flex items-center justify-center text-xs font-black">1</span>
-              <span>Thông tin người nhận & Địa chỉ</span>
-            </div>
-            <button type="button" class="text-xs font-bold text-[#4D6A34] hover:underline cursor-pointer">
-              ✎ Thay đổi
-            </button>
-          </div>
+        <!-- 1. Thông tin người nhận & Địa chỉ (dùng ShippingAddressForm component - CN_19) -->
+        <ShippingAddressForm v-model="customer" />
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label class="text-xs font-bold text-[#576449] block mb-1.5">Họ và tên</label>
-              <input
-                type="text"
-                v-model="customer.name"
-                class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm font-bold text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
-              />
-            </div>
-            <div>
-              <label class="text-xs font-bold text-[#576449] block mb-1.5">Số điện thoại</label>
-              <input
-                type="text"
-                v-model="customer.phone"
-                class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm font-bold text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label class="text-xs font-bold text-[#576449] block mb-1.5">Email nhận báo cáo dinh dưỡng & Hóa đơn</label>
-            <input
-              type="email"
-              v-model="customer.email"
-              class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm font-bold text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
-            />
-          </div>
-
-          <div>
-            <label class="text-xs font-bold text-[#576449] block mb-1.5">Địa chỉ giao hàng thực tế</label>
-            <input
-              type="text"
-              v-model="customer.address"
-              class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm font-bold text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
-            />
-          </div>
-
-          <div>
-            <label class="text-xs font-bold text-[#576449] block mb-1.5">Ghi chú giao hàng</label>
-            <input
-              type="text"
-              v-model="customer.note"
-              class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
-            />
-          </div>
-        </div>
-
-        <!-- 2. Phương thức vận chuyển thực phẩm sạch -->
+        <!-- 2. Phương thức vận chuyển thực phẩm sạch (CN_19) -->
         <div class="bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-5">
           <div class="flex items-center gap-2.5 font-heading text-base font-bold text-[#242424] border-b border-[#F0F3EC] pb-4">
             <span class="w-7 h-7 rounded-full bg-[#EBF7E5] text-[#4D6A34] flex items-center justify-center text-xs font-black">2</span>
@@ -191,299 +259,242 @@ function handleFinishOrder() {
           <!-- Radio 1: Giao tiêu chuẩn -->
           <label
             class="flex items-start justify-between p-5 rounded-2xl border cursor-pointer transition-all"
-            :class="shippingMethod === 'standard' ? 'border-2 border-[#4D6A34] bg-[#F6F8F3]' : 'border border-[#E3E8DC] bg-white'"
+            :class="shippingMethod === 'standard' ? 'border-2 border-[#4D6A34] bg-[#F6F8F3]' : 'border border-[#E3E8DC] bg-white hover:border-[#CCD7BC]'"
           >
             <div class="flex items-start gap-3.5">
-              <input type="radio" value="standard" v-model="shippingMethod" class="accent-[#4D6A34] w-4.5 h-4.5 mt-1" />
+              <input type="radio" value="standard" v-model="shippingMethod" class="accent-[#4D6A34] w-4.5 h-4.5 mt-1 cursor-pointer" />
               <div>
                 <div class="flex items-center gap-2.5">
                   <span class="text-sm font-bold text-[#242424]">Giao tiêu chuẩn (2-3 ngày)</span>
-                  <span class="px-2.5 py-0.5 rounded-full bg-[#EBF7E5] text-xs font-bold text-[#4D6A34]">FREESHIP</span>
+                  <span v-if="subtotal >= 300000 || appliedVoucher.includes('FREESHIP')" class="px-2.5 py-0.5 rounded-full bg-[#EBF7E5] text-xs font-bold text-[#4D6A34]">FREESHIP</span>
                 </div>
                 <p class="text-xs text-[#7A866E] mt-1 leading-relaxed">
-                  Đóng thùng cách nhiệt sinh thái, bảo toàn trọn vẹn chất lượng hạt và thanh dinh dưỡng.
+                  Đóng thùng cách nhiệt sinh thái, bảo toàn trọn vẹn độ giòn của hạt và thanh dinh dưỡng.
                 </p>
               </div>
             </div>
-            <div class="text-right">
-              <span class="text-sm font-bold text-[#4D6A34] block">Miễn phí</span>
-              <span class="text-xs text-[#8C9484] line-through">25.000đ</span>
+            <div class="text-right shrink-0">
+              <span v-if="subtotal >= 300000 || appliedVoucher.includes('FREESHIP')" class="text-sm font-bold text-[#4D6A34] block">Miễn phí</span>
+              <span v-else class="text-sm font-bold text-[#242424] block">25.000đ</span>
+              <span v-if="subtotal >= 300000" class="text-xs text-[#8C9484] line-through">25.000đ</span>
             </div>
           </label>
 
-          <!-- Radio 2: Giao siêu tốc 2H -->
+          <!-- Radio 2: Giao siêu tốc 2H (giữ lạnh) -->
           <label
             class="flex items-start justify-between p-5 rounded-2xl border cursor-pointer transition-all"
-            :class="shippingMethod === 'express_2h' ? 'border-2 border-[#4D6A34] bg-[#F6F8F3]' : 'border border-[#E3E8DC] bg-white'"
+            :class="shippingMethod === 'express_2h' ? 'border-2 border-[#4D6A34] bg-[#F6F8F3]' : 'border border-[#E3E8DC] bg-white hover:border-[#CCD7BC]'"
           >
             <div class="flex items-start gap-3.5">
-              <input type="radio" value="express_2h" v-model="shippingMethod" class="accent-[#4D6A34] w-4.5 h-4.5 mt-1" />
+              <input type="radio" value="express_2h" v-model="shippingMethod" class="accent-[#4D6A34] w-4.5 h-4.5 mt-1 cursor-pointer" />
               <div>
                 <div class="flex items-center gap-2.5">
-                  <span class="text-sm font-bold text-[#242424]">Giao siêu tốc 2H (Nội thành TP.HCM & Hà Nội)</span>
-                  <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">Giữ mát tươi sống</span>
+                  <span class="text-sm font-bold text-[#242424]">Giao siêu tốc 2H (Giữ lạnh chuyên dụng 4°C)</span>
+                  <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">Tươi sống</span>
                 </div>
                 <p class="text-xs text-[#7A866E] mt-1 leading-relaxed">
-                  Được vận chuyển bằng túi giữ lạnh chuyên dụng, thích hợp cho bơ hạt và snack tươi.
+                  Được vận chuyển trong thùng giữ nhiệt 4°C, bảo vệ độ tươi ngon của bơ hạt và ức gà tươi sấy.
                 </p>
               </div>
             </div>
-            <div class="text-right">
+            <div class="text-right shrink-0">
               <span class="text-sm font-bold text-[#242424] block">35.000đ</span>
             </div>
           </label>
         </div>
 
-        <!-- 3. Phương thức thanh toán (VietQR với QR Code động) -->
+        <!-- 3. Phương thức thanh toán (CN_21) -->
         <div class="bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-5">
           <div class="flex items-center gap-2.5 font-heading text-base font-bold text-[#242424] border-b border-[#F0F3EC] pb-4">
             <span class="w-7 h-7 rounded-full bg-[#EBF7E5] text-[#4D6A34] flex items-center justify-center text-xs font-black">3</span>
             <span>Phương thức thanh toán</span>
           </div>
 
-          <!-- VietQR Option (Expanded) -->
-          <div class="p-5 rounded-2xl border-2 border-[#4D6A34] bg-[#F6F8F3] space-y-4">
+          <!-- VietQR Option (Mô phỏng Napas) -->
+          <div
+            class="p-5 rounded-2xl border cursor-pointer transition-all"
+            :class="paymentMethod === 'vietqr' ? 'border-2 border-[#4D6A34] bg-[#F6F8F3]' : 'border border-[#E3E8DC] bg-white'"
+            @click="paymentMethod = 'vietqr'"
+          >
             <label class="flex items-center justify-between cursor-pointer">
               <div class="flex items-center gap-3">
                 <input type="radio" value="vietqr" v-model="paymentMethod" class="accent-[#4D6A34] w-4.5 h-4.5" />
-                <span class="text-sm font-bold text-[#242424]">Chuyển khoản QR Napas / VietQR</span>
+                <span class="text-sm font-bold text-[#242424]">Chuyển khoản VietQR Napas 24/7 (Quét mã tự động)</span>
                 <span class="px-2.5 py-0.5 rounded-full bg-[#4D6A34] text-white text-[11px] font-bold">Khuyên dùng</span>
               </div>
+              <QrCode class="w-5 h-5 text-[#4D6A34]" />
             </label>
-
-            <!-- Note -->
-            <p class="text-xs text-[#4D6A34] font-medium pl-7">
-              🎁 Tặng 500g yến mạch cho đơn đầu. Quét tức thì qua hơn 40 ứng dụng ngân hàng và ví số. Kích hoạt đơn lập tức.
+            <p class="text-xs text-[#4D6A34] font-medium pl-7 mt-2 leading-relaxed">
+              Mã QR động sẽ được tạo ngay khi bạn xác nhận đặt hàng, chuyển khoản tức thì qua hơn 40 app ngân hàng & ví số.
             </p>
-
-            <!-- VietQR Box Details (Figma 05) -->
-            <div class="p-5 rounded-2xl bg-white border border-[#DEE5D4] grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
-              <!-- Mockup QR Image -->
-              <div class="sm:col-span-5 flex flex-col items-center justify-center p-3.5 bg-[#FAF9F5] rounded-2xl border border-[#CCD7BC]">
-                <div class="w-32 h-32 bg-white border-2 border-[#4D6A34] rounded-2xl flex items-center justify-center p-1.5 shadow-2xs">
-                  <div class="w-full h-full bg-[#EBF7E5] rounded-xl flex flex-col items-center justify-center text-[#4D6A34]">
-                    <QrCode class="w-20 h-20" />
-                    <span class="text-[10px] font-black uppercase mt-1">VietQR</span>
-                  </div>
-                </div>
-                <span class="text-xs text-[#7A866E] font-bold mt-1.5 flex items-center gap-1">
-                  ⚡ Quét tự động
-                </span>
-              </div>
-
-              <!-- Banking Info Rows -->
-              <div class="sm:col-span-7 space-y-2.5 text-xs sm:text-sm">
-                <div class="flex justify-between">
-                  <span class="text-[#7A866E]">Ngân hàng:</span>
-                  <span class="font-bold text-[#242424]">Techcombank (TCB)</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-[#7A866E]">Chủ tài khoản:</span>
-                  <span class="font-bold text-[#242424]">CONG TY NUTRIMATE VN</span>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-[#7A866E]">Số tài khoản:</span>
-                  <div class="flex items-center gap-2 font-bold text-[#242424]">
-                    <span class="font-mono text-sm">1903 8899 7620 18</span>
-                    <button
-                      type="button"
-                      @click="copyToClipboard('19038899762018', 'Số tài khoản')"
-                      class="p-1 hover:text-[#4D6A34] cursor-pointer"
-                    >
-                      <Copy class="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                <div class="flex justify-between items-center">
-                  <span class="text-[#7A866E]">Nội dung chuyển:</span>
-                  <div class="flex items-center gap-2 font-bold text-[#4D6A34] bg-[#EBF7E5] px-2.5 py-1 rounded-lg">
-                    <span class="font-mono text-sm">NUTRI98234</span>
-                    <button
-                      type="button"
-                      @click="copyToClipboard('NUTRI98234', 'Nội dung chuyển khoản')"
-                      class="p-1 cursor-pointer"
-                    >
-                      <Copy class="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                <div class="flex justify-between pt-2 border-t border-[#F0F3EC]">
-                  <span class="text-[#7A866E]">Số tiền cần chuyển:</span>
-                  <span class="font-heading text-base font-black text-[#242424]">
-                    {{ formatVnd(grandTotal) }}
-                  </span>
-                </div>
-              </div>
-            </div>
           </div>
 
-          <!-- Other Payment Options -->
-          <label class="flex items-center justify-between p-4.5 rounded-2xl border border-[#E3E8DC] cursor-pointer hover:bg-[#FAF9F5] transition-colors">
+          <!-- COD Option -->
+          <label
+            class="flex items-center justify-between p-4.5 rounded-2xl border cursor-pointer transition-all"
+            :class="paymentMethod === 'cod' ? 'border-2 border-[#4D6A34] bg-[#F6F8F3]' : 'border border-[#E3E8DC] bg-white hover:border-[#CCD7BC]'"
+          >
             <div class="flex items-center gap-3">
               <input type="radio" value="cod" v-model="paymentMethod" class="accent-[#4D6A34] w-4.5 h-4.5" />
               <div>
-                <span class="text-sm font-bold text-[#242424] block">Thanh toán khi nhận hàng (COD)</span>
-                <span class="text-xs text-[#7A866E]">Kiểm tra tem niêm phong và đóng gói dinh dưỡng trước khi gửi tiền mặt.</span>
+                <span class="text-sm font-bold text-[#242424] block">Thanh toán tiền mặt khi nhận hàng (COD)</span>
+                <span class="text-xs text-[#7A866E]">Kiểm tra tem bảo hành và đóng gói dinh dưỡng trước khi thanh toán.</span>
               </div>
             </div>
             <Truck class="w-5 h-5 text-[#7A866E]" />
           </label>
 
-          <label class="flex items-center justify-between p-4.5 rounded-2xl border border-[#E3E8DC] cursor-pointer hover:bg-[#FAF9F5] transition-colors">
+          <!-- MoMo Option -->
+          <label
+            class="flex items-center justify-between p-4.5 rounded-2xl border cursor-pointer transition-all"
+            :class="paymentMethod === 'momo' ? 'border-2 border-[#4D6A34] bg-[#F6F8F3]' : 'border border-[#E3E8DC] bg-white hover:border-[#CCD7BC]'"
+          >
             <div class="flex items-center gap-3">
               <input type="radio" value="momo" v-model="paymentMethod" class="accent-[#4D6A34] w-4.5 h-4.5" />
               <div>
                 <span class="text-sm font-bold text-[#242424] block">Ví điện tử MoMo / ZaloPay</span>
-                <span class="text-xs text-[#7A866E]">Liên kết một chạm nhanh chóng và tiện lợi.</span>
+                <span class="text-xs text-[#7A866E]">Thanh toán nhanh một chạm an toàn qua ví điện tử.</span>
               </div>
             </div>
-            <span class="text-xs font-bold text-[#7A866E]">MOMO • ZALOPAY</span>
-          </label>
-
-          <label class="flex items-center justify-between p-4.5 rounded-2xl border border-[#E3E8DC] cursor-pointer hover:bg-[#FAF9F5] transition-colors">
-            <div class="flex items-center gap-3">
-              <input type="radio" value="card" v-model="paymentMethod" class="accent-[#4D6A34] w-4.5 h-4.5" />
-              <div>
-                <span class="text-sm font-bold text-[#242424] block">Thẻ ATM nội địa / Visa / Mastercard</span>
-                <span class="text-xs text-[#7A866E]">Cổng thanh toán bảo mật 3D-Secure tiêu chuẩn quốc tế.</span>
-              </div>
-            </div>
-            <CreditCard class="w-5 h-5 text-[#7A866E]" />
+            <span class="text-xs font-bold text-pink-600 bg-pink-50 px-2.5 py-1 rounded-lg">MOMO</span>
           </label>
 
           <!-- Checkbox Điều Khoản -->
           <label class="flex items-start gap-3 pt-2 text-xs sm:text-sm text-[#576449] cursor-pointer">
-            <input type="checkbox" v-model="isAgreed" class="accent-[#4D6A34] w-4.5 h-4.5 rounded mt-0.5" />
-            <span>Tôi đồng ý với Điều khoản dịch vụ và Chính sách giao hàng bảo quản dinh dưỡng của NutriMate.</span>
+            <input type="checkbox" v-model="isAgreed" class="accent-[#4D6A34] w-4.5 h-4.5 rounded mt-0.5 cursor-pointer" />
+            <span>Tôi đồng ý với Điều khoản dịch vụ và Quy định bảo quản thực phẩm ăn kiêng của NutriMate.</span>
           </label>
 
-          <!-- Submit Button -->
+          <!-- Submit Button (CN_20) -->
           <button
             type="button"
             @click="handleFinishOrder"
             :disabled="isSubmitting"
-            class="w-full py-4.5 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] active:bg-[#2D3B1E] text-white font-bold text-base shadow-md flex items-center justify-center gap-2.5 transition-all min-h-[48px] cursor-pointer"
+            class="w-full py-4.5 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] active:bg-[#2D3B1E] disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-base shadow-md flex items-center justify-center gap-2.5 transition-all min-h-[48px] cursor-pointer"
           >
             <Lock class="w-5 h-5" />
-            <span>Xác nhận & Hoàn tất đặt hàng ({{ formatVnd(grandTotal) }})</span>
+            <span v-if="isSubmitting">Đang khởi tạo đơn hàng...</span>
+            <span v-else>Xác nhận & Hoàn tất đặt hàng ({{ formatVnd(grandTotal) }})</span>
           </button>
-
-          <p class="text-xs text-center text-[#7A866E]">
-            🛡️ NutriMate cam kết bồi hoàn 100% nếu hạt bị ẩm hoặc mất độ giòn tươi.
-          </p>
         </div>
       </div>
 
-      <!-- Cột Phải: Order Summary & Voucher -->
+      <!-- Cột Phải: Order Summary, Nutrition Card & Voucher (CN_20) -->
       <aside class="lg:col-span-5 space-y-6">
         <div class="bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-sm space-y-6">
           <div class="flex items-center justify-between border-b border-[#F0F3EC] pb-4">
             <h2 class="font-heading text-base font-bold text-[#242424]">
-              Đơn hàng của bạn (3 sản phẩm)
+              Đơn hàng của bạn ({{ checkoutItems.length }} món)
             </h2>
-            <span class="px-3 py-1 rounded-full bg-[#EBF7E5] text-xs font-bold text-[#4D6A34]">
-              3 món sạch
+            <span class="px-3 py-1 rounded-full bg-[#EBF7E5] text-xs font-bold text-[#4D6A34] border border-[#CCD7BC]">
+              Dinh dưỡng sạch
             </span>
           </div>
 
-          <!-- 3 Sản phẩm xem trước -->
-          <div class="space-y-4">
-            <div class="flex items-center justify-between gap-4 text-xs sm:text-sm">
-              <div class="flex items-center gap-3.5">
-                <img
-                  src="https://images.unsplash.com/photo-1517673132405-a56a62b18caf?auto=format&fit=crop&w=120&q=80"
-                  alt="item"
-                  class="w-14 h-14 rounded-2xl object-cover border border-[#E8ECE2]"
-                />
-                <div>
-                  <h4 class="font-bold text-[#242424]">Granola Yến Mạch Hạt Siêu Hạt</h4>
-                  <span class="text-xs text-[#7A866E]">Túi 500g • Số lượng: 1</span>
-                </div>
-              </div>
-              <span class="font-bold text-[#242424]">185.000đ</span>
+          <!-- Total Nutrition Bar (CN_20) -->
+          <div class="p-3.5 rounded-2xl bg-[#232722] text-white flex items-center justify-between text-xs">
+            <div class="flex items-center gap-2">
+              <Flame class="w-4 h-4 text-amber-300" />
+              <span>Năng lượng: <strong class="text-white">{{ totalKcal }} kcal</strong></span>
             </div>
-
-            <div class="flex items-center justify-between gap-4 text-xs sm:text-sm">
-              <div class="flex items-center gap-3.5">
-                <img
-                  src="https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=120&q=80"
-                  alt="item"
-                  class="w-14 h-14 rounded-2xl object-cover border border-[#E8ECE2]"
-                />
-                <div>
-                  <h4 class="font-bold text-[#242424]">Ức Gà Sấy Giòn Vị Thảo Mộc</h4>
-                  <span class="text-xs text-[#7A866E]">Hộp 150g • Số lượng: 2</span>
-                </div>
-              </div>
-              <span class="font-bold text-[#242424]">220.000đ</span>
-            </div>
-
-            <div class="flex items-center justify-between gap-4 text-xs sm:text-sm">
-              <div class="flex items-center gap-3.5">
-                <img
-                  src="https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?auto=format&fit=crop&w=120&q=80"
-                  alt="item"
-                  class="w-14 h-14 rounded-2xl object-cover border border-[#E8ECE2]"
-                />
-                <div>
-                  <h4 class="font-bold text-[#242424]">Bơ Đậu Phộng Mịn Thuần Chay</h4>
-                  <span class="text-xs text-[#7A866E]">Hũ 350g • Số lượng: 1</span>
-                </div>
-              </div>
-              <span class="font-bold text-[#242424]">90.000đ</span>
+            <div class="h-4 w-px bg-slate-700"></div>
+            <div class="flex items-center gap-2">
+              <Dumbbell class="w-4 h-4 text-emerald-400" />
+              <span>Đạm: <strong class="text-white">{{ totalProtein }}g</strong></span>
             </div>
           </div>
 
-          <!-- Voucher Apply -->
-          <div class="pt-4 border-t border-[#F0F3EC]">
-            <div class="flex items-center gap-2 p-2 bg-[#FAF9F5] border border-[#CCD7BC] rounded-2xl">
-              <input
-                type="text"
-                v-model="voucherCode"
-                class="flex-1 bg-transparent px-3 text-xs sm:text-sm font-bold text-[#242424] uppercase outline-none"
-              />
-              <span class="px-3 py-1.5 rounded-xl bg-[#EBF7E5] text-xs font-bold text-[#4D6A34] shrink-0">
-                ✓ Đã áp dụng
+          <!-- Render động danh sách sản phẩm thực tế từ cartStore -->
+          <div class="space-y-3.5 max-h-72 overflow-y-auto pr-1">
+            <div
+              v-for="item in checkoutItems"
+              :key="getCartItemKey(item.product.id, item.selectedPortion)"
+              class="flex items-center justify-between gap-3 text-xs sm:text-sm p-2 rounded-xl hover:bg-[#FAF9F5] transition-colors"
+            >
+              <div class="flex items-center gap-3 min-w-0 flex-1">
+                <img
+                  :src="item.product.image"
+                  :alt="item.product.name"
+                  class="w-13 h-13 rounded-xl object-cover border border-[#E8ECE2] shrink-0"
+                />
+                <div class="min-w-0 flex-1">
+                  <h4 class="font-bold text-[#242424] truncate">{{ item.product.name }}</h4>
+                  <div class="text-xs text-[#7A866E]">
+                    {{ item.selectedPortion || 'Mặc định' }} • SL: <span class="font-bold text-[#242424]">{{ item.quantity }}</span>
+                  </div>
+                </div>
+              </div>
+              <span class="font-heading font-black text-[#242424] shrink-0">
+                {{ formatVnd(item.product.price * item.quantity) }}
               </span>
             </div>
           </div>
 
-          <!-- Bảng tính tiền -->
+          <!-- Voucher Apply Form (CN_20) -->
+          <div class="pt-4 border-t border-[#F0F3EC] space-y-2">
+            <label class="text-xs font-bold text-[#576449] flex items-center gap-1.5">
+              <Tag class="w-3.5 h-3.5 text-[#4D6A34]" />
+              <span>Mã giảm giá / Voucher NutriMate</span>
+            </label>
+            <div class="flex items-center gap-2 p-1.5 bg-[#FAF9F5] border border-[#CCD7BC] rounded-2xl">
+              <input
+                type="text"
+                v-model="voucherInput"
+                placeholder="Nhập NUTRIFREESHIP hoặc HEALTHY20K"
+                class="flex-1 bg-transparent px-3 text-xs sm:text-sm font-bold text-[#242424] uppercase outline-none"
+              />
+              <button
+                type="button"
+                @click="applyVoucher"
+                class="px-4 py-2 rounded-xl bg-[#4D6A34] text-white hover:bg-[#3B4E24] text-xs font-bold transition-colors cursor-pointer shrink-0"
+              >
+                Áp dụng
+              </button>
+            </div>
+            <p v-if="appliedVoucher" class="text-[11px] text-[#4D6A34] font-semibold flex items-center gap-1">
+              ✓ Đang áp dụng mã <strong>{{ appliedVoucher }}</strong> (-{{ formatVnd(voucherDiscount) }})
+            </p>
+          </div>
+
+          <!-- Bảng tính tiền chi tiết -->
           <div class="space-y-2.5 text-sm text-[#576449] pt-2 border-t border-[#F0F3EC]">
             <div class="flex justify-between">
-              <span>Tạm tính (3 món):</span>
+              <span>Tạm tính ({{ checkoutItems.length }} món):</span>
               <span class="font-bold text-[#242424]">{{ formatVnd(subtotal) }}</span>
             </div>
             <div class="flex justify-between">
-              <span>Phí vận chuyển dự kiến:</span>
+              <span>Phí vận chuyển:</span>
               <span class="font-bold text-[#242424]">{{ formatVnd(shippingFee) }}</span>
             </div>
-            <div class="flex justify-between text-[#4D6A34] font-semibold">
-              <span>Voucher NUTRIFREESHIP:</span>
+            <div v-if="voucherDiscount > 0" class="flex justify-between text-[#4D6A34] font-semibold">
+              <span>Giảm giá voucher ({{ appliedVoucher }}):</span>
               <span>-{{ formatVnd(voucherDiscount) }}</span>
             </div>
           </div>
 
+          <!-- Tổng cộng thanh toán -->
           <div class="pt-5 border-t border-[#E3E8DC] flex items-baseline justify-between">
             <div>
               <span class="font-heading text-lg font-bold text-[#242424] block">Tổng thanh toán:</span>
-              <span class="text-xs text-[#7A866E]">Đã bao gồm VAT & bảo hiểm hàng tươi</span>
+              <span class="text-xs text-[#7A866E]">Đã bao gồm VAT & cam kết tươi ngon</span>
             </div>
             <div class="text-right">
               <span class="font-heading text-2xl sm:text-3xl font-black text-[#242424] block">
                 {{ formatVnd(grandTotal) }}
               </span>
-              <span class="text-xs text-[#4D6A34] font-bold">Tiết kiệm: 25.000đ</span>
+              <span v-if="voucherDiscount > 0" class="text-xs text-[#4D6A34] font-bold">
+                Tiết kiệm {{ formatVnd(voucherDiscount) }}
+              </span>
             </div>
           </div>
 
-          <!-- Hộp Hỗ Trợ Đơn Hàng 24/7 -->
+          <!-- Hỗ trợ đơn hàng -->
           <div class="p-4 rounded-2xl bg-[#F6F8F3] border border-[#E3E8DC] flex items-center justify-between text-xs sm:text-sm">
             <div class="flex items-center gap-3 text-[#4D6A34]">
               <PhoneCall class="w-5 h-5 shrink-0" />
               <div>
-                <span class="font-bold text-[#242424] block text-xs">Hỗ trợ đơn hàng 24/7</span>
-                <span class="text-[11px] text-[#7A866E]">Đội ngũ chuyên viên dinh dưỡng NutriMate</span>
+                <span class="font-bold text-[#242424] block text-xs">Hỗ trợ đặt hàng 24/7</span>
+                <span class="text-[11px] text-[#7A866E]">Chuyên viên dinh dưỡng NutriMate</span>
               </div>
             </div>
             <a href="tel:19008899" class="font-heading font-black text-[#4D6A34] text-base hover:underline">
@@ -493,5 +504,13 @@ function handleFinishOrder() {
         </div>
       </aside>
     </div>
+
+    <!-- VietQR Payment Modal Component (CN_21) -->
+    <VietQrModal
+      :open="showVietQrModal"
+      :order="createdOrder"
+      @close="showVietQrModal = false"
+      @payment-success="showVietQrModal = false"
+    />
   </div>
 </template>

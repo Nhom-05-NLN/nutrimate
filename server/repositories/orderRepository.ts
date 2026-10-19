@@ -1,4 +1,4 @@
-import { Order, OrderItem, OrderStatus } from '../types/index.js';
+import { Order, OrderItem, OrderStatus, PaymentStatus } from '../types/index.js';
 import { INITIAL_ORDERS } from '../db/seedData.js';
 import { isDbConnected, queryPostgres, getPool } from '../db/index.js';
 
@@ -256,6 +256,42 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
   const order = memoryOrders.find((o) => o.id === id || o.orderCode === id);
   if (order) {
     order.status = status;
+    return order;
+  }
+  return null;
+}
+
+export async function updateOrderPaymentStatus(
+  id: string,
+  paymentStatus: PaymentStatus,
+  status?: OrderStatus
+): Promise<Order | null> {
+  if (isDbConnected()) {
+    try {
+      const sql = `
+        UPDATE orders
+        SET payment_status = $1,
+            status = COALESCE($2, status),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id::text = $3 OR order_code = $3
+        RETURNING id
+      `;
+      const res = await queryPostgres(sql, [paymentStatus, status || null, id]);
+      if (res.rowCount && res.rowCount > 0) {
+        return getOrderById(id);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Update payment status error';
+      console.warn('[OrderRepository UpdatePaymentStatus Fallback]:', msg);
+    }
+  }
+
+  const order = memoryOrders.find((o) => o.id === id || o.orderCode === id);
+  if (order) {
+    order.paymentStatus = paymentStatus;
+    if (status) {
+      order.status = status;
+    }
     return order;
   }
   return null;
