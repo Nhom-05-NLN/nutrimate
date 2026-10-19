@@ -53,6 +53,7 @@ export interface OrderItem {
   quantity: number;
   calories: number;
   protein: number;
+  portion?: string;
 }
 
 export interface CustomerInfo {
@@ -60,6 +61,7 @@ export interface CustomerInfo {
   phone: string;
   email: string;
   address: string;
+  note?: string;
 }
 
 export interface Order {
@@ -72,6 +74,9 @@ export interface Order {
   totalCalories: number;
   totalProtein: number;
   shippingFee: number;
+  discountAmount?: number;
+  voucherCode?: string;
+  shippingMethod?: 'standard' | 'express_2h';
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   status: OrderStatus;
@@ -90,6 +95,8 @@ export interface CreateOrderPayload {
   customer: CustomerInfo;
   items: OrderItem[];
   paymentMethod: PaymentMethod;
+  shippingMethod?: 'standard' | 'express_2h';
+  voucherCode?: string;
   notes?: string;
 }
 
