@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import {
   LayoutDashboard,
   Package,
@@ -9,7 +9,6 @@ import {
   Bot,
   BarChart3,
   Settings,
-  LogOut,
   Bell,
   Calendar,
   Leaf,
@@ -19,7 +18,7 @@ import {
   X,
 } from 'lucide-vue-next';
 
-const router = useRouter();
+const route = useRoute();
 const isSidebarOpen = ref(false);
 
 const navItems = [
@@ -40,21 +39,22 @@ const navItems = [
       @click="isSidebarOpen = false"
     ></div>
 
-    <!-- 1. LEFT SIDEBAR (Figma Admin Style) -->
+    <!-- 1. LEFT SIDEBAR (CỐ ĐỊNH TOÀN THỜI GIAN, PROFILE PINNED Ở ĐÁY) -->
     <aside
-      class="fixed lg:static top-0 bottom-0 left-0 z-50 w-64 bg-white border-r border-[#E3E8DC] flex flex-col justify-between transition-transform duration-200"
+      class="fixed lg:sticky top-0 bottom-0 left-0 z-50 w-64 h-screen bg-white border-r border-[#E3E8DC] flex flex-col justify-between shrink-0 transition-transform duration-200"
       :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
     >
-      <div class="p-6 space-y-6">
+      <!-- Top Area: Logo + Navigation Links (Scroll độc lập nếu màn hình nhỏ) -->
+      <div class="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
         <!-- Brand Logo -->
         <div class="flex items-center justify-between">
           <RouterLink to="/admin" class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-2xl bg-[#4D6A34] text-white flex items-center justify-center">
-              <Leaf class="w-5 h-5 text-[#EBF1E6]" />
+            <div class="w-9 h-9 rounded-2xl bg-[#536124] text-white flex items-center justify-center shadow-2xs">
+              <Leaf class="w-5 h-5 text-[#EBF7E5]" />
             </div>
             <div>
               <span class="font-heading text-lg font-black text-[#2D3B1E] block leading-none">NutriMate</span>
-              <span class="text-[9px] font-bold text-[#4D6A34] uppercase tracking-wider block mt-1">ADMIN PORTAL</span>
+              <span class="text-[9px] font-bold text-[#536124] uppercase tracking-wider block mt-1">ADMIN PORTAL</span>
             </div>
           </RouterLink>
 
@@ -62,6 +62,7 @@ const navItems = [
             type="button"
             @click="isSidebarOpen = false"
             class="lg:hidden p-1 text-[#7A866E]"
+            aria-label="Đóng sidebar"
           >
             <X class="w-5 h-5" />
           </button>
@@ -69,6 +70,7 @@ const navItems = [
 
         <!-- Menu Navigation Links -->
         <div class="space-y-6">
+          <!-- Nhóm 1: VẬN HÀNH LÕI -->
           <div class="space-y-1">
             <span class="text-[10px] font-bold text-[#8C9882] uppercase tracking-wider px-3 block mb-2">
               VẬN HÀNH LÕI
@@ -77,8 +79,12 @@ const navItems = [
               v-for="item in navItems.slice(0, 4)"
               :key="item.path"
               :to="item.path"
-              exact-active-class="bg-[#4D6A34] text-white shadow-xs font-bold"
-              class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-[#576449] hover:bg-[#F6F8F3] transition-colors"
+              class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition-colors"
+              :class="[
+                route.path === item.path
+                  ? 'bg-[#536124] text-white shadow-xs font-bold hover:bg-[#434F1D] hover:text-white'
+                  : 'text-[#576449] hover:bg-[#EBF7E5] hover:text-[#2D3B1E] font-semibold'
+              ]"
               @click="isSidebarOpen = false"
             >
               <div class="flex items-center gap-3">
@@ -88,35 +94,43 @@ const navItems = [
               <span
                 v-if="item.badge"
                 class="px-2 py-0.5 rounded-full text-[9px] font-bold"
-                :class="$route.path === item.path ? 'bg-white/20 text-white' : 'bg-[#EBF1E6] text-[#4D6A34]'"
+                :class="route.path === item.path ? 'bg-white/20 text-white' : 'bg-[#EBF7E5] text-[#536124]'"
               >
                 {{ item.badge }}
               </span>
             </RouterLink>
           </div>
 
+          <!-- Nhóm 2: DINH DƯỠNG & TRÍ TUỆ AI -->
           <div class="space-y-1 pt-2 border-t border-[#F0F3EC]">
             <span class="text-[10px] font-bold text-[#8C9882] uppercase tracking-wider px-3 block mb-2">
               DINH DƯỠNG & TRÍ TUỆ AI
             </span>
             <RouterLink
               :to="navItems[4].path"
-              active-class="bg-[#4D6A34] text-white shadow-xs font-bold"
-              class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-[#576449] hover:bg-[#F6F8F3] transition-colors"
+              class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition-colors"
+              :class="[
+                route.path === navItems[4].path
+                  ? 'bg-[#536124] text-white shadow-xs font-bold hover:bg-[#434F1D] hover:text-white'
+                  : 'text-[#576449] hover:bg-[#EBF7E5] hover:text-[#2D3B1E] font-semibold'
+              ]"
               @click="isSidebarOpen = false"
             >
               <div class="flex items-center gap-3">
                 <component :is="navItems[4].icon" class="w-4 h-4" />
                 <span>{{ navItems[4].label }}</span>
               </div>
-              <span class="px-2 py-0.5 rounded-full bg-[#EBF1E6] text-[#4D6A34] text-[9px] font-bold">
+              <span
+                class="px-2 py-0.5 rounded-full text-[9px] font-bold"
+                :class="route.path === navItems[4].path ? 'bg-white/20 text-white' : 'bg-[#EBF7E5] text-[#536124]'"
+              >
                 {{ navItems[4].badge }}
               </span>
             </RouterLink>
 
             <a
               href="#"
-              class="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-[#576449] hover:bg-[#F6F8F3] transition-colors"
+              class="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-[#576449] hover:bg-[#EBF7E5] hover:text-[#2D3B1E] transition-colors"
             >
               <BarChart3 class="w-4 h-4" />
               <span>Báo cáo doanh thu</span>
@@ -124,7 +138,7 @@ const navItems = [
 
             <a
               href="#"
-              class="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-[#576449] hover:bg-[#F6F8F3] transition-colors"
+              class="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-[#576449] hover:bg-[#EBF7E5] hover:text-[#2D3B1E] transition-colors"
             >
               <Settings class="w-4 h-4" />
               <span>Cài đặt hệ thống</span>
@@ -133,9 +147,9 @@ const navItems = [
         </div>
       </div>
 
-      <!-- Bottom Admin User Profile Card -->
-      <div class="p-4 border-t border-[#ECEFE7] space-y-3">
-        <div class="p-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] flex items-center justify-between">
+      <!-- Bottom: THẺ TÀI KHOẢN ADMIN (PINNED / CỐ ĐỊNH Ở ĐÁY, KHÔNG CUỘN) -->
+      <div class="shrink-0 p-4 border-t border-[#ECEFE7] bg-white">
+        <div class="p-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] flex items-center justify-between shadow-2xs">
           <div class="flex items-center gap-2.5 min-w-0">
             <img
               src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80"
@@ -151,7 +165,7 @@ const navItems = [
           <RouterLink
             to="/"
             title="Quay lại cửa hàng khách hàng"
-            class="p-2 text-[#7A866E] hover:text-[#4D6A34] rounded-xl hover:bg-white transition-colors"
+            class="p-2 text-[#7A866E] hover:text-[#536124] rounded-xl hover:bg-white transition-colors cursor-pointer"
           >
             <Store class="w-4 h-4" />
           </RouterLink>
@@ -160,7 +174,7 @@ const navItems = [
     </aside>
 
     <!-- 2. MAIN CONTENT AREA -->
-    <div class="flex-1 flex flex-col min-w-0 overflow-y-auto">
+    <div class="flex-1 flex flex-col min-w-0 min-h-screen">
       <!-- Top Bar -->
       <header class="h-16 bg-white/95 backdrop-blur-md border-b border-[#E3E8DC] px-6 flex items-center justify-between sticky top-0 z-30">
         <div class="flex items-center gap-3">
@@ -168,25 +182,27 @@ const navItems = [
             type="button"
             @click="isSidebarOpen = true"
             class="lg:hidden p-2 rounded-xl text-[#2D3B1E] hover:bg-[#FAF9F5]"
+            aria-label="Mở sidebar"
           >
             <Menu class="w-5 h-5" />
           </button>
           <div class="flex items-center gap-2 text-xs text-[#7A866E]">
             <span class="font-semibold text-[#2D3B1E]">Quản trị viên</span>
             <ChevronRight class="w-3.5 h-3.5" />
-            <span class="text-[#4D6A34] font-bold">Hệ thống vận hành</span>
+            <span class="text-[#536124] font-bold">Hệ thống vận hành</span>
           </div>
         </div>
 
         <div class="flex items-center gap-4">
           <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-bold text-[#2D3B1E]">
-            <Calendar class="w-3.5 h-3.5 text-[#4D6A34]" />
+            <Calendar class="w-3.5 h-3.5 text-[#536124]" />
             <span>Hôm nay, 24/10/2024</span>
           </div>
 
           <button
             type="button"
-            class="relative w-9 h-9 rounded-full bg-[#FAF9F5] border border-[#E3E8DC] text-[#2D3B1E] flex items-center justify-center hover:bg-[#F6F8F3]"
+            class="relative w-9 h-9 rounded-full bg-[#FAF9F5] border border-[#E3E8DC] text-[#2D3B1E] flex items-center justify-center hover:bg-[#F6F8F3] cursor-pointer"
+            aria-label="Thông báo"
           >
             <Bell class="w-4 h-4" />
             <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500"></span>
@@ -194,7 +210,7 @@ const navItems = [
 
           <RouterLink
             to="/"
-            class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EBF1E6] text-xs font-bold text-[#4D6A34] hover:bg-[#4D6A34] hover:text-white transition-colors"
+            class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EBF7E5] text-xs font-bold text-[#536124] hover:bg-[#536124] hover:text-white transition-colors"
           >
             <Store class="w-3.5 h-3.5" />
             <span>Xem Website</span>

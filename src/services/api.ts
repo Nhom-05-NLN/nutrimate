@@ -1,4 +1,4 @@
-import { ApiResponse, Category, Product, ProductFilterQuery, Order, CreateOrderPayload } from '../types';
+import { ApiResponse, Category, Product, ProductFilterQuery, Order, CreateOrderPayload, PaymentStatus, OrderStatus } from '../types';
 
 const API_BASE = '/api';
 
@@ -76,6 +76,45 @@ export async function postOrder(payload: CreateOrderPayload): Promise<Order> {
   });
   if (!res.data) {
     throw new Error(res.message || 'Không thể hoàn tất đơn hàng');
+  }
+  return res.data;
+}
+
+export async function fetchOrders(): Promise<Order[]> {
+  const res = await fetchJson<ApiResponse<Order[]>>('/orders');
+  return res.data || [];
+}
+
+export async function fetchOrderById(id: string): Promise<Order> {
+  const res = await fetchJson<ApiResponse<Order>>(`/orders/${id}`);
+  if (!res.data) {
+    throw new Error('Không tìm thấy thông tin đơn hàng');
+  }
+  return res.data;
+}
+
+export async function patchOrderPaymentStatus(
+  orderId: string,
+  paymentStatus: PaymentStatus,
+  status?: OrderStatus
+): Promise<Order> {
+  const res = await fetchJson<ApiResponse<Order>>(`/orders/${orderId}/payment`, {
+    method: 'PATCH',
+    body: JSON.stringify({ paymentStatus, status }),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể cập nhật trạng thái thanh toán');
+  }
+  return res.data;
+}
+
+export async function patchOrderStatus(orderId: string, status: OrderStatus): Promise<Order> {
+  const res = await fetchJson<ApiResponse<Order>>(`/orders/${orderId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể cập nhật trạng thái đơn hàng');
   }
   return res.data;
 }
