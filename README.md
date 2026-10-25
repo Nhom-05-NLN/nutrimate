@@ -51,8 +51,8 @@
 ### Các Bước Triển Khai
 ```bash
 # 1. Clone mã nguồn
-git clone https://github.com/zizi0209/NutriMate.git
-cd NutriMate
+git clone https://github.com/Nhom-05-NLN/nutrimate.git
+cd nutrimate
 
 # 2. Cài đặt các gói phụ thuộc
 npm install
@@ -67,5 +67,5 @@ npm run dev
 ---
 
 ## 👥 Quản Lý Dự Án & Mã Nguồn
-- Quản lý mã nguồn theo Git Flow trên GitHub: [NutriMate Repo](https://github.com/zizi0209/NutriMate.git).
+- Quản lý mã nguồn theo Git Flow trên GitHub: [NutriMate Repo](https://github.com/Nhom-05-NLN/nutrimate.git).
 - Phân chia công việc theo từng nhánh tính năng (`feature/*`).
