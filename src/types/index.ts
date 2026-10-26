@@ -160,6 +160,14 @@ export interface ChatMessage {
   };
 }
 
+export interface ChatbotKnowledge {
+  id: number;
+  intentTag: string;
+  keywordPatterns: string[];
+  answerTemplate: string;
+  recommendedCategory?: DietCategory;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;

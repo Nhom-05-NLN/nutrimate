@@ -97,6 +97,48 @@ export async function postChatMessage(message: string): Promise<ChatbotResponse>
   return res.data;
 }
 
+export interface KnowledgeEntryPayload {
+  intentTag: string;
+  keywordPatterns: string[];
+  answerTemplate: string;
+  recommendedCategory?: string;
+}
+
+export interface KnowledgeEntry extends KnowledgeEntryPayload {
+  id: number;
+}
+
+export async function fetchKnowledgeEntries(): Promise<KnowledgeEntry[]> {
+  const res = await fetchJson<ApiResponse<KnowledgeEntry[]>>('/knowledge');
+  return res.data || [];
+}
+
+export async function createKnowledgeEntry(payload: KnowledgeEntryPayload): Promise<KnowledgeEntry> {
+  const res = await fetchJson<ApiResponse<KnowledgeEntry>>('/knowledge', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.data) throw new Error('Không thể lưu tri thức mới.');
+  return res.data;
+}
+
+export async function updateKnowledgeEntry(id: number, payload: KnowledgeEntryPayload): Promise<KnowledgeEntry> {
+  const res = await fetchJson<ApiResponse<KnowledgeEntry>>(`/knowledge/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  if (!res.data) throw new Error('Không thể cập nhật tri thức.');
+  return res.data;
+}
+
+export async function deleteKnowledgeEntry(id: number): Promise<{ deleted: boolean; id: number }> {
+  const res = await fetchJson<ApiResponse<{ deleted: boolean; id: number }>>(`/knowledge/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.data) throw new Error('Không thể xóa tri thức.');
+  return res.data;
+}
+
 export async function fetchHealth(): Promise<{ status: string; service: string }> {
   return fetchJson<{ status: string; service: string }>('/health');
 }
