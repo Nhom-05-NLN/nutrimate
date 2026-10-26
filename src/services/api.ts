@@ -1,4 +1,14 @@
-import { ApiResponse, Category, Product, ProductFilterQuery, Order, CreateOrderPayload } from '../types';
+import {
+  ApiResponse,
+  Category,
+  CreateOrderPayload,
+  KnowledgeBaseEntry,
+  KnowledgeBaseEntryPayload,
+  KnowledgeImportResult,
+  Order,
+  Product,
+  ProductFilterQuery,
+} from '../types';
 
 const API_BASE = '/api';
 
@@ -97,24 +107,13 @@ export async function postChatMessage(message: string): Promise<ChatbotResponse>
   return res.data;
 }
 
-export interface KnowledgeEntryPayload {
-  intentTag: string;
-  keywordPatterns: string[];
-  answerTemplate: string;
-  recommendedCategory?: string;
-}
-
-export interface KnowledgeEntry extends KnowledgeEntryPayload {
-  id: number;
-}
-
-export async function fetchKnowledgeEntries(): Promise<KnowledgeEntry[]> {
-  const res = await fetchJson<ApiResponse<KnowledgeEntry[]>>('/knowledge');
+export async function fetchKnowledgeEntries(): Promise<KnowledgeBaseEntry[]> {
+  const res = await fetchJson<ApiResponse<KnowledgeBaseEntry[]>>('/knowledge');
   return res.data || [];
 }
 
-export async function createKnowledgeEntry(payload: KnowledgeEntryPayload): Promise<KnowledgeEntry> {
-  const res = await fetchJson<ApiResponse<KnowledgeEntry>>('/knowledge', {
+export async function createKnowledgeEntry(payload: KnowledgeBaseEntryPayload): Promise<KnowledgeBaseEntry> {
+  const res = await fetchJson<ApiResponse<KnowledgeBaseEntry>>('/knowledge', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -122,8 +121,17 @@ export async function createKnowledgeEntry(payload: KnowledgeEntryPayload): Prom
   return res.data;
 }
 
-export async function updateKnowledgeEntry(id: number, payload: KnowledgeEntryPayload): Promise<KnowledgeEntry> {
-  const res = await fetchJson<ApiResponse<KnowledgeEntry>>(`/knowledge/${id}`, {
+export async function importKnowledgeEntries(entries: KnowledgeBaseEntryPayload[]): Promise<KnowledgeImportResult> {
+  const res = await fetchJson<ApiResponse<KnowledgeImportResult>>('/knowledge/import', {
+    method: 'POST',
+    body: JSON.stringify({ entries }),
+  });
+  if (!res.data) throw new Error('Không thể nhập file tri thức.');
+  return res.data;
+}
+
+export async function updateKnowledgeEntry(id: number, payload: KnowledgeBaseEntryPayload): Promise<KnowledgeBaseEntry> {
+  const res = await fetchJson<ApiResponse<KnowledgeBaseEntry>>(`/knowledge/${id}`, {
     method: 'PUT',
     body: JSON.stringify(payload),
   });

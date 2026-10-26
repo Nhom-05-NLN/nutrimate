@@ -1,68 +1,91 @@
-import type { ChatbotKnowledge } from '../types/index.js';
-import { createKnowledgeEntry, deleteKnowledgeEntry, listKnowledgeEntries, updateKnowledgeEntry } from '../repositories/chatRepository.js';
+import type { KnowledgeBaseEntry } from '../types/index.js';
+import {
+  createKnowledgeEntry,
+  deleteKnowledgeEntry,
+  importKnowledgeEntries,
+  listKnowledgeEntries,
+  updateKnowledgeEntry,
+  type KnowledgeInput,
+  type KnowledgeImportResult,
+} from '../repositories/chatRepository.js';
 
 export type KnowledgePayload = {
-  intentTag?: string;
-  keywordPatterns?: string[] | string;
-  answerTemplate?: string;
-  recommendedCategory?: string;
+  question?: unknown;
+  answer?: unknown;
+  category?: unknown;
 };
 
-const validCategories = new Set(['all', 'low-carb', 'high-protein', 'sugar-free']);
+export class KnowledgeValidationError extends Error {}
+export class KnowledgeNotFoundError extends Error {}
 
-function toKeywordArray(value: string[] | string | undefined): string[] {
-  if (Array.isArray(value)) return value.map((item) => item.trim()).filter(Boolean);
-  if (typeof value === 'string') {
-    return value
-      .split(/[\n,]+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
+const MAX_IMPORT_ENTRIES = 500;
+
+export function normalizeKnowledgePayload(input: KnowledgePayload): KnowledgeInput {
+  if (typeof input.question !== 'string' || input.question.trim().length === 0) {
+    throw new KnowledgeValidationError('Câu hỏi không được để trống.');
   }
-  return [];
-}
-
-export function normalizeKnowledgePayload(input: KnowledgePayload): Omit<ChatbotKnowledge, 'id'> {
-  const intentTag = (input.intentTag ?? '').trim();
-  if (!intentTag || intentTag.length > 50) {
-    throw new Error('Mã intent phải có từ 1 đến 50 ký tự.');
+  if (typeof input.answer !== 'string' || input.answer.trim().length === 0) {
+    throw new KnowledgeValidationError('Câu trả lời không được để trống.');
+  }
+  if (input.category !== undefined && input.category !== null && typeof input.category !== 'string') {
+    throw new KnowledgeValidationError('Danh mục không hợp lệ.');
   }
 
-  const keywordPatterns = toKeywordArray(input.keywordPatterns);
-  if (keywordPatterns.length === 0 || keywordPatterns.length > 30) {
-    throw new Error('Cần ít nhất 1 và tối đa 30 từ khóa.');
+  const category = typeof input.category === 'string' ? input.category.trim() : '';
+  if (category.length > 100) {
+    throw new KnowledgeValidationError('Danh mục không được vượt quá 100 ký tự.');
   }
-
-  const answerTemplate = (input.answerTemplate ?? '').trim();
-  if (!answerTemplate || answerTemplate.length > 4000) {
-    throw new Error('Nội dung câu trả lời phải có từ 1 đến 4000 ký tự.');
-  }
-
-  const recommendedCategory = (input.recommendedCategory ?? '').trim();
-  const safeCategory = recommendedCategory && validCategories.has(recommendedCategory)
-    ? recommendedCategory as ChatbotKnowledge['recommendedCategory']
-    : undefined;
 
   return {
-    intentTag,
-    keywordPatterns,
-    answerTemplate,
-    recommendedCategory: safeCategory,
+    question: input.question.trim(),
+    answer: input.answer.trim(),
+    category: category || null,
   };
 }
 
-export async function listKnowledge(): Promise<ChatbotKnowledge[]> {
+export async function listKnowledge(): Promise<KnowledgeBaseEntry[]> {
   return listKnowledgeEntries();
 }
 
-export async function createKnowledge(input: KnowledgePayload): Promise<ChatbotKnowledge> {
+export async function createKnowledge(input: KnowledgePayload): Promise<KnowledgeBaseEntry> {
   return createKnowledgeEntry(normalizeKnowledgePayload(input));
 }
 
-export async function updateKnowledge(id: number, input: KnowledgePayload): Promise<ChatbotKnowledge> {
-  const normalized = normalizeKnowledgePayload(input);
-  const updated = await updateKnowledgeEntry(id, normalized);
+export async function importKnowledge(input: unknown): Promise<KnowledgeImportResult> {
+  const entries = Array.isArray(input)
+    ? input
+    : typeof input === 'object' && input !== null && 'entries' in input && Array.isArray(input.entries)
+      ? input.entries
+      : null;
+
+  if (!entries) {
+    throw new KnowledgeValidationError('File JSON cần là một mảng tri thức hoặc object có thuộc tính entries.');
+  }
+  if (entries.length === 0 || entries.length > MAX_IMPORT_ENTRIES) {
+    throw new KnowledgeValidationError(`File JSON phải có từ 1 đến ${MAX_IMPORT_ENTRIES} tri thức.`);
+  }
+
+  const normalized = entries.map((entry, index) => {
+    try {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+        throw new KnowledgeValidationError('Mỗi mục phải là một object.');
+      }
+      return normalizeKnowledgePayload(entry as KnowledgePayload);
+    } catch (error: unknown) {
+      if (error instanceof KnowledgeValidationError) {
+        throw new KnowledgeValidationError(`Tri thức thứ ${index + 1}: ${error.message}`);
+      }
+      throw error;
+    }
+  });
+
+  return importKnowledgeEntries(normalized);
+}
+
+export async function updateKnowledge(id: number, input: KnowledgePayload): Promise<KnowledgeBaseEntry> {
+  const updated = await updateKnowledgeEntry(id, normalizeKnowledgePayload(input));
   if (!updated) {
-    throw new Error('Tri thức cần cập nhật không tồn tại.');
+    throw new KnowledgeNotFoundError('Tri thức cần cập nhật không tồn tại.');
   }
   return updated;
 }

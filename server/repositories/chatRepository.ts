@@ -1,150 +1,134 @@
-import { ChatbotKnowledge } from '../types/index.js';
-import { INITIAL_CHAT_KNOWLEDGE } from '../db/seedData.js';
-import { isDbConnected, queryPostgres } from '../db/index.js';
+import type { KnowledgeBaseEntry } from '../types/index.js';
+import { queryPostgres } from '../db/index.js';
 
 interface KnowledgeRow {
-  id: number;
-  intent_tag: string;
-  keyword_patterns: string[];
-  answer_template: string;
-  recommended_category: string | null;
+  knowledge_id: number;
+  question: string | null;
+  answer: string | null;
+  category: string | null;
+  created_at: Date | string | null;
+  updated_at: Date | string | null;
 }
 
-export type KnowledgeInput = Omit<ChatbotKnowledge, 'id'>;
+export type KnowledgeInput = {
+  question: string;
+  answer: string;
+  category: string | null;
+}
 
-let fallbackKnowledge: ChatbotKnowledge[] = [...INITIAL_CHAT_KNOWLEDGE];
+export interface KnowledgeImportResult {
+  imported: number;
+  skipped: number;
+  total: number;
+}
 
-function normalizeKnowledgeRow(row: KnowledgeRow): ChatbotKnowledge {
+function normalizeKnowledgeRow(row: KnowledgeRow): KnowledgeBaseEntry {
   return {
-    id: row.id,
-    intentTag: row.intent_tag,
-    keywordPatterns: Array.isArray(row.keyword_patterns) ? row.keyword_patterns : [],
-    answerTemplate: row.answer_template,
-    recommendedCategory: (row.recommended_category as ChatbotKnowledge['recommendedCategory']) || undefined,
+    id: row.knowledge_id,
+    question: row.question,
+    answer: row.answer,
+    category: row.category,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
-export async function getAllKnowledge(requirePostgres = false, executeQuery = queryPostgres): Promise<ChatbotKnowledge[]> {
-  if (requirePostgres || isDbConnected()) {
-    try {
-      const sql = `
-        SELECT id, intent_tag, keyword_patterns, answer_template, recommended_category
-        FROM chatbot_knowledge
-        ORDER BY id DESC
-      `;
-      const res = await executeQuery<KnowledgeRow>(sql);
-      if (requirePostgres || res.rows.length > 0) {
-        return res.rows.map(normalizeKnowledgeRow);
-      }
-    } catch (err: unknown) {
-      if (requirePostgres) throw err;
-      const msg = err instanceof Error ? err.message : 'Knowledge query error';
-      console.warn('[ChatRepository Fallback]:', msg);
-    }
-  }
+const knowledgeColumns = `
+  knowledge_id, question, answer, category, created_at, updated_at
+`;
 
-  return [...fallbackKnowledge];
+export async function getAllKnowledge(executeQuery = queryPostgres): Promise<KnowledgeBaseEntry[]> {
+  const result = await executeQuery<KnowledgeRow>(`
+    SELECT ${knowledgeColumns}
+    FROM knowledge_base
+    ORDER BY knowledge_id DESC
+  `);
+  return result.rows.map(normalizeKnowledgeRow);
 }
 
-export async function listKnowledgeEntries(requirePostgres = false, executeQuery = queryPostgres): Promise<ChatbotKnowledge[]> {
-  return getAllKnowledge(requirePostgres, executeQuery);
+export async function listKnowledgeEntries(executeQuery = queryPostgres): Promise<KnowledgeBaseEntry[]> {
+  return getAllKnowledge(executeQuery);
 }
 
-export async function createKnowledgeEntry(input: KnowledgeInput, executeQuery = queryPostgres): Promise<ChatbotKnowledge> {
-  if (isDbConnected()) {
-    try {
-      const res = await executeQuery<KnowledgeRow>(
-        `INSERT INTO chatbot_knowledge (intent_tag, keyword_patterns, answer_template, recommended_category)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, intent_tag, keyword_patterns, answer_template, recommended_category`,
-        [input.intentTag, input.keywordPatterns, input.answerTemplate, input.recommendedCategory ?? null],
-      );
-      if (!res.rows[0]) {
-        throw new Error('Không thể lưu tri thức mới.');
-      }
-      return normalizeKnowledgeRow(res.rows[0]);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Không thể lưu tri thức mới.';
-      throw new Error(message);
-    }
+export async function createKnowledgeEntry(input: KnowledgeInput, executeQuery = queryPostgres): Promise<KnowledgeBaseEntry> {
+  const result = await executeQuery<KnowledgeRow>(
+    `INSERT INTO knowledge_base (question, answer, category, created_at, updated_at)
+     VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+     RETURNING ${knowledgeColumns}`,
+    [input.question, input.answer, input.category],
+  );
+  if (!result.rows[0]) {
+    throw new Error('Không thể lưu tri thức mới.');
+  }
+  return normalizeKnowledgeRow(result.rows[0]);
+}
+
+export async function importKnowledgeEntries(entries: KnowledgeInput[], executeQuery = queryPostgres): Promise<KnowledgeImportResult> {
+  if (entries.length === 0) {
+    return { imported: 0, skipped: 0, total: 0 };
   }
 
-  const created: ChatbotKnowledge = {
-    id: Date.now(),
-    intentTag: input.intentTag,
-    keywordPatterns: [...input.keywordPatterns],
-    answerTemplate: input.answerTemplate,
-    recommendedCategory: input.recommendedCategory,
+  const result = await executeQuery<{ knowledge_id: number }>(
+    `WITH incoming AS (
+       SELECT DISTINCT ON (
+         lower(btrim(sample.question)),
+         lower(COALESCE(btrim(sample.category), ''))
+       )
+         sample.question,
+         sample.answer,
+         sample.category
+       FROM jsonb_to_recordset($1::jsonb) AS sample(
+         question TEXT,
+         answer TEXT,
+         category TEXT
+       )
+       ORDER BY
+         lower(btrim(sample.question)),
+         lower(COALESCE(btrim(sample.category), ''))
+     ),
+     new_entries AS (
+       SELECT incoming.*
+       FROM incoming
+       WHERE NOT EXISTS (
+         SELECT 1
+         FROM knowledge_base existing
+         WHERE lower(btrim(existing.question)) = lower(btrim(incoming.question))
+           AND lower(COALESCE(btrim(existing.category), '')) = lower(COALESCE(btrim(incoming.category), ''))
+       )
+     )
+     INSERT INTO knowledge_base (question, answer, category, created_at, updated_at)
+     SELECT question, answer, category, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+     FROM new_entries
+     RETURNING knowledge_id`,
+    [JSON.stringify(entries)],
+  );
+
+  const imported = result.rows.length;
+  return {
+    imported,
+    skipped: entries.length - imported,
+    total: entries.length,
   };
-  fallbackKnowledge = [created, ...fallbackKnowledge];
-  return created;
 }
 
-export async function updateKnowledgeEntry(id: number, input: Partial<KnowledgeInput>, executeQuery = queryPostgres): Promise<ChatbotKnowledge | null> {
-  if (isDbConnected()) {
-    try {
-      const normalized = Object.fromEntries(
-        Object.entries(input).filter(([, value]) => value !== undefined),
-      ) as Partial<KnowledgeInput>;
-      if (Object.keys(normalized).length === 0) {
-        return null;
-      }
-
-      const res = await executeQuery<KnowledgeRow>(
-        `UPDATE chatbot_knowledge
-         SET intent_tag = COALESCE($2, intent_tag),
-             keyword_patterns = COALESCE($3, keyword_patterns),
-             answer_template = COALESCE($4, answer_template),
-             recommended_category = COALESCE($5, recommended_category)
-         WHERE id = $1
-         RETURNING id, intent_tag, keyword_patterns, answer_template, recommended_category`,
-        [
-          id,
-          normalized.intentTag ?? null,
-          normalized.keywordPatterns ?? null,
-          normalized.answerTemplate ?? null,
-          normalized.recommendedCategory ?? null,
-        ],
-      );
-      return res.rows[0] ? normalizeKnowledgeRow(res.rows[0]) : null;
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Không thể cập nhật tri thức.';
-      throw new Error(message);
-    }
-  }
-
-  const index = fallbackKnowledge.findIndex((entry) => entry.id === id);
-  if (index === -1) return null;
-
-  const previous = fallbackKnowledge[index];
-  if (!previous) return null;
-
-  const next: ChatbotKnowledge = {
-    id: previous.id,
-    intentTag: input.intentTag ?? previous.intentTag,
-    keywordPatterns: input.keywordPatterns ? [...input.keywordPatterns] : previous.keywordPatterns,
-    answerTemplate: input.answerTemplate ?? previous.answerTemplate,
-    recommendedCategory: input.recommendedCategory ?? previous.recommendedCategory,
-  };
-  fallbackKnowledge[index] = next;
-  return next;
+export async function updateKnowledgeEntry(id: number, input: KnowledgeInput, executeQuery = queryPostgres): Promise<KnowledgeBaseEntry | null> {
+  const result = await executeQuery<KnowledgeRow>(
+    `UPDATE knowledge_base
+     SET question = $2,
+         answer = $3,
+         category = $4,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE knowledge_id = $1
+     RETURNING ${knowledgeColumns}`,
+    [id, input.question, input.answer, input.category],
+  );
+  return result.rows[0] ? normalizeKnowledgeRow(result.rows[0]) : null;
 }
 
 export async function deleteKnowledgeEntry(id: number, executeQuery = queryPostgres): Promise<boolean> {
-  if (isDbConnected()) {
-    try {
-      const res = await executeQuery<{ id: number }>(
-        'DELETE FROM chatbot_knowledge WHERE id = $1 RETURNING id',
-        [id],
-      );
-      return Boolean(res.rowCount && res.rowCount > 0);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Không thể xóa tri thức.';
-      throw new Error(message);
-    }
-  }
-
-  const before = fallbackKnowledge.length;
-  fallbackKnowledge = fallbackKnowledge.filter((entry) => entry.id !== id);
-  return fallbackKnowledge.length !== before;
+  const result = await executeQuery<{ knowledge_id: number }>(
+    'DELETE FROM knowledge_base WHERE knowledge_id = $1 RETURNING knowledge_id',
+    [id],
+  );
+  return Boolean(result.rowCount && result.rowCount > 0);
 }

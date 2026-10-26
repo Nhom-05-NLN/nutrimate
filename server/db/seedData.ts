@@ -1,4 +1,4 @@
-import { Category, Product, Order, ChatbotKnowledge } from '../types/index.js';
+import { Category, Product, Order } from '../types/index.js';
 
 export const INITIAL_CATEGORIES: Category[] = [
   {
@@ -322,29 +322,5 @@ export const INITIAL_ORDERS: Order[] = [
     paymentStatus: 'paid',
     status: 'delivered',
     notes: 'Giao giờ hành chính giúp em ạ.',
-  },
-];
-
-export const INITIAL_CHAT_KNOWLEDGE: ChatbotKnowledge[] = [
-  {
-    id: 1,
-    intentTag: 'low_carb_keto',
-    keywordPatterns: ['keto', 'low-carb', 'low carb', 'ít tinh bột', 'giảm cân', 'bụng mỡ', 'tinh bột'],
-    answerTemplate: 'Chế độ Low-Carb / Keto tập trung cắt giảm carbohydrate tinh chế (dưới 20-50g carbs thuần/ngày) để cơ thể chuyển sang trạng thái đốt mỡ tự nhiên. NutriMate có các sản phẩm tiêu biểu như Bún Nưa Shirataki 0 Calo, Bánh Mì Nguyên Cám Hạnh Nhân và Granola Hạt Siêu Bùi.',
-    recommendedCategory: 'low-carb',
-  },
-  {
-    id: 2,
-    intentTag: 'high_protein_gym',
-    keywordPatterns: ['protein', 'đạm', 'gym', 'tập tạ', 'tăng cơ', 'siết cơ', 'thể hình', 'cơ bắp'],
-    answerTemplate: 'Để phát triển và phục hồi cơ bắp tối ưu, bạn cần nạp khoảng 1.6g - 2.2g protein trên mỗi kg thể trọng mỗi ngày. Danh mục High-Protein của NutriMate cung cấp ức gà nấu chậm sous-vide mềm ngọt (31.5g đạm), thanh protein bar hạt chia và bơ đậu phộng mộc 100%.',
-    recommendedCategory: 'high-protein',
-  },
-  {
-    id: 3,
-    intentTag: 'sugar_free_diabetes',
-    keywordPatterns: ['đường', 'tiểu đường', 'sugar', 'huyết áp', 'kiêng ngọt', 'không đường', 'thèm ngọt'],
-    answerTemplate: 'Cắt giảm đường tinh luyện giúp ổn định đường huyết, giảm mỡ nội tạng và làm chậm lão hóa. Bạn hoàn toàn có thể thưởng thức vị ngọt lành mạnh nhờ trà Kombucha men sống 0 sugar, sô-cô-la đen 85% cacao cỏ ngọt Stevia và mứt dâu rừng hạt chia.',
-    recommendedCategory: 'sugar-free',
   },
 ];

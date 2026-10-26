@@ -1,34 +1,37 @@
 ﻿<script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { Bot, CheckCircle2, FileText, Pencil, Plus, Save, Trash2, X } from 'lucide-vue-next';
+import { Bot, CheckCircle2, FilePlus2, FileText, Pencil, Save, Trash2, X } from 'lucide-vue-next';
 import {
   createKnowledgeEntry,
   deleteKnowledgeEntry,
   fetchKnowledgeEntries,
-  type KnowledgeEntry,
+  importKnowledgeEntries,
   updateKnowledgeEntry,
 } from '../../services/api';
+import type { KnowledgeBaseEntry, KnowledgeBaseEntryPayload } from '../../types';
 import { useToastStore } from '../../stores/toastStore';
 
 interface KnowledgeForm {
-  intentTag: string;
-  keywordPatterns: string;
-  answerTemplate: string;
-  recommendedCategory: string;
+  question: string;
+  answer: string;
+  category: string;
 }
 
+const MAX_IMPORT_FILE_SIZE = 1024 * 1024;
+const MAX_IMPORT_ENTRIES = 500;
 const toastStore = useToastStore();
-const records = ref<KnowledgeEntry[]>([]);
+const records = ref<KnowledgeBaseEntry[]>([]);
+const importFileInput = ref<HTMLInputElement | null>(null);
 const isLoading = ref(false);
 const isSaving = ref(false);
+const isImporting = ref(false);
 const isEditing = ref(false);
 const editId = ref<number | null>(null);
 
 const emptyForm: KnowledgeForm = {
-  intentTag: '',
-  keywordPatterns: '',
-  answerTemplate: '',
-  recommendedCategory: 'all',
+  question: '',
+  answer: '',
+  category: '',
 };
 
 const form = ref<KnowledgeForm>({ ...emptyForm });
@@ -39,22 +42,10 @@ function resetForm() {
   editId.value = null;
 }
 
-function parseKeywords(value: string): string[] {
-  return value
-    .split(/[\n,]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function getCategoryLabel(value?: string): string {
-  if (!value) return 'Không gắn mục tiêu';
-  const labels: Record<string, string> = {
-    all: 'Tất cả',
-    'low-carb': 'Low-Carb',
-    'high-protein': 'High-Protein',
-    'sugar-free': 'Sugar-Free',
-  };
-  return labels[value] ?? value;
+function formatDate(value: string | null): string {
+  if (!value) return 'Chưa có';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Không hợp lệ' : date.toLocaleString('vi-VN');
 }
 
 async function loadKnowledge() {
@@ -70,30 +61,28 @@ async function loadKnowledge() {
 }
 
 async function handleSubmit() {
-  const intentTag = form.value.intentTag.trim();
-  const keywordPatterns = parseKeywords(form.value.keywordPatterns);
-  const answerTemplate = form.value.answerTemplate.trim();
+  const question = form.value.question.trim();
+  const answer = form.value.answer.trim();
+  const category = form.value.category.trim();
 
-  if (!intentTag || intentTag.length > 50) {
-    toastStore.show('Mã intent phải có từ 1 đến 50 ký tự.', 'error');
+  if (!question) {
+    toastStore.show('Câu hỏi không được để trống.', 'error');
     return;
   }
-  if (keywordPatterns.length === 0 || keywordPatterns.length > 30) {
-    toastStore.show('Cần ít nhất 1 và tối đa 30 từ khóa.', 'error');
+  if (!answer) {
+    toastStore.show('Câu trả lời không được để trống.', 'error');
     return;
   }
-  if (!answerTemplate || answerTemplate.length > 4000) {
-    toastStore.show('Nội dung câu trả lời phải có từ 1 đến 4000 ký tự.', 'error');
+  if (category.length > 100) {
+    toastStore.show('Danh mục không được vượt quá 100 ký tự.', 'error');
     return;
   }
-
   isSaving.value = true;
   try {
     const payload = {
-      intentTag,
-      keywordPatterns,
-      answerTemplate,
-      recommendedCategory: form.value.recommendedCategory === 'all' ? undefined : form.value.recommendedCategory,
+      question,
+      answer,
+      category: category || undefined,
     };
 
     if (isEditing.value && editId.value !== null) {
@@ -114,14 +103,86 @@ async function handleSubmit() {
   }
 }
 
-function startEdit(item: KnowledgeEntry) {
+function parseKnowledgeFile(content: string): KnowledgeBaseEntryPayload[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error('File không phải JSON hợp lệ.');
+  }
+
+  const rawEntries = Array.isArray(parsed)
+    ? parsed
+    : typeof parsed === 'object' && parsed !== null && 'entries' in parsed && Array.isArray(parsed.entries)
+      ? parsed.entries
+      : null;
+
+  if (!rawEntries || rawEntries.length === 0 || rawEntries.length > MAX_IMPORT_ENTRIES) {
+    throw new Error(`JSON phải là một mảng tri thức hoặc object có entries (1–${MAX_IMPORT_ENTRIES} mục).`);
+  }
+
+  return rawEntries.map((entry: unknown, index: number) => {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+      throw new Error(`Mục ${index + 1} phải là object.`);
+    }
+    const record = entry as Record<string, unknown>;
+    if (typeof record.question !== 'string' || !record.question.trim()) {
+      throw new Error(`Mục ${index + 1}: question phải là chuỗi không rỗng.`);
+    }
+    if (typeof record.answer !== 'string' || !record.answer.trim()) {
+      throw new Error(`Mục ${index + 1}: answer phải là chuỗi không rỗng.`);
+    }
+    if (record.category !== undefined && record.category !== null && typeof record.category !== 'string') {
+      throw new Error(`Mục ${index + 1}: category phải là chuỗi.`);
+    }
+    return {
+      question: record.question,
+      answer: record.answer,
+      ...(typeof record.category === 'string' ? { category: record.category } : {}),
+    };
+  });
+}
+
+async function handleImportFile(event: Event) {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+
+  if (!file.name.toLowerCase().endsWith('.json')) {
+    toastStore.show('Vui lòng chọn file có định dạng .json.', 'error');
+    return;
+  }
+  if (file.size > MAX_IMPORT_FILE_SIZE) {
+    toastStore.show('Kích thước file tối đa là 1 MB.', 'error');
+    return;
+  }
+
+  isImporting.value = true;
+  try {
+    const entries = parseKnowledgeFile(await file.text());
+    const result = await importKnowledgeEntries(entries);
+    records.value = await fetchKnowledgeEntries();
+    const message = result.imported > 0
+      ? `Đã nhập ${result.imported}/${result.total} tri thức${result.skipped ? `, bỏ qua ${result.skipped} mục đã có` : ''}.`
+      : 'Các tri thức trong file đã có trong danh sách.';
+    toastStore.show(message, 'success');
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Không thể nhập file tri thức.';
+    toastStore.show(message, 'error');
+  } finally {
+    isImporting.value = false;
+  }
+}
+
+function startEdit(item: KnowledgeBaseEntry) {
   isEditing.value = true;
   editId.value = item.id;
   form.value = {
-    intentTag: item.intentTag,
-    keywordPatterns: item.keywordPatterns.join(', '),
-    answerTemplate: item.answerTemplate,
-    recommendedCategory: item.recommendedCategory ?? 'all',
+    question: item.question ?? '',
+    answer: item.answer ?? '',
+    category: item.category ?? '',
   };
 }
 
@@ -152,14 +213,27 @@ onMounted(() => {
         <p class="text-[10px] font-bold uppercase tracking-[0.24em] text-[#6B7B5E]">Admin panel</p>
         <h1 class="mt-2 text-2xl font-black text-[#2D3B1E] sm:text-3xl">Quản lý dữ liệu tri thức NutriBot</h1>
       </div>
-      <button
-        type="button"
-        @click="resetForm"
-        class="inline-flex items-center gap-2 rounded-2xl bg-[#4D6A34] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#3B4E24]"
-      >
-        <Plus class="h-4 w-4" />
-        Thêm mẫu tri thức
-      </button>
+      <div>
+        <input
+          ref="importFileInput"
+          type="file"
+          accept=".json,application/json"
+          class="hidden"
+          @change="handleImportFile"
+        />
+        <button
+          type="button"
+          :disabled="isImporting"
+          @click="importFileInput?.click()"
+          class="inline-flex items-center gap-2 rounded-2xl border border-[#D7E0CE] bg-white px-4 py-2.5 text-sm font-bold text-[#2D3B1E] transition hover:border-[#C2CFB5] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <FilePlus2 class="h-4 w-4" />
+          {{ isImporting ? 'Đang nhập file...' : 'Nhập tri thức JSON' }}
+        </button>
+        <p class="mt-2 max-w-xs text-xs leading-5 text-[#6B7B5E]">
+          Chọn file JSON tối đa 1 MB. Mỗi mục gồm question, answer và category (tùy chọn).
+        </p>
+      </div>
     </header>
 
     <div class="grid gap-6 xl:grid-cols-[1.45fr_0.75fr]">
@@ -188,11 +262,9 @@ onMounted(() => {
               <div class="min-w-0">
                 <div class="flex items-center gap-2">
                   <Bot class="h-4 w-4 text-[#4D6A34]" />
-                  <p class="text-base font-black text-[#2D3B1E]">{{ item.intentTag }}</p>
+                  <p class="text-base font-black text-[#2D3B1E]">{{ item.question || 'Chưa nhập câu hỏi' }}</p>
                 </div>
-                <p class="mt-2 text-xs text-[#6B7B5E]">
-                  Từ khóa: {{ item.keywordPatterns.join(', ') }}
-                </p>
+                <p class="mt-2 text-xs text-[#6B7B5E]">ID: {{ item.id }}</p>
               </div>
 
               <div class="flex gap-2">
@@ -215,14 +287,17 @@ onMounted(() => {
               </div>
             </div>
 
-            <p class="mt-3 text-sm leading-6 text-[#465240]">{{ item.answerTemplate }}</p>
+            <p class="mt-3 text-sm leading-6 text-[#465240]">{{ item.answer || 'Chưa nhập câu trả lời' }}</p>
 
             <div class="mt-3 flex items-center gap-2">
               <CheckCircle2 class="h-4 w-4 text-[#4D6A34]" />
               <span class="text-[11px] font-bold uppercase tracking-[0.12em] text-[#4D6A34]">
-                {{ getCategoryLabel(item.recommendedCategory) }}
+                {{ item.category || 'Chưa phân loại' }}
               </span>
             </div>
+            <p class="mt-2 text-[11px] text-[#7A8473]">
+              Tạo: {{ formatDate(item.createdAt) }} · Cập nhật: {{ formatDate(item.updatedAt) }}
+            </p>
           </article>
         </div>
       </section>
@@ -237,43 +312,30 @@ onMounted(() => {
 
         <form class="space-y-4" @submit.prevent="handleSubmit">
           <div class="space-y-1.5">
-            <label class="text-sm font-semibold text-[#2D3B1E]">Intent tag</label>
+            <label class="text-sm font-semibold text-[#2D3B1E]">Câu hỏi</label>
             <input
-              v-model="form.intentTag"
+              v-model="form.question"
               type="text"
-              maxlength="50"
-              placeholder="ví dụ: high_protein_gym"
+              placeholder="Ví dụ: Thực phẩm nào giàu protein?"
               class="w-full rounded-2xl border border-[#D9E1D1] bg-[#FAFBF8] px-3 py-2.5 text-sm text-[#2D3B1E] outline-none ring-0 transition focus:border-[#4D6A34]"
             />
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-sm font-semibold text-[#2D3B1E]">Từ khóa</label>
-            <textarea
-              v-model="form.keywordPatterns"
-              rows="4"
-              placeholder="protein, tăng cơ, gym, đạm"
+            <label class="text-sm font-semibold text-[#2D3B1E]">Danh mục</label>
+            <input
+              v-model="form.category"
+              type="text"
+              maxlength="100"
+              placeholder="Ví dụ: dinh dưỡng, sản phẩm"
               class="w-full rounded-2xl border border-[#D9E1D1] bg-[#FAFBF8] px-3 py-2.5 text-sm text-[#2D3B1E] outline-none transition focus:border-[#4D6A34]"
             />
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-sm font-semibold text-[#2D3B1E]">Phân loại gợi ý</label>
-            <select
-              v-model="form.recommendedCategory"
-              class="w-full rounded-2xl border border-[#D9E1D1] bg-[#FAFBF8] px-3 py-2.5 text-sm text-[#2D3B1E] outline-none transition focus:border-[#4D6A34]"
-            >
-              <option value="all">Tất cả</option>
-              <option value="low-carb">Low-Carb</option>
-              <option value="high-protein">High-Protein</option>
-              <option value="sugar-free">Sugar-Free</option>
-            </select>
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="text-sm font-semibold text-[#2D3B1E]">Câu trả lời mẫu</label>
+            <label class="text-sm font-semibold text-[#2D3B1E]">Câu trả lời</label>
             <textarea
-              v-model="form.answerTemplate"
+              v-model="form.answer"
               rows="7"
               placeholder="Nhập nội dung trả lời sử dụng cho NutriBot..."
               class="w-full rounded-2xl border border-[#D9E1D1] bg-[#FAFBF8] px-3 py-2.5 text-sm text-[#2D3B1E] outline-none transition focus:border-[#4D6A34]"
