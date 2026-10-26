@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import path from 'node:path';
 dotenv.config();
 
 export const config = {
@@ -14,6 +15,12 @@ export const config = {
     maxContextMessages: 20,
     maxContextChars: 16000,
     jwtSecret: process.env.JWT_SECRET || '',
+  },
+
+  nutritionImage: {
+    maxUploadBytes: 5 * 1024 * 1024,
+    timeoutMs: 45000,
+    storageDir: path.resolve(process.cwd(), process.env.NUTRITION_IMAGE_STORAGE_DIR || 'uploads/nutrition-images'),
   },
 
   // Database settings

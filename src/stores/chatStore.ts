@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
 import type { ChatMessage } from '../types';
-import { ApiError, ensureChatSession, createChatConversation, fetchChatConversations, fetchChatHistory, postChatMessage, type ChatConversation, type ChatHistoryMessage } from '../services/api';
+import { ApiError, ensureChatSession, createChatConversation, fetchChatConversations, fetchChatHistory, postChatMessage, postNutritionImage, type ChatConversation, type ChatHistoryMessage } from '../services/api';
 import { useAuthStore } from './authStore';
 
 export const useChatStore = defineStore('chat', () => {
@@ -10,6 +10,7 @@ export const useChatStore = defineStore('chat', () => {
   const isThinking = ref(false);
   const error = ref('');
   const requiresAuthentication = ref(false);
+  const requiresImageAuthentication = ref(false);
   const guestSessionExpired = ref(false);
   const conversationId = ref<string | null>(null);
   const conversations = ref<ChatConversation[]>([]);
@@ -25,13 +26,20 @@ export const useChatStore = defineStore('chat', () => {
     return { id: message.id, requestId: message.requestId, sender: message.role === 'user' ? 'user' : 'bot',
       text: message.content, timestamp: new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), suggestedProducts: message.suggestedProducts };
   }
+  function disposeImagePreviews() {
+    for (const message of messages.value) {
+      if (message.imagePreview) URL.revokeObjectURL(message.imagePreview);
+    }
+  }
   function resetIdentity() {
     epoch++;
     sessionReady = false;
     requiresAuthentication.value = false;
+    requiresImageAuthentication.value = false;
     guestSessionExpired.value = false;
     conversationId.value = null;
     conversations.value = [];
+    disposeImagePreviews();
     messages.value = [welcome()];
     isThinking.value = false;
     hasEarlier.value = false;
@@ -84,6 +92,7 @@ export const useChatStore = defineStore('chat', () => {
       const unsent = conversationId.value === conversation.id ? messages.value.filter(message => message.failed && !savedRequests.has(message.requestId || '')) : [];
       conversations.value = list.length ? list : [conversation];
       conversationId.value = conversation.id;
+      disposeImagePreviews();
       messages.value = [...(history.length ? history.map(display) : [welcome()]), ...unsent];
       hasEarlier.value = history.length === 50;
     } catch (reason) { if (active === epoch) reportError(reason, 'Không tải được hội thoại.'); }
@@ -97,6 +106,7 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const history = await fetchChatHistory(id, auth.accessToken);
       if (active !== epoch) return;
+      disposeImagePreviews();
       conversationId.value = id;
       messages.value = history.length ? history.map(display) : [welcome()];
       hasEarlier.value = history.length === 50;
@@ -114,6 +124,7 @@ export const useChatStore = defineStore('chat', () => {
       if (active !== epoch) return;
       conversations.value = [conversation, ...conversations.value].slice(0, 50);
       conversationId.value = conversation.id;
+      disposeImagePreviews();
       messages.value = [welcome()];
       hasEarlier.value = false;
     } catch (reason) { if (active === epoch) reportError(reason, 'Không tạo được hội thoại.'); }
@@ -142,6 +153,7 @@ export const useChatStore = defineStore('chat', () => {
     else messages.value.push({ id: requestId, requestId, sender: 'user', text: text.trim(), timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
     isThinking.value = true;
     error.value = '';
+    requiresImageAuthentication.value = false;
     try {
       if (!sessionReady && !await prepareSession(auth.accessToken, active)) return;
       if (!conversationId.value) {
@@ -162,9 +174,64 @@ export const useChatStore = defineStore('chat', () => {
     } finally { if (active === epoch) isThinking.value = false; }
   }
   function retryMessage(message: ChatMessage) { if (message.failed && message.requestId) void sendMessage(message.text, message.requestId); }
+  async function analyzeImage(file: File) {
+    if (isThinking.value || requiresAuthentication.value || guestSessionExpired.value) return;
+    if (!auth.accessToken) {
+      requiresImageAuthentication.value = true;
+      error.value = 'Đăng nhập Customer để phân tích ảnh thực phẩm.';
+      return;
+    }
+
+    const active = epoch;
+    messages.value.push({
+      id: `image-${crypto.randomUUID()}`,
+      sender: 'user',
+      text: 'Phân tích ảnh thực phẩm',
+      imagePreview: URL.createObjectURL(file),
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    });
+    isThinking.value = true;
+    error.value = '';
+    requiresImageAuthentication.value = false;
+    try {
+      const result = await postNutritionImage(file, auth.accessToken);
+      if (active !== epoch) return;
+      const disclaimer = 'Thông tin chỉ mang tính tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.';
+      const text = result.status === 'unrecognized'
+        ? `Mình chưa nhận diện được thực phẩm trong ảnh.${result.ocrText ? `\nNội dung đọc được: ${result.ocrText}` : ''}\n\n${disclaimer}`
+        : [
+            'Ước tính dinh dưỡng cho khẩu phần nhận diện được:',
+            `Calories: ${result.predictedCalories ?? '—'} kcal`,
+            `Protein: ${result.predictedProtein ?? '—'} g`,
+            `Carbs: ${result.predictedCarbs ?? '—'} g`,
+            `Fat: ${result.predictedFat ?? '—'} g`,
+            `Sugar: ${result.predictedSugar ?? '—'} g`,
+            result.ocrText ? `Nội dung đọc được: ${result.ocrText}` : '',
+            '',
+            disclaimer,
+          ].filter(Boolean).join('\n');
+      messages.value.push({
+        id: `image-result-${result.imageId}`,
+        sender: 'bot',
+        text,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      });
+    } catch (reason) {
+      if (active !== epoch) return;
+      reportError(reason, 'Không thể phân tích ảnh.');
+      messages.value.push({
+        id: `image-error-${Date.now()}`,
+        sender: 'bot',
+        text: reason instanceof Error ? reason.message : 'Không thể phân tích ảnh. Vui lòng thử lại.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      });
+    } finally {
+      if (active === epoch) isThinking.value = false;
+    }
+  }
   function openChat() { isOpen.value = true; void initialize(); }
   function closeChat() { isOpen.value = false; }
   function toggleChat() { if (isOpen.value) closeChat(); else openChat(); }
-  return { isOpen, isThinking, messages, error, requiresAuthentication, guestSessionExpired, restartGuestSession, conversationId, conversations, hasEarlier, openChat, closeChat, toggleChat,
-    sendMessage, retryMessage, initialize, selectConversation, newConversation, loadEarlier };
+  return { isOpen, isThinking, messages, error, requiresAuthentication, requiresImageAuthentication, guestSessionExpired, restartGuestSession, conversationId, conversations, hasEarlier, openChat, closeChat, toggleChat,
+    sendMessage, retryMessage, analyzeImage, initialize, selectConversation, newConversation, loadEarlier };
 });

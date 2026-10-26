@@ -1,4 +1,4 @@
-import { ApiResponse, Category, Product, ProductFilterQuery, Order, CreateOrderPayload } from '../types';
+import { ApiResponse, Category, Product, ProductFilterQuery, Order, CreateOrderPayload, NutritionImagePrediction } from '../types';
 
 const API_BASE = '/api';
 
@@ -136,6 +136,28 @@ export async function postChatMessage(message: string, conversationId: string, r
     throw new Error('Không nhận được phản hồi từ NutriBot');
   }
   return res.data;
+}
+
+export async function postNutritionImage(image: File, token: string): Promise<NutritionImagePrediction> {
+  const response = await fetch(`${API_BASE}/chat/nutrition-images`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': image.type || 'application/octet-stream',
+      Authorization: `Bearer ${token}`,
+    },
+    body: image,
+  });
+
+  let result: ApiResponse<NutritionImagePrediction>;
+  try {
+    result = await response.json() as ApiResponse<NutritionImagePrediction>;
+  } catch {
+    throw new ApiError(response.status, `Lỗi mạng HTTP ${response.status}`);
+  }
+  if (!response.ok) throw new ApiError(response.status, result.message || `Lỗi mạng HTTP ${response.status}`);
+  if (!result.data) throw new Error('Không nhận được kết quả phân tích ảnh.');
+  return result.data;
 }
 
 export async function fetchHealth(): Promise<{ status: string; service: string }> {

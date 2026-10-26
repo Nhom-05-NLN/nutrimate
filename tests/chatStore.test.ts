@@ -163,3 +163,56 @@ test('changing identity clears private history and ignores an old in-flight resp
     assert.equal(store.conversationId, null);
   } finally { globalThis.fetch = original; }
 });
+
+test('Guest image attempt requests Customer login without blocking normal Guest chat', async () => {
+  setActivePinia(createPinia());
+  const store = useChatStore();
+  await store.analyzeImage({} as File);
+  assert.equal(store.requiresImageAuthentication, true);
+  assert.equal(store.requiresAuthentication, false);
+  assert.equal(store.guestSessionExpired, false);
+  assert.equal(store.error, 'Đăng nhập Customer để phân tích ảnh thực phẩm.');
+});
+
+test('Customer image prediction appears in the chat with estimated values and disclaimer', async () => {
+  setActivePinia(createPinia());
+  const originalFetch = globalThis.fetch;
+  const originalCreateObjectURL = URL.createObjectURL;
+  const auth = useAuthStore();
+  auth.accessToken = 'customer-jwt';
+  URL.createObjectURL = () => 'blob:synthetic-image';
+  globalThis.fetch = async (url, options) => {
+    assert.equal(String(url), '/api/chat/nutrition-images');
+    assert.equal(options?.method, 'POST');
+    assert.equal(options?.headers && (options.headers as Record<string, string>).Authorization, 'Bearer customer-jwt');
+    assert.ok(options?.body instanceof File);
+    return ok({
+      imageId: 42,
+      imageUrl: '/api/chat/nutrition-images/synthetic.png',
+      ocrText: 'Protein 12 g',
+      uploadDate: new Date().toISOString(),
+      status: 'completed',
+      predictedCalories: 210,
+      predictedProtein: 12,
+      predictedCarbs: 24,
+      predictedFat: 8,
+      predictedSugar: 4,
+    });
+  };
+  try {
+    const store = useChatStore();
+    await store.analyzeImage(new File([new Uint8Array([1, 2, 3])], 'food.png', { type: 'image/png' }));
+    assert.equal(store.messages[1]?.imagePreview, 'blob:synthetic-image');
+    assert.match(store.messages[2]?.text || '', /Calories: 210 kcal/);
+    assert.match(store.messages[2]?.text || '', /Protein: 12 g/);
+    assert.match(store.messages[2]?.text || '', /Carbs: 24 g/);
+    assert.match(store.messages[2]?.text || '', /Fat: 8 g/);
+    assert.match(store.messages[2]?.text || '', /Sugar: 4 g/);
+    assert.match(store.messages[2]?.text || '', /Thông tin chỉ mang tính tham khảo/);
+    assert.equal(store.error, '');
+  } finally {
+    globalThis.fetch = originalFetch;
+    URL.createObjectURL = originalCreateObjectURL;
+    auth.logout();
+  }
+});

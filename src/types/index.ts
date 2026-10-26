@@ -155,11 +155,25 @@ export interface ChatMessage {
   sender: 'user' | 'bot';
   text: string;
   timestamp: string;
+  imagePreview?: string;
   suggestedProducts?: Product[];
   actionLink?: {
     text: string;
     action: string;
   };
+}
+
+export interface NutritionImagePrediction {
+  imageId: number;
+  imageUrl: string;
+  ocrText: string;
+  uploadDate: string;
+  status: 'completed' | 'unrecognized';
+  predictedCalories: number | null;
+  predictedProtein: number | null;
+  predictedCarbs: number | null;
+  predictedFat: number | null;
+  predictedSugar: number | null;
 }
 
 export interface ApiResponse<T> {

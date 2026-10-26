@@ -4,21 +4,29 @@ import { useChatStore } from '../../stores/chatStore';
 import { useCartStore } from '../../stores/cartStore';
 import { useProductStore } from '../../stores/productStore';
 import { Product } from '../../types';
+import { useAuthStore } from '../../stores/authStore';
+import { useToastStore } from '../../stores/toastStore';
 import {
   Bot,
   X,
   Send,
   Sparkles,
   ShoppingBag,
+  ImagePlus,
 } from 'lucide-vue-next';
 
 const chatStore = useChatStore();
+const authStore = useAuthStore();
+const toastStore = useToastStore();
 const chatBlocked = computed(() => chatStore.isThinking || chatStore.requiresAuthentication || chatStore.guestSessionExpired);
 const cartStore = useCartStore();
 const productStore = useProductStore();
 
 const inputText = ref('');
 const messagesContainer = ref<HTMLDivElement | null>(null);
+const imageInput = ref<HTMLInputElement | null>(null);
+const maxNutritionImageBytes = 5 * 1024 * 1024;
+const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
 const quickPrompts = [
   'Tôi muốn giảm cân nhưng hay đói vặt tầm 4h chiều',
@@ -52,6 +60,23 @@ function handleSend() {
 
 function handleQuickPrompt(promptText: string) {
   chatStore.sendMessage(promptText);
+}
+
+function handleImageSelected(event: Event) {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (file.size > maxNutritionImageBytes) {
+    toastStore.show('Ảnh vượt quá dung lượng tối đa 5 MB.', 'error');
+    return;
+  }
+  if (file.type && !allowedImageTypes.includes(file.type)) {
+    toastStore.show('Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.', 'error');
+    return;
+  }
+  void chatStore.analyzeImage(file);
 }
 
 function formatVnd(amount: number): string {
@@ -152,6 +177,12 @@ function handleAddToCartFromChat(product: Product) {
                 : 'bg-white text-[#2D3B1E] border border-[#E3E8DC] rounded-tl-xs'
             "
           >
+            <img
+              v-if="msg.imagePreview"
+              :src="msg.imagePreview"
+              alt="Ảnh thực phẩm được gửi để phân tích"
+              class="mb-2 max-h-48 max-w-full rounded-xl object-contain"
+            />
             {{ msg.text }}
           </div>
           <button v-if="msg.failed" type="button" :disabled="chatBlocked" class="text-xs text-red-700 underline" @click="chatStore.retryMessage(msg)">Gửi lại tin nhắn</button>
@@ -218,7 +249,7 @@ function handleAddToCartFromChat(product: Product) {
       <!-- Quick Prompt Suggestions -->
       <div v-if="chatStore.error" role="alert" class="px-4 py-2 bg-red-50 text-red-800 text-xs">
         {{ chatStore.error }}
-        <RouterLink v-if="chatStore.requiresAuthentication" to="/login" class="underline ml-2">Đăng nhập lại</RouterLink>
+        <RouterLink v-if="chatStore.requiresAuthentication || chatStore.requiresImageAuthentication" to="/login" class="underline ml-2">Đăng nhập Customer</RouterLink>
         <button v-else-if="chatStore.guestSessionExpired" type="button" :disabled="chatStore.isThinking" class="underline ml-2" @click="chatStore.restartGuestSession()">Bắt đầu phiên Guest mới</button>
         <button v-else-if="!chatStore.conversationId" type="button" :disabled="chatStore.isThinking" class="underline ml-2" @click="chatStore.initialize()">Thử kết nối lại</button>
       </div>
@@ -237,6 +268,23 @@ function handleAddToCartFromChat(product: Product) {
 
       <!-- Chat Input Field -->
       <form @submit.prevent="handleSend" class="p-3 bg-white border-t border-[#ECEFE7] flex items-center gap-2">
+        <input
+          ref="imageInput"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          class="hidden"
+          @change="handleImageSelected"
+        />
+        <button
+          type="button"
+          :disabled="chatBlocked"
+          @click="imageInput?.click()"
+          class="p-2.5 rounded-xl border border-[#DEE5D4] bg-white text-[#4D6A34] hover:bg-[#F3F6EE] disabled:opacity-40 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
+          aria-label="Tải ảnh thực phẩm để ước tính dinh dưỡng"
+          :title="authStore.accessToken ? 'Phân tích ảnh thực phẩm' : 'Đăng nhập Customer để phân tích ảnh'"
+        >
+          <ImagePlus class="w-4 h-4" />
+        </button>
         <input
           type="text"
           v-model="inputText"
