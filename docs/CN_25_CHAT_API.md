@@ -21,13 +21,13 @@ Adapter tham chiếu [OpenAI Docs — Create chat completion](https://developers
 
 Cấu hình được chọn cho dự án là `gemini-2.5-flash` qua [Gemini OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai). `LLM_API_KEY` phải là khóa Gemini hợp lệ; khóa của nhà cung cấp khác không dùng được cho endpoint này.
 
-Áp dụng `server/db/migrations/001_chat.sql` bằng công cụ PostgreSQL trên **database NutriMate hiện có**. Ví dụ khi kết nối psql đã được cấu hình bằng biến PG tương ứng:
+Áp dụng migration trên **database NutriMate hiện có** bằng công cụ PostgreSQL. Nếu database chưa có bảng chat cũ, chạy `server/db/migrations/001_chat.sql`. Nếu đã có `chat_sessions` và `chat_messages` dạng cũ (`session_id`, `question`, `response`), chạy migration tương thích `server/db/migrations/003_chat_conversation_schema_compat.sql` thay vì `001_chat.sql`:
 
 ```bash
-psql -v ON_ERROR_STOP=1 -f server/db/migrations/001_chat.sql
+psql -v ON_ERROR_STOP=1 -f server/db/migrations/003_chat_conversation_schema_compat.sql
 ```
 
-Migration chạy trong transaction, thêm `chat_conversations`, `chat_messages` và indexes nếu chưa có; không xóa/sửa dữ liệu cũ. Không tự chạy migration trong bootstrap hoặc tạo database thứ hai. Nếu bảng cùng tên đã tồn tại với cấu trúc khác, cần đối chiếu trước; `IF NOT EXISTS` không tự nâng cấp một cấu trúc không tương thích.
+Migration tương thích chạy trong transaction, giữ nguyên `chat_sessions` và đổi tên bảng tin nhắn cũ thành `chat_messages_legacy`, sau đó tạo các bảng/index cần cho API hiện tại. Nội dung legacy được giữ nguyên để tra cứu/đối chiếu; không tự gán hội thoại cũ cho Guest hoặc Customer vì không có liên kết danh tính an toàn tới chủ phiên chat mới. Migration không tự chạy trong bootstrap hoặc tạo database thứ hai. Nếu tồn tại đồng thời bảng archive hoặc schema khác không nhận diện được, migration dừng và rollback để tránh ghi đè dữ liệu.
 
 ## Danh tính và quyền truy cập
 
