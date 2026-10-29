@@ -107,6 +107,22 @@ export async function postRegister(payload: RegisterPayload): Promise<Registered
   return res.data;
 }
 
+export interface LoginPayload {
+  identifier: string;
+  password: string;
+}
+
+export async function postLogin(payload: LoginPayload): Promise<RegisteredUser> {
+  const res = await fetchJson<ApiResponse<RegisteredUser>>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể đăng nhập');
+  }
+  return res.data;
+}
+
 export interface ChatbotResponse {
   reply: string;
   suggestedProducts: Product[];

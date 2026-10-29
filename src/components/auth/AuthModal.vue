@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useAuthStore } from '../../stores/authStore';
+import { useToastStore } from '../../stores/toastStore';
+import { postLogin } from '../../services/api';
 import {
   X,
   Leaf,
@@ -12,13 +14,27 @@ import {
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
+const toastStore = useToastStore();
 
 const mode = ref<'login' | 'register'>('login');
 const name = ref('');
 const email = ref('');
 const password = ref('');
 
-function handleSubmit() {
+async function handleSubmit() {
+  if (mode.value === 'login') {
+    try {
+      const user = await postLogin({ identifier: email.value, password: password.value });
+      authStore.login(user);
+    } catch (err: unknown) {
+      toastStore.show(
+        err instanceof Error ? err.message : 'Không thể đăng nhập. Vui lòng thử lại.',
+        'error'
+      );
+    }
+    return;
+  }
+
   const displayName = name.value.trim() || (email.value ? email.value.split('@')[0] || 'Khách hàng' : 'Khách hàng NutriMate');
   authStore.login({
     id: `usr-${Date.now()}`,
