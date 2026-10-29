@@ -1,4 +1,4 @@
-import { isDbConnected, queryPostgres } from '../db/index.js';
+import { getPool, isDbConnected } from '../db/index.js';
 
 export interface NewUserRecord {
   fullName: string;
@@ -33,8 +33,14 @@ export async function createUser(user: NewUserRecord): Promise<UserRecord> {
     throw new Error('PostgreSQL chưa sẵn sàng.');
   }
 
+  const client = await getPool().connect();
+  let transactionStarted = false;
+
   try {
-    const result = await queryPostgres<UserRow>(
+    await client.query('BEGIN');
+    transactionStarted = true;
+
+    const result = await client.query<UserRow>(
       `INSERT INTO users (full_name, email, phone, password_hash)
        VALUES ($1, $2, $3, $4)
        RETURNING id, full_name, email, phone`,
@@ -46,6 +52,10 @@ export async function createUser(user: NewUserRecord): Promise<UserRecord> {
       throw new Error('Không thể tạo tài khoản.');
     }
 
+    await client.query('INSERT INTO customer (user_id) VALUES ($1)', [createdUser.id]);
+    await client.query('COMMIT');
+    transactionStarted = false;
+
     return {
       id: createdUser.id,
       name: createdUser.full_name,
@@ -53,6 +63,15 @@ export async function createUser(user: NewUserRecord): Promise<UserRecord> {
       phone: createdUser.phone,
     };
   } catch (err: unknown) {
+    if (transactionStarted) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError: unknown) {
+        const message = rollbackError instanceof Error ? rollbackError.message : 'Unknown rollback error';
+        console.error('[AuthRepository] Không thể rollback đăng ký:', message);
+      }
+    }
+
     if (
       typeof err === 'object' &&
       err !== null &&
@@ -64,5 +83,7 @@ export async function createUser(user: NewUserRecord): Promise<UserRecord> {
       throw new DuplicateEmailError();
     }
     throw err;
+  } finally {
+    client.release();
   }
 }

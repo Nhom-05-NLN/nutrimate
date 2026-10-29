@@ -25,6 +25,10 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS customer (
+    user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- 2. Bảng Danh mục thực phẩm ăn kiêng (Categories)
 CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
