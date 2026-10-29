@@ -4,7 +4,6 @@ import { UserProfile } from '../types';
 import { useToastStore } from './toastStore';
 
 export const useAuthStore = defineStore('auth', () => {
-  const currentUser = ref<UserProfile | null>(null);
   const profileDefaults: Omit<UserProfile, 'id' | 'name' | 'email' | 'phone'> = {
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
     birthDate: '1998-06-18',
@@ -36,6 +35,57 @@ export const useAuthStore = defineStore('auth', () => {
     dietPreferences: ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt'],
   };
 
+  const authStorageKey = 'nutrimate-auth-user';
+  const localStorageRef = typeof localStorage === 'undefined' ? null : localStorage;
+  const sessionStorageRef = typeof sessionStorage === 'undefined' ? null : sessionStorage;
+
+  function restoreUser(): { user: UserProfile; storage: Storage } | null {
+    for (const storage of [sessionStorageRef, localStorageRef]) {
+      if (!storage) continue;
+
+      try {
+        const serializedUser = storage.getItem(authStorageKey);
+        if (!serializedUser) continue;
+
+        const profile: unknown = JSON.parse(serializedUser);
+        if (
+          typeof profile === 'object' &&
+          profile !== null &&
+          'id' in profile &&
+          typeof profile.id === 'string' &&
+          'name' in profile &&
+          typeof profile.name === 'string' &&
+          'email' in profile &&
+          typeof profile.email === 'string' &&
+          'phone' in profile &&
+          typeof profile.phone === 'string'
+        ) {
+          return {
+            user: {
+              ...profileDefaults,
+              ...profile,
+              id: profile.id,
+              name: profile.name,
+              email: profile.email,
+              phone: profile.phone,
+            },
+            storage,
+          };
+        }
+
+        storage.removeItem(authStorageKey);
+      } catch (error: unknown) {
+        console.error('[AuthStore] Không thể khôi phục phiên đăng nhập:', error);
+      }
+    }
+
+    return null;
+  }
+
+  const restoredSession = restoreUser();
+  const currentUser = ref<UserProfile | null>(restoredSession?.user ?? null);
+  let activeStorage = restoredSession?.storage ?? null;
+
   const isAuthModalOpen = ref<boolean>(false);
   // Set only from the real authentication module's response. Demo login has no JWT.
   const accessToken = ref<string | null>(null);
@@ -52,12 +102,25 @@ export const useAuthStore = defineStore('auth', () => {
   function updateProfile(updated: Partial<UserProfile>) {
     if (currentUser.value) {
       currentUser.value = { ...currentUser.value, ...updated };
+      activeStorage?.setItem(authStorageKey, JSON.stringify(currentUser.value));
       toast.show('Đã cập nhật hồ sơ cá nhân thành công!');
     }
   }
 
-  function login(profile: Pick<UserProfile, 'id' | 'name' | 'email' | 'phone'> | UserProfile) {
-    currentUser.value = { ...profileDefaults, ...profile };
+  function login(
+    profile: Pick<UserProfile, 'id' | 'name' | 'email' | 'phone'> | UserProfile,
+    remember = true
+  ) {
+    const storage = remember ? localStorageRef : sessionStorageRef;
+    if (!storage) {
+      throw new Error('Trình duyệt không hỗ trợ lưu phiên đăng nhập.');
+    }
+
+    const user = { ...profileDefaults, ...profile };
+    storage.setItem(authStorageKey, JSON.stringify(user));
+    (remember ? sessionStorageRef : localStorageRef)?.removeItem(authStorageKey);
+    currentUser.value = user;
+    activeStorage = storage;
     isAuthModalOpen.value = false;
     toast.show(`Chào mừng ${profile.name} đã đăng nhập NutriMate!`);
   }
@@ -65,7 +128,10 @@ export const useAuthStore = defineStore('auth', () => {
   function logout() {
     const wasAuthenticated = currentUser.value !== null;
     currentUser.value = null;
+    activeStorage = null;
     isAuthModalOpen.value = false;
+    localStorageRef?.removeItem(authStorageKey);
+    sessionStorageRef?.removeItem(authStorageKey);
 
     if (wasAuthenticated) {
       toast.show('Đã đăng xuất tài khoản thành công.', 'info');
