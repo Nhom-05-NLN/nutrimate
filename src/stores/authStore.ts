@@ -4,11 +4,8 @@ import { UserProfile } from '../types';
 import { useToastStore } from './toastStore';
 
 export const useAuthStore = defineStore('auth', () => {
-  const currentUser = ref<UserProfile | null>({
-    id: 'user-01',
-    name: 'Nguyễn Minh Anh',
-    email: 'minhanh.fit@gmail.com',
-    phone: '0912 345 678',
+  const currentUser = ref<UserProfile | null>(null);
+  const profileDefaults: Omit<UserProfile, 'id' | 'name' | 'email' | 'phone'> = {
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
     birthDate: '1998-06-18',
     city: 'TP. Hồ Chí Minh',
@@ -37,7 +34,7 @@ export const useAuthStore = defineStore('auth', () => {
       fatKcal: 405,
     },
     dietPreferences: ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt'],
-  });
+  };
 
   const isAuthModalOpen = ref<boolean>(false);
   const toast = useToastStore();
@@ -57,8 +54,8 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function login(profile: UserProfile) {
-    currentUser.value = profile;
+  function login(profile: Pick<UserProfile, 'id' | 'name' | 'email' | 'phone'> | UserProfile) {
+    currentUser.value = { ...profileDefaults, ...profile };
     isAuthModalOpen.value = false;
     toast.show(`Chào mừng ${profile.name} đã đăng nhập NutriMate!`);
   }

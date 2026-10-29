@@ -1,4 +1,4 @@
-import { randomBytes, scrypt } from 'node:crypto';
+import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { isDbConnected } from '../db/index.js';
 import * as authRepository from '../repositories/authRepository.js';
 import { DuplicateEmailError } from '../repositories/authRepository.js';
@@ -12,12 +12,19 @@ export interface RegisterUserInput {
   acceptedTerms: unknown;
 }
 
+export interface LoginUserInput {
+  identifier: unknown;
+  password: unknown;
+}
+
 export interface RegisteredUser {
   id: string;
   name: string;
   email: string;
   phone: string;
 }
+
+export type AuthenticatedUser = RegisteredUser;
 
 export class AuthServiceError extends Error {
   constructor(message: string, public readonly statusCode: number) {
@@ -37,6 +44,34 @@ function hashPassword(password: string): Promise<string> {
       }
 
       resolve(`scrypt$${salt.toString('hex')}$${derivedKey.toString('hex')}`);
+    });
+  });
+}
+
+function verifyPassword(password: string, passwordHash: string): Promise<boolean> {
+  const [algorithm, saltHex, derivedKeyHex, ...extra] = passwordHash.split('$');
+  if (
+    algorithm !== 'scrypt' ||
+    !saltHex ||
+    !/^[\da-f]{32}$/i.test(saltHex) ||
+    !derivedKeyHex ||
+    !/^[\da-f]{128}$/i.test(derivedKeyHex) ||
+    extra.length > 0
+  ) {
+    return Promise.resolve(false);
+  }
+
+  const salt = Buffer.from(saltHex, 'hex');
+  const expectedKey = Buffer.from(derivedKeyHex, 'hex');
+
+  return new Promise((resolve, reject) => {
+    scrypt(password, salt, expectedKey.length, (err, derivedKey) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      resolve(timingSafeEqual(expectedKey, derivedKey));
     });
   });
 }
@@ -105,4 +140,36 @@ export async function register(input: RegisterUserInput): Promise<RegisteredUser
     }
     throw err;
   }
+}
+
+export async function login(input: LoginUserInput): Promise<AuthenticatedUser> {
+  const identifier = requireString(input.identifier, 'email hoặc số điện thoại');
+
+  if (identifier.length > 255) {
+    throw new AuthServiceError('Thông tin đăng nhập không hợp lệ.', 400);
+  }
+
+  if (typeof input.password !== 'string' || input.password.length === 0) {
+    throw new AuthServiceError('Vui lòng nhập mật khẩu.', 400);
+  }
+
+  if (input.password.length > 128) {
+    throw new AuthServiceError('Thông tin đăng nhập không hợp lệ.', 400);
+  }
+
+  if (!isDbConnected()) {
+    throw new AuthServiceError('Máy chủ cơ sở dữ liệu hiện không khả dụng.', 503);
+  }
+
+  const user = await authRepository.findUserForLogin(identifier);
+  if (!user?.passwordHash || !(await verifyPassword(input.password, user.passwordHash))) {
+    throw new AuthServiceError('Email, số điện thoại hoặc mật khẩu không chính xác.', 401);
+  }
+
+  return {
+    id: String(user.id),
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+  };
 }
