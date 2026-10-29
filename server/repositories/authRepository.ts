@@ -14,11 +14,16 @@ export interface UserRecord {
   phone: string;
 }
 
+export interface LoginUserRecord extends UserRecord {
+  passwordHash: string | null;
+}
+
 interface UserRow {
   id: number;
   full_name: string;
   email: string;
-  phone: string;
+  phone: string | null;
+  password_hash: string | null;
 }
 
 export class DuplicateEmailError extends Error {
@@ -26,6 +31,37 @@ export class DuplicateEmailError extends Error {
     super("Email này đã được đăng ký.");
     this.name = "DuplicateEmailError";
   }
+}
+
+export async function findUserForLogin(identifier: string): Promise<LoginUserRecord | null> {
+  if (!isDbConnected()) {
+    throw new Error("PostgreSQL chưa sẵn sàng.");
+  }
+
+  const result = await getPool().query<UserRow>(
+    `SELECT id, full_name, email, phone, password_hash
+     FROM users
+     WHERE LOWER(email) = $1 OR phone = $2
+     LIMIT 2`,
+    [identifier.toLowerCase(), identifier],
+  );
+
+  if (result.rows.length !== 1) {
+    return null;
+  }
+
+  const user = result.rows[0];
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    name: user.full_name,
+    email: user.email,
+    phone: user.phone ?? "",
+    passwordHash: user.password_hash,
+  };
 }
 
 export async function createUser(user: NewUserRecord): Promise<UserRecord> {
@@ -62,7 +98,7 @@ export async function createUser(user: NewUserRecord): Promise<UserRecord> {
       id: createdUser.id,
       name: createdUser.full_name,
       email: createdUser.email,
-      phone: createdUser.phone,
+      phone: createdUser.phone ?? "",
     };
   } catch (err: unknown) {
     if (transactionStarted) {
