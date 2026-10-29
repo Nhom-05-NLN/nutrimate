@@ -11,6 +11,7 @@ import LoginView from '../views/LoginView.vue';
 import RegisterView from '../views/RegisterView.vue';
 import BlogsView from '../views/BlogsView.vue';
 import NotFoundView from '../views/NotFoundView.vue';
+import { useAuthStore } from '../stores/authStore';
 
 // Admin Views
 import AdminDashboardView from '../views/admin/AdminDashboardView.vue';
@@ -121,4 +122,21 @@ export const router = createRouter({
   scrollBehavior() {
     return { top: 0, behavior: 'smooth' };
   },
+});
+
+router.beforeEach((to) => {
+  if (!to.path.startsWith('/admin')) {
+    return true;
+  }
+
+  const authStore = useAuthStore();
+  if (authStore.currentUser?.role === 'admin') {
+    return true;
+  }
+
+  if (!authStore.currentUser) {
+    return { name: 'login' };
+  }
+
+  return { name: 'home' };
 });

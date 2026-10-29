@@ -30,7 +30,7 @@ async function handleLogin() {
   try {
     const user = await postLogin({ identifier: email.value, password: password.value });
     authStore.login(user, rememberMe.value);
-    await router.push('/profile');
+    await router.push(user.role === 'admin' ? '/admin' : '/profile');
   } catch (err: unknown) {
     toastStore.show(
       err instanceof Error ? err.message : 'Không thể đăng nhập. Vui lòng thử lại.',

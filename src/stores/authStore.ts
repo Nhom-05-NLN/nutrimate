@@ -5,6 +5,7 @@ import { useToastStore } from './toastStore';
 
 export const useAuthStore = defineStore('auth', () => {
   const profileDefaults: Omit<UserProfile, 'id' | 'name' | 'email' | 'phone'> = {
+    role: 'customer',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
     birthDate: '1998-06-18',
     city: 'TP. Hồ Chí Minh',
@@ -68,6 +69,7 @@ export const useAuthStore = defineStore('auth', () => {
               name: profile.name,
               email: profile.email,
               phone: profile.phone,
+              role: 'role' in profile && profile.role === 'admin' ? 'admin' : 'customer',
             },
             storage,
           };
