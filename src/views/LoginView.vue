@@ -29,7 +29,7 @@ const rememberMe = ref(true);
 async function handleLogin() {
   try {
     const user = await postLogin({ identifier: email.value, password: password.value });
-    authStore.login(user);
+    authStore.login(user, rememberMe.value);
     await router.push('/profile');
   } catch (err: unknown) {
     toastStore.show(
