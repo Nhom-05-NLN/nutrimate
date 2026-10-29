@@ -15,6 +15,7 @@ export interface UserRecord {
 }
 
 export interface LoginUserRecord extends UserRecord {
+  role: "customer" | "admin";
   passwordHash: string | null;
 }
 
@@ -23,7 +24,15 @@ interface UserRow {
   full_name: string;
   email: string;
   phone: string | null;
+  role: "customer" | "admin";
   password_hash: string | null;
+}
+
+interface CreatedUserRow {
+  id: number;
+  full_name: string;
+  email: string;
+  phone: string | null;
 }
 
 export class DuplicateEmailError extends Error {
@@ -39,9 +48,13 @@ export async function findUserForLogin(identifier: string): Promise<LoginUserRec
   }
 
   const result = await getPool().query<UserRow>(
-    `SELECT id, full_name, email, phone, password_hash
+    `SELECT users.id, users.full_name, users.email, users.phone,
+            CASE WHEN EXISTS (
+              SELECT 1 FROM admins WHERE admins.user_id = users.id
+            ) THEN 'admin' ELSE 'customer' END AS role,
+            users.password_hash
      FROM users
-     WHERE LOWER(email) = $1 OR phone = $2
+     WHERE LOWER(users.email) = $1 OR users.phone = $2
      LIMIT 2`,
     [identifier.toLowerCase(), identifier],
   );
@@ -60,6 +73,7 @@ export async function findUserForLogin(identifier: string): Promise<LoginUserRec
     name: user.full_name,
     email: user.email,
     phone: user.phone ?? "",
+    role: user.role,
     passwordHash: user.password_hash,
   };
 }
@@ -76,7 +90,7 @@ export async function createUser(user: NewUserRecord): Promise<UserRecord> {
     await client.query("BEGIN");
     transactionStarted = true;
 
-    const result = await client.query<UserRow>(
+    const result = await client.query<CreatedUserRow>(
       `INSERT INTO users (full_name, email, phone, password_hash)
        VALUES ($1, $2, $3, $4)
        RETURNING id, full_name, email, phone`,
