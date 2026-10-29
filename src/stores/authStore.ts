@@ -61,8 +61,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout() {
+    const wasAuthenticated = currentUser.value !== null;
     currentUser.value = null;
-    toast.show('Đã đăng xuất tài khoản thành công.', 'info');
+    isAuthModalOpen.value = false;
+
+    if (wasAuthenticated) {
+      toast.show('Đã đăng xuất tài khoản thành công.', 'info');
+    }
   }
 
   return {
