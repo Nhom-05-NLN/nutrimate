@@ -3,7 +3,15 @@ import { INITIAL_PRODUCTS } from '../db/seedData.js';
 import { isDbConnected, queryPostgres } from '../db/index.js';
 
 // In-memory runtime cache when DB is in fallback mode
-let memoryProducts: Product[] = [...INITIAL_PRODUCTS];
+let memoryProducts: Product[] = INITIAL_PRODUCTS.map((p) => ({
+  ...p,
+  basePrice: p.price,
+  imageURL: p.image,
+  usageInstruction: 'Bảo quản nơi thoáng mát, dùng trực tiếp sau khi mở bao bì.',
+  status: true,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+}));
 
 interface ProductRow {
   id: string;
@@ -33,17 +41,22 @@ interface ProductRow {
 }
 
 function mapRowToProduct(row: ProductRow): Product {
+  const priceNum = parseFloat(row.price);
   return {
     id: String(row.id),
     code: row.code,
     name: row.name,
     category: row.category as Product['category'],
     categoryName: row.category_name,
-    price: parseFloat(row.price),
+    price: priceNum,
+    basePrice: priceNum,
     originalPrice: row.original_price ? parseFloat(row.original_price) : undefined,
     image: row.image_url || '',
+    imageURL: row.image_url || '',
     description: row.description || '',
     ingredients: row.ingredients || [],
+    usageInstruction: 'Bảo quản nơi thoáng mát, dùng trực tiếp sau khi mở bao bì.',
+    status: true,
     nutrition: {
       servingSize: row.serving_size || '1 khẩu phần',
       calories: parseFloat(row.calories),
@@ -60,10 +73,16 @@ function mapRowToProduct(row: ProductRow): Product {
     badges: row.badges || [],
     isFeatured: row.is_featured,
     bestFor: row.best_for || '',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 }
 
-export async function findProducts(filter: ProductFilterQuery): Promise<Product[]> {
+export async function findProducts(filter: ProductFilterQuery): Promise<{ products: Product[]; total: number }> {
+  const page = filter.page && filter.page > 0 ? Number(filter.page) : 1;
+  const limit = filter.limit && filter.limit > 0 ? Number(filter.limit) : 12;
+  const offset = (page - 1) * limit;
+
   if (isDbConnected()) {
     try {
       const conditions: string[] = ['is_active = TRUE'];
@@ -96,6 +115,20 @@ export async function findProducts(filter: ProductFilterQuery): Promise<Product[
         paramIdx++;
       }
 
+      // Count query
+      const countSql = `SELECT COUNT(*) FROM products WHERE ${conditions.join(' AND ')}`;
+      const countResult = await queryPostgres<{ count: string }>(countSql, values);
+      const total = parseInt(countResult.rows[0]?.count || '0', 10);
+
+      // Sorting
+      let orderBy = 'ORDER BY is_featured DESC, id ASC';
+      if (filter.sort === 'price_asc') orderBy = 'ORDER BY price ASC';
+      else if (filter.sort === 'price_desc') orderBy = 'ORDER BY price DESC';
+      else if (filter.sort === 'calories_asc') orderBy = 'ORDER BY calories ASC';
+      else if (filter.sort === 'calories_desc') orderBy = 'ORDER BY calories DESC';
+      else if (filter.sort === 'rating_desc') orderBy = 'ORDER BY rating DESC';
+      else if (filter.sort === 'newest') orderBy = 'ORDER BY id DESC';
+
       const sql = `
         SELECT id, code, name, category, category_name, price, original_price,
                image_url, description, ingredients, serving_size, calories,
@@ -103,13 +136,16 @@ export async function findProducts(filter: ProductFilterQuery): Promise<Product[
                rating, review_count, badges, is_featured, best_for
         FROM products
         WHERE ${conditions.join(' AND ')}
-        ORDER BY is_featured DESC, id ASC
+        ${orderBy}
+        LIMIT $${paramIdx++} OFFSET $${paramIdx++}
       `;
+      values.push(limit, offset);
 
       const result = await queryPostgres<ProductRow>(sql, values);
-      if (result.rows.length > 0) {
-        return result.rows.map(mapRowToProduct);
-      }
+      return {
+        products: result.rows.map(mapRowToProduct),
+        total,
+      };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Product query error';
       console.warn('[ProductRepository Fallback]:', msg);
@@ -117,7 +153,7 @@ export async function findProducts(filter: ProductFilterQuery): Promise<Product[
   }
 
   // Fallback in-memory filter
-  let list = [...memoryProducts];
+  let list = [...memoryProducts].filter((p) => p.status !== false);
 
   if (filter.category && filter.category !== 'all') {
     list = list.filter((p) => p.category === filter.category);
@@ -140,7 +176,21 @@ export async function findProducts(filter: ProductFilterQuery): Promise<Product[
     list = list.filter((p) => p.nutrition.protein >= filter.minProtein!);
   }
 
-  return list;
+  // In-memory sorting
+  if (filter.sort === 'price_asc') list.sort((a, b) => a.price - b.price);
+  else if (filter.sort === 'price_desc') list.sort((a, b) => b.price - a.price);
+  else if (filter.sort === 'calories_asc') list.sort((a, b) => a.nutrition.calories - b.nutrition.calories);
+  else if (filter.sort === 'calories_desc') list.sort((a, b) => b.nutrition.calories - a.nutrition.calories);
+  else if (filter.sort === 'rating_desc') list.sort((a, b) => b.rating - a.rating);
+  else if (filter.sort === 'newest') list.sort((a, b) => b.id.localeCompare(a.id));
+
+  const total = list.length;
+  const paginatedList = list.slice(offset, offset + limit);
+
+  return {
+    products: paginatedList,
+    total,
+  };
 }
 
 export async function findProductById(id: string): Promise<Product | null> {

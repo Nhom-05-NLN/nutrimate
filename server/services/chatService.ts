@@ -12,7 +12,7 @@ export async function processUserMessage(message: string): Promise<ChatResponseD
     if (hasMatch) {
       let suggested: Product[] = [];
       if (item.recommendedCategory) {
-        const prods = await productRepo.findProducts({ category: item.recommendedCategory });
+        const { products: prods } = await productRepo.findProducts({ category: item.recommendedCategory });
         suggested = prods.slice(0, 3);
       }
       return {
@@ -28,7 +28,7 @@ export async function processUserMessage(message: string): Promise<ChatResponseD
   const heightMatch = cleanMsg.match(/(\d{2,3})\s*(cm|m\d{1,2})/);
 
   if (weightMatch || heightMatch) {
-    const prods = await productRepo.findProducts({ category: 'low-carb' });
+    const { products: prods } = await productRepo.findProducts({ category: 'low-carb' });
     return {
       reply: 'Tuyệt vời! Dựa trên chỉ số thể trạng của bạn, NutriMate đề xuất lộ trình dinh dưỡng giảm mỡ tăng cơ: kiểm soát lượng calo nạp vào thấp hơn 300 - 500 kcal so với TDEE, ưu tiên thực phẩm giàu đạm (ức gà, thanh hạt protein) và chuyển đổi sang tinh bột thông minh (bún nưa Konjac, bánh mì nguyên cám).',
       suggestedProducts: prods.slice(0, 2),
@@ -37,7 +37,7 @@ export async function processUserMessage(message: string): Promise<ChatResponseD
   }
 
   // 3. Fallback tư vấn mặc định thân thiện
-  const defaultProds = await productRepo.findProducts({});
+  const { products: defaultProds } = await productRepo.findProducts({});
   const featured = defaultProds.filter((p) => p.isFeatured).slice(0, 2);
 
   return {
