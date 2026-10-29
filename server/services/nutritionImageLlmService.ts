@@ -12,10 +12,31 @@ export interface ImageNutritionEstimate {
 }
 
 function parseEstimate(content: unknown): ImageNutritionEstimate {
+  if (Array.isArray(content)) {
+    content = content
+      .filter((part): part is { type: 'text'; text: string } =>
+        typeof part === 'object'
+        && part !== null
+        && 'type' in part
+        && part.type === 'text'
+        && 'text' in part
+        && typeof part.text === 'string',
+      )
+      .map(part => part.text)
+      .join('\n');
+  }
   if (typeof content !== 'string') throw new ChatError(502, 'AI không trả về kết quả ảnh hợp lệ.');
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content.trim().replace(/^```(?:json)?\s*|\s*```$/gi, ''));
+    const text = content.trim().replace(/^```(?:json)?\s*|\s*```$/gi, '');
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      const start = text.indexOf('{');
+      const end = text.lastIndexOf('}');
+      if (start < 0 || end <= start) throw new Error('Missing JSON object.');
+      parsed = JSON.parse(text.slice(start, end + 1));
+    }
   } catch {
     throw new ChatError(502, 'AI không trả về kết quả ảnh hợp lệ.');
   }
@@ -23,12 +44,12 @@ function parseEstimate(content: unknown): ImageNutritionEstimate {
     throw new ChatError(502, 'AI không trả về kết quả ảnh hợp lệ.');
   }
   const value = parsed as Record<string, unknown>;
-  if (typeof value.recognized !== 'boolean' || typeof value.ocr_text !== 'string' || value.ocr_text.length > 8000) {
+  if (typeof value.recognized !== 'boolean' || (value.ocr_text !== undefined && typeof value.ocr_text !== 'string') || (typeof value.ocr_text === 'string' && value.ocr_text.length > 8000)) {
     throw new ChatError(502, 'AI không trả về kết quả ảnh hợp lệ.');
   }
   const nutrient = (key: string): number | null => {
     const amount = value[`predicted_${key}`];
-    if (amount === null && !value.recognized) return null;
+    if (!value.recognized || amount === null || amount === undefined) return null;
     if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0 || amount > 10000) {
       throw new ChatError(502, 'AI không trả về các chỉ số dinh dưỡng hợp lệ.');
     }
@@ -36,7 +57,7 @@ function parseEstimate(content: unknown): ImageNutritionEstimate {
   };
   return {
     recognized: value.recognized,
-    ocrText: value.ocr_text,
+    ocrText: typeof value.ocr_text === 'string' ? value.ocr_text : '',
     calories: nutrient('calories'),
     protein: nutrient('protein'),
     carbs: nutrient('carbs'),
@@ -93,7 +114,22 @@ export async function analyzeNutritionImage(
         }],
       }),
     });
-    if (!response.ok) throw new ChatError(502, 'Dịch vụ AI chưa thể phân tích ảnh. Vui lòng thử lại.');
+    if (!response.ok) {
+      console.error(`[NutritionImageAI] Provider returned HTTP ${response.status}.`);
+      if (response.status === 400 || response.status === 413) {
+        throw new ChatError(502, 'Dịch vụ AI từ chối ảnh này. Hãy thử ảnh JPG/PNG rõ nét, dung lượng nhỏ hơn.');
+      }
+      if (response.status === 401 || response.status === 403) {
+        throw new ChatError(503, 'Dịch vụ AI chưa được cấp quyền phân tích ảnh. Vui lòng báo quản trị viên.');
+      }
+      if (response.status === 404) {
+        throw new ChatError(503, 'Model AI hiện tại không hỗ trợ phân tích ảnh. Vui lòng báo quản trị viên.');
+      }
+      if (response.status === 429) {
+        throw new ChatError(503, 'Dịch vụ AI đang quá tải hoặc hết hạn mức. Vui lòng thử lại sau.');
+      }
+      throw new ChatError(502, 'Dịch vụ AI chưa thể phân tích ảnh. Vui lòng thử lại.');
+    }
     const data = await response.json() as { choices?: { message?: { content?: unknown } }[] };
     return parseEstimate(data.choices?.[0]?.message?.content);
   } catch (error) {

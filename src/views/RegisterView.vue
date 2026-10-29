@@ -54,7 +54,7 @@ async function handleRegister() {
     });
 
     authStore.login({
-      id: `user-${registeredUser.id}`,
+      id: registeredUser.id,
       name: registeredUser.name,
       email: registeredUser.email,
       phone: registeredUser.phone,
@@ -86,7 +86,7 @@ async function handleRegister() {
         fatKcal: 405,
       },
       dietPreferences: ['Low-Carb', 'Giàu Protein'],
-    });
+    }, registeredUser.accessToken);
 
     toastStore.show('Đăng ký tài khoản thành công!', 'success', 'Bạn nhận được 50 NutriPoints & Voucher 15%');
     router.push('/profile');

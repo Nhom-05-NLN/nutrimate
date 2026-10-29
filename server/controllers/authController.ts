@@ -3,8 +3,8 @@ import * as authService from '../services/authService.js';
 import { ApiResponse } from '../types/index.js';
 
 export async function register(
-  req: Request<object, ApiResponse<authService.RegisteredUser>, authService.RegisterUserInput>,
-  res: Response<ApiResponse<authService.RegisteredUser>>
+  req: Request<object, ApiResponse<authService.AuthenticatedUser>, authService.RegisterUserInput>,
+  res: Response<ApiResponse<authService.AuthenticatedUser>>
 ): Promise<void> {
   if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
     res.status(400).json({ success: false, message: 'Dữ liệu đăng ký không hợp lệ.' });

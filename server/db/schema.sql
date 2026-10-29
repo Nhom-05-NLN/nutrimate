@@ -134,16 +134,6 @@ CREATE TABLE IF NOT EXISTS water_logs (
     logged_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 8. Bảng Cơ sở tri thức Chatbot NutriBot (Chatbot Knowledge Base)
-CREATE TABLE IF NOT EXISTS chatbot_knowledge (
-    id SERIAL PRIMARY KEY,
-    intent_tag VARCHAR(50) NOT NULL,
-    keyword_patterns TEXT[] NOT NULL,
-    answer_template TEXT NOT NULL,
-    recommended_category VARCHAR(50),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
 -- 9. Dự đoán dinh dưỡng từ ảnh (NutritionImage)
 CREATE TABLE IF NOT EXISTS nutrition_images (
     image_id SERIAL PRIMARY KEY,

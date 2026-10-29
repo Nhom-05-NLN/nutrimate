@@ -25,7 +25,7 @@ async function handleSubmit() {
   if (mode.value === 'login') {
     try {
       const user = await postLogin({ identifier: email.value, password: password.value });
-      authStore.login(user);
+      authStore.login(user, user.accessToken);
     } catch (err: unknown) {
       toastStore.show(
         err instanceof Error ? err.message : 'Không thể đăng nhập. Vui lòng thử lại.',

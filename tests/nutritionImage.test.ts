@@ -266,3 +266,59 @@ test('vision adapter sends image only through the configured server-side LLM and
     (error: unknown) => error instanceof ChatError && error.status === 502,
   );
 });
+
+test('vision adapter accepts explicitly unavailable nutrient estimates without inventing values', async () => {
+  const responses = [
+    {
+      content: '```json\n{"recognized":true,"ocr_text":"Bữa ăn","predicted_calories":null,"predicted_protein":12,"predicted_carbs":null,"predicted_fat":8,"predicted_sugar":null}\n```',
+      expected: { calories: null, protein: 12, carbs: null, fat: 8, sugar: null },
+    },
+    {
+      content: 'Kết quả ước lượng:\n{"recognized":true,"predicted_calories":230,"predicted_protein":null,"predicted_carbs":null,"predicted_fat":null,"predicted_sugar":null}',
+      expected: { calories: 230, protein: null, carbs: null, fat: null, sugar: null },
+    },
+    {
+      content: [{ type: 'text', text: '{"recognized":true,"predicted_calories":210,"predicted_protein":null,"predicted_carbs":null,"predicted_fat":null,"predicted_sugar":null}' }],
+      expected: { calories: 210, protein: null, carbs: null, fat: null, sugar: null },
+    },
+  ];
+  for (const response of responses) {
+    const prediction = await analyzeNutritionImage(pngFixture(), 'image/png', async () => Response.json({
+      choices: [{ message: { content: response.content } }],
+    }));
+    assert.equal(prediction.recognized, true);
+    assert.deepEqual({
+      calories: prediction.calories,
+      protein: prediction.protein,
+      carbs: prediction.carbs,
+      fat: prediction.fat,
+      sugar: prediction.sugar,
+    }, response.expected);
+  }
+});
+
+test('vision provider errors return actionable messages without exposing provider details', async () => {
+  const originalError = console.error;
+  console.error = () => undefined;
+  try {
+    for (const [status, expectedStatus, expectedMessage] of [
+      [400, 502, 'Dịch vụ AI từ chối ảnh này.'],
+      [401, 503, 'Dịch vụ AI chưa được cấp quyền'],
+      [404, 503, 'Model AI hiện tại không hỗ trợ'],
+      [429, 503, 'đang quá tải hoặc hết hạn mức'],
+    ] as const) {
+      await assert.rejects(
+        analyzeNutritionImage(pngFixture(), 'image/png', async () => Response.json(
+          { error: { message: 'private provider detail' } },
+          { status },
+        )),
+        (error: unknown) => error instanceof ChatError
+          && error.status === expectedStatus
+          && error.message.includes(expectedMessage)
+          && !error.message.includes('private provider detail'),
+      );
+    }
+  } finally {
+    console.error = originalError;
+  }
+});

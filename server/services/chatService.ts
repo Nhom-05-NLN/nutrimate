@@ -24,9 +24,19 @@ export function boundedContext(history: StoredChatMessage[], question: string): 
 }
 async function liveGrounding(question: string, client: PoolClient): Promise<{ products: Product[]; knowledge: string }> {
   const executeQuery: typeof queryPostgres = (sql, params) => client.query(sql, params);
-  const knowledge = await chatRepo.getAllKnowledge(true, executeQuery);
-  const matched = knowledge.find(item => item.keywordPatterns.some(pattern => question.toLowerCase().includes(pattern.toLowerCase())));
-  const products = await productRepo.findProducts(matched?.recommendedCategory ? { category: matched.recommendedCategory } : {}, true, executeQuery);
+  const knowledge = await chatRepo.getChatKnowledge(executeQuery);
+  const normalizedQuestion = question.toLocaleLowerCase('vi');
+  const exactMatch = knowledge.find(item => item.keywordPatterns.some(pattern => normalizedQuestion.includes(pattern.toLocaleLowerCase('vi'))));
+  const questionWords = new Set(normalizedQuestion.match(/[\p{L}\p{N}]{3,}/gu) || []);
+  const matched = exactMatch || knowledge
+    .map(item => ({
+      item,
+      score: [...new Set(item.keywordPatterns.join(' ').toLocaleLowerCase('vi').match(/[\p{L}\p{N}]{3,}/gu) || [])]
+        .filter(word => questionWords.has(word)).length,
+    }))
+    .sort((left, right) => right.score - left.score)
+    .find(candidate => candidate.score > 0)?.item;
+  const products = await productRepo.findChatProducts(matched?.recommendedCategory ? { category: matched.recommendedCategory } : {}, executeQuery);
   return { products: products.slice(0, 3), knowledge: matched?.answerTemplate.slice(0, 3000) || '' };
 }
 export function createChatService(repository = new ChatConversationRepository(), generate = generateChatReply, grounding = liveGrounding) {

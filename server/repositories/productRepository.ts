@@ -145,6 +145,110 @@ export async function findProducts(filter: ProductFilterQuery, requirePostgres =
   return list;
 }
 
+export async function findChatProducts(filter: ProductFilterQuery, executeQuery = queryPostgres): Promise<Product[]> {
+  const schema = await executeQuery<{ column_name: string }>(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = current_schema()
+       AND table_name = 'products'`,
+  );
+  const columns = new Set(schema.rows.map(row => row.column_name));
+
+  if (columns.has('id') && columns.has('calories') && columns.has('category')) {
+    return findProducts(filter, true, executeQuery);
+  }
+
+  if (!columns.has('product_id')) {
+    throw new Error('Schema PostgreSQL không có cấu trúc sản phẩm được NutriBot hỗ trợ.');
+  }
+
+  const conditions = ['TRUE'];
+  const values: unknown[] = [];
+  if (filter.category && filter.category !== 'all') {
+    values.push(filter.category);
+    conditions.push(`LOWER(c.name) LIKE '%' || LOWER($${values.length}) || '%'`);
+  }
+  if (filter.diet && filter.diet !== 'all') {
+    values.push(filter.diet);
+    conditions.push(`LOWER(c.name) LIKE '%' || LOWER($${values.length}) || '%'`);
+  }
+  if (filter.search?.trim()) {
+    values.push(`%${filter.search.trim()}%`);
+    conditions.push(`(p.name ILIKE $${values.length} OR p.description ILIKE $${values.length})`);
+  }
+  if (filter.maxCalories && filter.maxCalories > 0) {
+    values.push(filter.maxCalories);
+    conditions.push(`nf.calories <= $${values.length}`);
+  }
+  if (filter.minProtein && filter.minProtein > 0) {
+    values.push(filter.minProtein);
+    conditions.push(`nf.protein >= $${values.length}`);
+  }
+
+  const result = await executeQuery<{
+    id: number;
+    name: string;
+    category_name: string | null;
+    price: string;
+    description: string | null;
+    image_url: string | null;
+    serving_size: string;
+    calories: string;
+    protein: string;
+    carbs: string;
+    fat: string;
+    sugar: string;
+    stock: number;
+  }>(
+    `SELECT p.product_id AS id, p.name, c.name AS category_name, p.price,
+            p.description, p.image_url, nf.serving_size, nf.calories, nf.protein,
+            nf.carbs, nf.fat, nf.sugar, COALESCE(stock.quantity, 0)::int AS stock
+     FROM products p
+     JOIN nutrition_facts nf ON nf.product_id = p.product_id
+     LEFT JOIN categories c ON c.category_id = p.category_id
+     LEFT JOIN LATERAL (
+       SELECT SUM(i.quantity) AS quantity
+       FROM inventory i
+       WHERE i.product_id = p.product_id
+     ) stock ON TRUE
+     WHERE nf.serving_size IS NOT NULL
+       AND nf.calories IS NOT NULL
+       AND nf.protein IS NOT NULL
+       AND nf.carbs IS NOT NULL
+       AND nf.fat IS NOT NULL
+       AND nf.sugar IS NOT NULL
+       AND ${conditions.join(' AND ')}
+     ORDER BY p.product_id
+     LIMIT 3`,
+    values,
+  );
+
+  return result.rows.map(row => ({
+    id: String(row.id),
+    code: '',
+    name: row.name,
+    category: 'all',
+    categoryName: row.category_name || 'Khác',
+    price: Number(row.price),
+    image: row.image_url || '',
+    description: row.description || '',
+    ingredients: [],
+    nutrition: {
+      servingSize: row.serving_size,
+      calories: Number(row.calories),
+      protein: Number(row.protein),
+      carbs: Number(row.carbs),
+      fat: Number(row.fat),
+      sugar: Number(row.sugar),
+    },
+    stock: row.stock,
+    rating: 0,
+    reviewCount: 0,
+    badges: [],
+    bestFor: '',
+  }));
+}
+
 export async function findProductById(id: string): Promise<Product | null> {
   if (isDbConnected()) {
     try {

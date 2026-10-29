@@ -2,7 +2,7 @@
 
 ## Phạm vi
 
-Mở rộng widget, Pinia store và `/api/chat/ask` hiện có; dùng Express và pool PostgreSQL chung. Guest được chat theo yêu cầu cập nhật của người dùng, khác tiền điều kiện Customer đăng nhập trong Use Case 1.2.2.25. Không triển khai đăng nhập mới: Customer dùng JWT do module tài khoản của nhóm cấp.
+Mở rộng widget, Pinia store và `/api/chat/ask` hiện có; dùng Express và pool PostgreSQL chung. Guest được chat theo yêu cầu cập nhật của người dùng, khác tiền điều kiện Customer đăng nhập trong Use Case 1.2.2.25. Customer nhận JWT HS256 từ API đăng nhập/đăng ký và dùng token đó với API chat.
 
 ## Cấu hình và migration
 
@@ -29,14 +29,16 @@ psql -v ON_ERROR_STOP=1 -f server/db/migrations/003_chat_conversation_schema_com
 
 Migration tương thích chạy trong transaction, giữ nguyên `chat_sessions` và đổi tên bảng tin nhắn cũ thành `chat_messages_legacy`, sau đó tạo các bảng/index cần cho API hiện tại. Nội dung legacy được giữ nguyên để tra cứu/đối chiếu; không tự gán hội thoại cũ cho Guest hoặc Customer vì không có liên kết danh tính an toàn tới chủ phiên chat mới. Migration không tự chạy trong bootstrap hoặc tạo database thứ hai. Nếu tồn tại đồng thời bảng archive hoặc schema khác không nhận diện được, migration dừng và rollback để tránh ghi đè dữ liệu.
 
+Các repository chat cũng hỗ trợ schema NutriMate chuẩn (`chatbot_knowledge` và bảng `products` có nutrition columns) lẫn schema chuẩn hóa đang dùng ở một số database hiện hữu (`knowledge_base`, `products.product_id`, `nutrition_facts`, `inventory`). Việc chọn cấu trúc chỉ dựa trên metadata PostgreSQL và không sửa schema. Chỉ sản phẩm có đủ khẩu phần, Calories, Protein, Carbs, Fat và Sugar mới được gợi ý; không có Nutrition Facts thì kết quả sản phẩm để trống thay vì dùng dữ liệu mẫu.
+
 ## Danh tính và quyền truy cập
 
 - Customer gửi `Authorization: Bearer <JWT>`. Adapter hiện nhận HS256, `sub` là chuỗi ID số của `users.id`, có `exp`, kiểm tra `nbf` nếu có. Server kiểm tra chữ ký bằng `JWT_SECRET`, rồi đọc vai trò hiện tại trong `users` và chỉ chấp nhận `customer`. Không tin `userId`, `role` hoặc history gửi từ client. Hợp đồng JWT khác cần phối hợp với module tài khoản trước khi kết nối.
-- Frontend có điểm tích hợp `authStore.login(profile, accessToken)`; JWT giữ trong bộ nhớ, không lưu vào localStorage. Đăng nhập mẫu không có token vẫn là Guest đối với API chat, không được giả làm Customer.
+- API đăng nhập/đăng ký ký JWT HS256 có hạn một giờ bằng `JWT_SECRET` (tối thiểu 32 ký tự). Frontend giữ JWT trong bộ nhớ qua `authStore.login(profile, accessToken)`, không lưu vào localStorage; đăng xuất sẽ xóa token. Đăng nhập mô phỏng không có token vẫn là Guest đối với API chat, không được giả làm Customer.
 - Guest gọi `POST /api/chat/session` trước để nhận hoặc khôi phục cookie `nutrimate_guest`: ngẫu nhiên 256 bit, HttpOnly, SameSite=Strict, thời hạn 7 ngày, path `/api/chat`; Secure ở production. Sau đó mới lấy danh sách hội thoại và lịch sử. Database chỉ lưu SHA-256 của token, không trả token trong JSON. Mất cookie thì không thể khôi phục lịch sử Guest bằng ID hội thoại đơn thuần.
 - Đọc lịch sử, danh sách hoặc gửi khi không có JWT/cookie hợp lệ trả 401. JWT sai/hết hạn không được tự hạ thành Guest. Sai vai trò trả 403. Hội thoại không thuộc danh tính hiện tại trả 404, kể cả khi ID tồn tại, để tránh tiết lộ sự tồn tại.
 - Không tự chuyển hội thoại Guest vào tài khoản khi đăng nhập; hai không gian tách riêng. UI xóa lịch sử trong bộ nhớ và bỏ qua phản hồi cũ khi JWT thay đổi.
-- JWT lỗi/hết hạn: widget giữ hội thoại hiện tại, khóa gửi/thao tác lịch sử và hiện liên kết “Đăng nhập lại”; không xóa JWT hay tự chuyển sang Guest. Khi module đăng nhập cung cấp token mới, widget tải lại lịch sử theo token đó. Trang đăng nhập hiện có vẫn là phần mô phỏng của module tài khoản; kiểm thử CN_25 xác minh điểm tích hợp `authStore.login(profile, token)` với JWT được server kiểm tra, không thay thế kiểm thử đăng nhập bằng mật khẩu của module tài khoản.
+- JWT lỗi/hết hạn: widget giữ hội thoại hiện tại, khóa gửi/thao tác lịch sử và hiện liên kết “Đăng nhập lại”; không tự chuyển sang Guest. Sau khi đăng nhập lại, widget tải hội thoại theo token mới.
 - Guest mất cookie giữa phiên: giữ ngữ cảnh đang hiển thị và thông báo hết phiên; chỉ xóa trạng thái cũ/tạo phiên mới sau khi người dùng chọn “Bắt đầu phiên Guest mới”. Không tự gửi lại câu hỏi vào danh tính mới.
 - API trả `Cache-Control: no-store`, từ chối yêu cầu cross-site và Origin không trùng host. Khi triển khai sau reverse proxy HTTPS cần cấu hình proxy/host của Express phù hợp để Origin chính xác.
 - Vite dùng URL `/api` cùng origin và giữ `Host` của trình duyệt (`changeOrigin: false`) khi proxy tới Express 3000. Không gọi URL backend khác host trực tiếp từ frontend; cookie HttpOnly không được đọc/chép vào JavaScript. Khi sửa routes backend phải khởi động lại Express, HMR frontend không nạp lại routes server.

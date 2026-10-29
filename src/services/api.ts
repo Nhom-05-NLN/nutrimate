@@ -99,6 +99,7 @@ export interface RegisteredUser {
   name: string;
   email: string;
   phone: string;
+  accessToken: string;
 }
 
 export async function postRegister(payload: RegisterPayload): Promise<RegisteredUser> {
@@ -181,15 +182,56 @@ export async function postChatMessage(message: string, conversationId: string, r
   return res.data;
 }
 
+async function prepareNutritionImage(image: File): Promise<File> {
+  if (typeof createImageBitmap !== 'function') return image;
+
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(image);
+  } catch {
+    return image;
+  }
+
+  try {
+    const maxDimension = 2048;
+    const maxOriginalBytes = 1.5 * 1024 * 1024;
+    if (image.size <= maxOriginalBytes && bitmap.width <= maxDimension && bitmap.height <= maxDimension) return image;
+
+    const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Không thể chuẩn bị ảnh để phân tích.');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(result => {
+        if (result) resolve(result);
+        else reject(new Error('Không thể nén ảnh để phân tích.'));
+      }, 'image/jpeg', 0.85);
+    });
+    return new File([blob], image.name.replace(/\.[^.]+$/, '') + '.jpg', {
+      type: 'image/jpeg',
+      lastModified: image.lastModified,
+    });
+  } finally {
+    bitmap.close();
+  }
+}
+
 export async function postNutritionImage(image: File, token: string): Promise<NutritionImagePrediction> {
+  const preparedImage = await prepareNutritionImage(image);
   const response = await fetch(`${API_BASE}/chat/nutrition-images`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: {
-      'Content-Type': image.type || 'application/octet-stream',
+      'Content-Type': preparedImage.type || 'application/octet-stream',
       Authorization: `Bearer ${token}`,
     },
-    body: image,
+    body: preparedImage,
   });
 
   let result: ApiResponse<NutritionImagePrediction>;

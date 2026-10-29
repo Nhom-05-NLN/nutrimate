@@ -27,8 +27,32 @@ export function verifyCustomerJwt(token: string, secret: string): number {
 
 // The authentication module issues JWTs. This adapter verifies them; it never creates logins.
 export function createChatIdentity(findCustomer = async (id: number): Promise<string | undefined> => {
-  const result = await queryPostgres<{ role: string }>('SELECT role FROM users WHERE id = $1', [id]);
-  return result.rows[0]?.role;
+  const schema = await queryPostgres<{ hasRole: boolean; hasAdmins: string | null; hasCustomers: string | null }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = current_schema() AND table_name = 'users' AND column_name = 'role'
+     ) AS "hasRole",
+     to_regclass('public.admins') AS "hasAdmins",
+     to_regclass('public.customers') AS "hasCustomers"`,
+  );
+  const shape = schema.rows[0];
+  if (!shape) throw new Error('Không thể xác định cấu trúc phân quyền người dùng.');
+  if (shape.hasRole) {
+    const result = await queryPostgres<{ role: string }>('SELECT role FROM users WHERE id = $1', [id]);
+    return result.rows[0]?.role;
+  }
+  if (shape.hasAdmins && shape.hasCustomers) {
+    const result = await queryPostgres<{ role: string }>(
+      `SELECT CASE
+         WHEN EXISTS (SELECT 1 FROM admins WHERE user_id = $1) THEN 'admin'
+         WHEN EXISTS (SELECT 1 FROM customers WHERE user_id = $1) THEN 'customer'
+       END AS role
+       FROM users WHERE id = $1`,
+      [id],
+    );
+    return result.rows[0]?.role;
+  }
+  throw new Error('Schema PostgreSQL thiếu thông tin vai trò người dùng.');
 }) {
  return async function resolveChatOwner(req: Request, res: Response, allowNewGuest = false): Promise<ChatOwner> {
   const authorization = req.get('authorization');
