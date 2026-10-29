@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
+import { postRegister } from '../services/api';
 import {
   Leaf,
   User,
@@ -31,49 +32,70 @@ const showPassword = ref(false);
 const showConfirmPassword = ref(false);
 const isAgreed = ref(true);
 
-function handleRegister() {
+async function handleRegister() {
   if (password.value !== confirmPassword.value) {
     toastStore.show('Mật khẩu xác nhận không khớp', 'error');
     return;
   }
 
-  authStore.login({
-    id: `user-${Date.now()}`,
-    name: fullName.value || 'Nguyễn Minh Anh',
-    email: email.value || 'minhanh.fit@gmail.com',
-    phone: phone.value || '0912 345 678',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-    birthDate: '1998-06-18',
-    city: 'TP. Hồ Chí Minh',
-    membershipTier: 'Silver',
-    nutriPoints: 50,
-    currentDiet: 'Eat Clean',
-    fitnessGoal: 'Duy trì vóc dáng và sống khỏe',
-    heightCm: 165,
-    weightKg: 58.5,
-    age: 26,
-    gender: 'female',
-    bmi: 21.5,
-    bmiClassification: 'Bình thường',
-    bmrKcal: 1340,
-    tdeeKcal: 1850,
-    targetDailyCalories: 1650,
-    targetMacros: {
-      proteinPercent: 25,
-      proteinGrams: 80,
-      proteinKcal: 320,
-      carbsPercent: 45,
-      carbsGrams: 150,
-      carbsKcal: 600,
-      fatPercent: 30,
-      fatGrams: 45,
-      fatKcal: 405,
-    },
-    dietPreferences: ['Low-Carb', 'Giàu Protein'],
-  });
+  if (!isAgreed.value) {
+    toastStore.show('Vui lòng đồng ý với các điều khoản để đăng ký', 'error');
+    return;
+  }
 
-  toastStore.show('Đăng ký tài khoản thành công!', 'success', 'Bạn nhận được 50 NutriPoints & Voucher 15%');
-  router.push('/profile');
+  try {
+    const registeredUser = await postRegister({
+      fullName: fullName.value,
+      email: email.value,
+      phone: phone.value,
+      password: password.value,
+      confirmPassword: confirmPassword.value,
+      acceptedTerms: isAgreed.value,
+    });
+
+    authStore.login({
+      id: `user-${registeredUser.id}`,
+      name: registeredUser.name,
+      email: registeredUser.email,
+      phone: registeredUser.phone,
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+      birthDate: '1998-06-18',
+      city: 'TP. Hồ Chí Minh',
+      membershipTier: 'Silver',
+      nutriPoints: 50,
+      currentDiet: 'Eat Clean',
+      fitnessGoal: 'Duy trì vóc dáng và sống khỏe',
+      heightCm: 165,
+      weightKg: 58.5,
+      age: 26,
+      gender: 'female',
+      bmi: 21.5,
+      bmiClassification: 'Bình thường',
+      bmrKcal: 1340,
+      tdeeKcal: 1850,
+      targetDailyCalories: 1650,
+      targetMacros: {
+        proteinPercent: 25,
+        proteinGrams: 80,
+        proteinKcal: 320,
+        carbsPercent: 45,
+        carbsGrams: 150,
+        carbsKcal: 600,
+        fatPercent: 30,
+        fatGrams: 45,
+        fatKcal: 405,
+      },
+      dietPreferences: ['Low-Carb', 'Giàu Protein'],
+    });
+
+    toastStore.show('Đăng ký tài khoản thành công!', 'success', 'Bạn nhận được 50 NutriPoints & Voucher 15%');
+    router.push('/profile');
+  } catch (err: unknown) {
+    toastStore.show(
+      err instanceof Error ? err.message : 'Không thể đăng ký tài khoản. Vui lòng thử lại.',
+      'error'
+    );
+  }
 }
 </script>
 

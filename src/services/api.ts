@@ -80,6 +80,33 @@ export async function postOrder(payload: CreateOrderPayload): Promise<Order> {
   return res.data;
 }
 
+export interface RegisterPayload {
+  fullName: string;
+  email: string;
+  phone: string;
+  password: string;
+  confirmPassword: string;
+  acceptedTerms: boolean;
+}
+
+export interface RegisteredUser {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+}
+
+export async function postRegister(payload: RegisterPayload): Promise<RegisteredUser> {
+  const res = await fetchJson<ApiResponse<RegisteredUser>>('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể đăng ký tài khoản');
+  }
+  return res.data;
+}
+
 export interface ChatbotResponse {
   reply: string;
   suggestedProducts: Product[];
