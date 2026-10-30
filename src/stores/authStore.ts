@@ -96,6 +96,7 @@ export const useAuthStore = defineStore('auth', () => {
     return null;
   }
 
+  const restoredSession = restoreUser();
   const currentUser = ref<UserProfile | null>(null);
   let activeStorage: Storage | null = null;
   let sessionInitialized = false;
@@ -114,7 +115,10 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthModalOpen.value = false;
   }
 
-  function toProfile(user: RegisteredUser, cachedProfile?: UserProfile): UserProfile {
+  function toProfile(
+    user: Pick<RegisteredUser, 'id' | 'name' | 'email' | 'phone' | 'role'>,
+    cachedProfile?: UserProfile,
+  ): UserProfile {
     return {
       ...profileDefaults,
       ...cachedProfile,
@@ -130,8 +134,11 @@ export const useAuthStore = defineStore('auth', () => {
         const user = await fetchCurrentUser();
         if (!user) {
           localStorageRef?.removeItem(authStorageKey);
+          localStorageRef?.removeItem(authTokenKey);
           sessionStorageRef?.removeItem(authStorageKey);
+          sessionStorageRef?.removeItem(authTokenKey);
           currentUser.value = null;
+          accessToken.value = null;
           activeStorage = null;
         } else {
           const cachedSession = restoreUser();
@@ -139,6 +146,7 @@ export const useAuthStore = defineStore('auth', () => {
             cachedSession?.user.id === user.id ? cachedSession.user : undefined;
           currentUser.value = toProfile(user, cachedProfile);
           activeStorage = cachedSession?.storage ?? null;
+          accessToken.value = cachedSession?.user.id === user.id ? cachedSession.token : null;
         }
         sessionInitialized = true;
       })();
@@ -179,7 +187,7 @@ export const useAuthStore = defineStore('auth', () => {
       name: profile.name,
       email: profile.email,
       phone: profile.phone,
-      role: profile.role === 'admin' ? 'admin' : 'customer',
+      role: 'role' in profile && profile.role === 'admin' ? 'admin' : 'customer',
     });
     storage.setItem(authStorageKey, JSON.stringify(user));
     storage.setItem(authTokenKey, token);
@@ -197,6 +205,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function logout(): Promise<void> {
     const wasAuthenticated = currentUser.value !== null;
+    try {
+      await postLogout();
+    } catch {
+      console.error('[AuthStore] Could not clear the server login session.');
+    }
     currentUser.value = null;
     accessToken.value = null;
     activeStorage = null;

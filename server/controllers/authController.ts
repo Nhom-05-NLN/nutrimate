@@ -55,7 +55,7 @@ export async function register(
 
 export async function me(
   _req: Request,
-  res: Response<ApiResponse<authService.AuthenticatedUser>, AuthLocals>
+  res: Response<ApiResponse<authService.RegisteredUser>, AuthLocals>
 ): Promise<void> {
   try {
     const user = await authService.getAuthenticatedUser(res.locals.auth.sub);

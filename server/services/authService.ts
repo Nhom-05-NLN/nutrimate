@@ -201,7 +201,7 @@ export async function login(input: LoginUserInput): Promise<AuthenticatedUser> {
   };
 }
 
-export async function getAuthenticatedUser(id: string): Promise<AuthenticatedUser | null> {
+export async function getAuthenticatedUser(id: string): Promise<RegisteredUser | null> {
   if (!isDbConnected()) {
     throw new AuthServiceError('Máy chủ cơ sở dữ liệu hiện không khả dụng.', 503);
   }
