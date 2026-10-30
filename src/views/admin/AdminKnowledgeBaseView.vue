@@ -25,6 +25,7 @@ const importFileInput = ref<HTMLInputElement | null>(null);
 const isLoading = ref(false);
 const isSaving = ref(false);
 const isImporting = ref(false);
+const importFeedback = ref<{ message: string; type: 'success' | 'error' } | null>(null);
 const isEditing = ref(false);
 const editId = ref<number | null>(null);
 
@@ -106,19 +107,19 @@ async function handleSubmit() {
 function parseKnowledgeFile(content: string): KnowledgeBaseEntryPayload[] {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(content.replace(/^\uFEFF/, '').trim());
   } catch {
     throw new Error('File không phải JSON hợp lệ.');
   }
 
   const rawEntries = Array.isArray(parsed)
     ? parsed
-    : typeof parsed === 'object' && parsed !== null && 'entries' in parsed && Array.isArray(parsed.entries)
-      ? parsed.entries
+    : typeof parsed === 'object' && parsed !== null
+      ? ['entries', 'questions', 'data', 'rows'].map((key) => (key in parsed ? parsed[key] : null)).find(Array.isArray) ?? null
       : null;
 
   if (!rawEntries || rawEntries.length === 0 || rawEntries.length > MAX_IMPORT_ENTRIES) {
-    throw new Error(`JSON phải là một mảng tri thức hoặc object có entries (1–${MAX_IMPORT_ENTRIES} mục).`);
+    throw new Error(`JSON phải là một mảng tri thức hoặc object có entries/questions/data/rows (1–${MAX_IMPORT_ENTRIES} mục).`);
   }
 
   return rawEntries.map((entry: unknown, index: number) => {
@@ -144,18 +145,23 @@ function parseKnowledgeFile(content: string): KnowledgeBaseEntryPayload[] {
 }
 
 async function handleImportFile(event: Event) {
-  const input = event.target;
+  const input = event.currentTarget;
   if (!(input instanceof HTMLInputElement)) return;
   const file = input.files?.[0];
   input.value = '';
   if (!file) return;
 
+  importFeedback.value = null;
   if (!file.name.toLowerCase().endsWith('.json')) {
-    toastStore.show('Vui lòng chọn file có định dạng .json.', 'error');
+    const message = 'Vui lòng chọn file có định dạng .json.';
+    importFeedback.value = { message, type: 'error' };
+    toastStore.show(message, 'error');
     return;
   }
   if (file.size > MAX_IMPORT_FILE_SIZE) {
-    toastStore.show('Kích thước file tối đa là 1 MB.', 'error');
+    const message = 'Kích thước file tối đa là 1 MB.';
+    importFeedback.value = { message, type: 'error' };
+    toastStore.show(message, 'error');
     return;
   }
 
@@ -163,13 +169,19 @@ async function handleImportFile(event: Event) {
   try {
     const entries = parseKnowledgeFile(await file.text());
     const result = await importKnowledgeEntries(entries);
-    records.value = await fetchKnowledgeEntries();
     const message = result.imported > 0
       ? `Đã nhập ${result.imported}/${result.total} tri thức${result.skipped ? `, bỏ qua ${result.skipped} mục đã có` : ''}.`
       : 'Các tri thức trong file đã có trong danh sách.';
-    toastStore.show(message, 'success');
+    importFeedback.value = { message, type: 'success' };
+    try {
+      records.value = await fetchKnowledgeEntries();
+      toastStore.show(message, 'success');
+    } catch {
+      toastStore.show(`${message} Hãy tải lại danh sách để xem dữ liệu mới.`, 'success');
+    }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Không thể nhập file tri thức.';
+    importFeedback.value = { message, type: 'error' };
     toastStore.show(message, 'error');
   } finally {
     isImporting.value = false;
@@ -218,7 +230,8 @@ onMounted(() => {
           ref="importFileInput"
           type="file"
           accept=".json,application/json"
-          class="hidden"
+          class="sr-only"
+          tabindex="-1"
           @change="handleImportFile"
         />
         <button
@@ -232,6 +245,15 @@ onMounted(() => {
         </button>
         <p class="mt-2 max-w-xs text-xs leading-5 text-[#6B7B5E]">
           Chọn file JSON tối đa 1 MB. Mỗi mục gồm question, answer và category (tùy chọn).
+        </p>
+        <p
+          v-if="importFeedback"
+          role="status"
+          aria-live="polite"
+          class="mt-2 max-w-xs text-xs leading-5"
+          :class="importFeedback.type === 'success' ? 'text-emerald-700' : 'text-rose-700'"
+        >
+          {{ importFeedback.message }}
         </p>
       </div>
     </header>

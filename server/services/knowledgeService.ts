@@ -20,6 +20,18 @@ export class KnowledgeNotFoundError extends Error {}
 
 const MAX_IMPORT_ENTRIES = 500;
 
+function extractImportEntries(input: unknown): unknown[] | null {
+  if (Array.isArray(input)) return input;
+  if (typeof input !== 'object' || input === null) return null;
+
+  const record = input as Record<string, unknown>;
+  for (const key of ['entries', 'questions', 'data', 'rows']) {
+    const value = record[key];
+    if (Array.isArray(value)) return value;
+  }
+  return null;
+}
+
 export function normalizeKnowledgePayload(input: KnowledgePayload): KnowledgeInput {
   if (typeof input.question !== 'string' || input.question.trim().length === 0) {
     throw new KnowledgeValidationError('Câu hỏi không được để trống.');
@@ -52,14 +64,10 @@ export async function createKnowledge(input: KnowledgePayload): Promise<Knowledg
 }
 
 export async function importKnowledge(input: unknown): Promise<KnowledgeImportResult> {
-  const entries = Array.isArray(input)
-    ? input
-    : typeof input === 'object' && input !== null && 'entries' in input && Array.isArray(input.entries)
-      ? input.entries
-      : null;
+  const entries = extractImportEntries(input);
 
   if (!entries) {
-    throw new KnowledgeValidationError('File JSON cần là một mảng tri thức hoặc object có thuộc tính entries.');
+    throw new KnowledgeValidationError('File JSON cần là một mảng tri thức hoặc object có thuộc tính entries, questions, data hoặc rows.');
   }
   if (entries.length === 0 || entries.length > MAX_IMPORT_ENTRIES) {
     throw new KnowledgeValidationError(`File JSON phải có từ 1 đến ${MAX_IMPORT_ENTRIES} tri thức.`);
