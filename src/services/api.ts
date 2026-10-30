@@ -1,4 +1,14 @@
-import { ApiResponse, Category, Product, ProductFilterQuery, Order, CreateOrderPayload, NutritionImagePrediction } from '../types';
+import {
+  ApiResponse,
+  Category,
+  CreateOrderPayload,
+  KnowledgeBaseEntry,
+  KnowledgeBaseEntryPayload,
+  KnowledgeImportResult,
+  Order,
+  Product,
+  ProductFilterQuery,
+} from '../types';
 
 const API_BASE = '/api';
 
@@ -209,6 +219,44 @@ export async function postChatMessage(message: string, conversationId: string, r
   return res.data;
 }
 
+export async function fetchKnowledgeEntries(): Promise<KnowledgeBaseEntry[]> {
+  const res = await fetchJson<ApiResponse<KnowledgeBaseEntry[]>>('/knowledge');
+  return res.data || [];
+}
+
+export async function createKnowledgeEntry(payload: KnowledgeBaseEntryPayload): Promise<KnowledgeBaseEntry> {
+  const res = await fetchJson<ApiResponse<KnowledgeBaseEntry>>('/knowledge', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.data) throw new Error('Không thể lưu tri thức mới.');
+  return res.data;
+}
+
+export async function importKnowledgeEntries(entries: KnowledgeBaseEntryPayload[]): Promise<KnowledgeImportResult> {
+  const res = await fetchJson<ApiResponse<KnowledgeImportResult>>('/knowledge/import', {
+    method: 'POST',
+    body: JSON.stringify({ entries }),
+  });
+  if (!res.data) throw new Error('Không thể nhập file tri thức.');
+  return res.data;
+}
+
+export async function updateKnowledgeEntry(id: number, payload: KnowledgeBaseEntryPayload): Promise<KnowledgeBaseEntry> {
+  const res = await fetchJson<ApiResponse<KnowledgeBaseEntry>>(`/knowledge/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  if (!res.data) throw new Error('Không thể cập nhật tri thức.');
+  return res.data;
+}
+
+export async function deleteKnowledgeEntry(id: number): Promise<{ deleted: boolean; id: number }> {
+  const res = await fetchJson<ApiResponse<{ deleted: boolean; id: number }>>(`/knowledge/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.data) throw new Error('Không thể xóa tri thức.');
+  return res.data;
 async function prepareNutritionImage(image: File): Promise<File> {
   if (typeof createImageBitmap !== 'function') return image;
 

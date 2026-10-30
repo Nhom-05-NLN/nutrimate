@@ -93,12 +93,13 @@ export interface CreateOrderPayload {
   notes?: string;
 }
 
-export interface ChatbotKnowledge {
+export interface KnowledgeBaseEntry {
   id: number;
-  intentTag: string;
-  keywordPatterns: string[];
-  answerTemplate: string;
-  recommendedCategory?: DietCategory;
+  question: string | null;
+  answer: string | null;
+  category: string | null;
+  createdAt: Date | string | null;
+  updatedAt: Date | string | null;
 }
 
 export interface ChatResponseData {

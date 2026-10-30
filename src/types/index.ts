@@ -163,6 +163,25 @@ export interface ChatMessage {
   };
 }
 
+export interface KnowledgeBaseEntry {
+  id: number;
+  question: string | null;
+  answer: string | null;
+  category: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface KnowledgeBaseEntryPayload {
+  question: string;
+  answer: string;
+  category?: string;
+}
+
+export interface KnowledgeImportResult {
+  imported: number;
+  skipped: number;
+  total: number;
 export interface NutritionImagePrediction {
   imageId: number;
   imageUrl: string;
