@@ -37,12 +37,13 @@ export const useAuthStore = defineStore('auth', () => {
   };
 
   const authStorageKey = "nutrimate-auth-user";
+  const authTokenKey = "nutrimate-access-token";
   const localStorageRef =
     typeof localStorage === "undefined" ? null : localStorage;
   const sessionStorageRef =
     typeof sessionStorage === "undefined" ? null : sessionStorage;
 
-  function restoreUser(): { user: UserProfile; storage: Storage } | null {
+  function restoreUser(): { user: UserProfile; storage: Storage; token: string } | null {
     for (const storage of [sessionStorageRef, localStorageRef]) {
       if (!storage) continue;
 
@@ -51,6 +52,7 @@ export const useAuthStore = defineStore('auth', () => {
         if (!serializedUser) continue;
 
         const profile: unknown = JSON.parse(serializedUser);
+        const token = storage.getItem(authTokenKey);
         if (
           typeof profile === "object" &&
           profile !== null &&
@@ -61,7 +63,9 @@ export const useAuthStore = defineStore('auth', () => {
           "email" in profile &&
           typeof profile.email === "string" &&
           "phone" in profile &&
-          typeof profile.phone === "string"
+          typeof profile.phone === "string" &&
+          typeof token === "string" &&
+          token.length > 0
         ) {
           return {
             user: {
@@ -74,10 +78,12 @@ export const useAuthStore = defineStore('auth', () => {
               role: 'role' in profile && profile.role === 'admin' ? 'admin' : 'customer',
             },
             storage,
+            token,
           };
         }
 
         storage.removeItem(authStorageKey);
+        storage.removeItem(authTokenKey);
       } catch (error: unknown) {
         console.error(
           "[AuthStore] Không thể khôi phục phiên đăng nhập:",
@@ -95,7 +101,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthModalOpen = ref<boolean>(false);
   // Set only from the real authentication module's response. Demo login has no JWT.
-  const accessToken = ref<string | null>(null);
+  const accessToken = ref<string | null>(restoredSession?.token ?? null);
   const toast = useToastStore();
 
   function openAuthModal() {
@@ -116,8 +122,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   function login(
     profile: Pick<UserProfile, "id" | "name" | "email" | "phone"> | UserProfile,
+    token?: string,
     remember = true,
   ) {
+    if (!token) {
+      throw new Error("Không nhận được token đăng nhập hợp lệ từ máy chủ.");
+    }
     const storage = remember ? localStorageRef : sessionStorageRef;
     if (!storage) {
       throw new Error("Trình duyệt không hỗ trợ lưu phiên đăng nhập.");
@@ -125,10 +135,13 @@ export const useAuthStore = defineStore('auth', () => {
 
     const user = { ...profileDefaults, ...profile };
     storage.setItem(authStorageKey, JSON.stringify(user));
+    storage.setItem(authTokenKey, token);
     (remember ? sessionStorageRef : localStorageRef)?.removeItem(
       authStorageKey,
     );
+    (remember ? sessionStorageRef : localStorageRef)?.removeItem(authTokenKey);
     currentUser.value = user;
+    accessToken.value = token;
     activeStorage = storage;
     isAuthModalOpen.value = false;
     toast.show(`Chào mừng ${profile.name} đã đăng nhập NutriMate!`);
@@ -137,10 +150,13 @@ export const useAuthStore = defineStore('auth', () => {
   function logout() {
     const wasAuthenticated = currentUser.value !== null;
     currentUser.value = null;
+    accessToken.value = null;
     activeStorage = null;
     isAuthModalOpen.value = false;
     localStorageRef?.removeItem(authStorageKey);
+    localStorageRef?.removeItem(authTokenKey);
     sessionStorageRef?.removeItem(authStorageKey);
+    sessionStorageRef?.removeItem(authTokenKey);
 
     if (wasAuthenticated) {
       toast.show("Đã đăng xuất tài khoản thành công.", "info");

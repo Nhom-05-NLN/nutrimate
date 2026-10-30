@@ -58,6 +58,7 @@ async function handleRegister() {
       name: registeredUser.name,
       email: registeredUser.email,
       phone: registeredUser.phone,
+      role: registeredUser.role,
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
       birthDate: '1998-06-18',
       city: 'TP. Hồ Chí Minh',
