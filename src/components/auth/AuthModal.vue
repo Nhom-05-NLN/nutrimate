@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../../stores/authStore';
 import { useToastStore } from '../../stores/toastStore';
-import { postLogin } from '../../services/api';
+import { postLogin, postRegister } from '../../services/api';
 import {
   X,
   Leaf,
@@ -21,60 +21,39 @@ const router = useRouter();
 const mode = ref<'login' | 'register'>('login');
 const name = ref('');
 const email = ref('');
+const phone = ref('');
 const password = ref('');
+const confirmPassword = ref('');
+const acceptedTerms = ref(false);
 
 async function handleSubmit() {
-  if (mode.value === 'login') {
-    try {
+  try {
+    if (mode.value === 'login') {
       const user = await postLogin({ identifier: email.value, password: password.value });
       authStore.login(user);
       if (user.role === 'admin') {
         await router.push('/admin');
       }
-    } catch (err: unknown) {
-      toastStore.show(
-        err instanceof Error ? err.message : 'Không thể đăng nhập. Vui lòng thử lại.',
-        'error'
-      );
+      return;
     }
-    return;
-  }
 
-  const displayName = name.value.trim() || (email.value ? email.value.split('@')[0] || 'Khách hàng' : 'Khách hàng NutriMate');
-  authStore.login({
-    id: `usr-${Date.now()}`,
-    name: displayName,
-    email: email.value || 'minhanh.fit@gmail.com',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    phone: '0912 345 678',
-    birthDate: '1998-06-18',
-    city: 'TP. Hồ Chí Minh',
-    membershipTier: 'Gold',
-    nutriPoints: 490,
-    currentDiet: 'Eat Clean & Low-Carb',
-    fitnessGoal: 'Giảm 3kg mỡ và săn chắc cơ bắp',
-    heightCm: 165,
-    weightKg: 58.5,
-    age: 26,
-    gender: 'female',
-    bmi: 21.5,
-    bmiClassification: 'Bình thường',
-    bmrKcal: 1340,
-    tdeeKcal: 1850,
-    targetDailyCalories: 1550,
-    targetMacros: {
-      proteinPercent: 25,
-      proteinGrams: 80,
-      proteinKcal: 320,
-      carbsPercent: 45,
-      carbsGrams: 150,
-      carbsKcal: 600,
-      fatPercent: 30,
-      fatGrams: 45,
-      fatKcal: 405,
-    },
-    dietPreferences: ['Low-Carb', 'Giàu Protein', 'Ít đường'],
-  });
+    const user = await postRegister({
+      fullName: name.value,
+      email: email.value,
+      phone: phone.value,
+      password: password.value,
+      confirmPassword: confirmPassword.value,
+      acceptedTerms: acceptedTerms.value,
+    });
+    authStore.login(user);
+    toastStore.show('Đăng ký tài khoản thành công!', 'success');
+    await router.push('/profile');
+  } catch (err: unknown) {
+    toastStore.show(
+      err instanceof Error ? err.message : 'Không thể hoàn tất yêu cầu. Vui lòng thử lại.',
+      'error'
+    );
+  }
 }
 </script>
 
@@ -134,6 +113,17 @@ async function handleSubmit() {
           </div>
         </div>
 
+        <div v-if="mode === 'register'" class="space-y-1">
+          <label class="text-xs font-semibold text-[#2D3B1E]">Số điện thoại</label>
+          <input
+            type="tel"
+            v-model="phone"
+            required
+            placeholder="0912 345 678"
+            class="w-full px-3 py-2.5 rounded-xl border border-[#CCD7BC] text-xs font-medium text-[#2D3B1E] focus:border-[#4D6A34] outline-none"
+          />
+        </div>
+
         <div class="space-y-1">
           <label class="text-xs font-semibold text-[#2D3B1E]">Email / SĐT</label>
           <div class="relative">
@@ -161,6 +151,23 @@ async function handleSubmit() {
             />
           </div>
         </div>
+
+        <div v-if="mode === 'register'" class="space-y-1">
+          <label class="text-xs font-semibold text-[#2D3B1E]">Xác nhận mật khẩu</label>
+          <input
+            type="password"
+            v-model="confirmPassword"
+            required
+            minlength="8"
+            placeholder="Nhập lại mật khẩu"
+            class="w-full px-3 py-2.5 rounded-xl border border-[#CCD7BC] text-xs font-medium text-[#2D3B1E] focus:border-[#4D6A34] outline-none"
+          />
+        </div>
+
+        <label v-if="mode === 'register'" class="flex items-center gap-2 text-xs text-[#576449]">
+          <input v-model="acceptedTerms" type="checkbox" required class="accent-[#4D6A34]" />
+          Tôi đồng ý với các điều khoản sử dụng.
+        </label>
 
         <button
           type="submit"

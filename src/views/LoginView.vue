@@ -28,7 +28,11 @@ const rememberMe = ref(true);
 
 async function handleLogin() {
   try {
-    const user = await postLogin({ identifier: email.value, password: password.value });
+    const user = await postLogin({
+      identifier: email.value,
+      password: password.value,
+      rememberMe: rememberMe.value,
+    });
     authStore.login(user, rememberMe.value);
     await router.push(user.role === 'admin' ? '/admin' : '/profile');
   } catch (err: unknown) {

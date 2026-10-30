@@ -124,12 +124,19 @@ export const router = createRouter({
   },
 });
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   if (!to.path.startsWith('/admin')) {
     return true;
   }
 
   const authStore = useAuthStore();
+  try {
+    await authStore.restoreSession();
+  } catch (error: unknown) {
+    console.error('[Router] Không thể xác minh quyền truy cập quản trị:', error);
+    return { name: 'login' };
+  }
+
   if (authStore.currentUser?.role === 'admin') {
     return true;
   }

@@ -9,6 +9,7 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'same-origin',
       ...options,
     });
 
@@ -111,6 +112,7 @@ export async function postRegister(payload: RegisterPayload): Promise<Registered
 export interface LoginPayload {
   identifier: string;
   password: string;
+  rememberMe?: boolean;
 }
 
 export async function postLogin(payload: LoginPayload): Promise<RegisteredUser> {
@@ -122,6 +124,30 @@ export async function postLogin(payload: LoginPayload): Promise<RegisteredUser> 
     throw new Error(res.message || 'Không thể đăng nhập');
   }
   return res.data;
+}
+
+export async function fetchCurrentUser(): Promise<RegisteredUser | null> {
+  const response = await fetch(`${API_BASE}/auth/me`, {
+    credentials: 'same-origin',
+  });
+  if (response.status === 401) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`Lỗi mạng HTTP ${response.status} khi xác minh phiên đăng nhập.`);
+  }
+
+  const res = (await response.json()) as ApiResponse<RegisteredUser>;
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể xác minh phiên đăng nhập.');
+  }
+  return res.data;
+}
+
+export async function postLogout(): Promise<void> {
+  await fetchJson<ApiResponse<never>>('/auth/logout', {
+    method: 'POST',
+  });
 }
 
 export interface ChatbotResponse {

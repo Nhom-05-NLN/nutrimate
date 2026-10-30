@@ -54,7 +54,7 @@ async function handleRegister() {
     });
 
     authStore.login({
-      id: `user-${registeredUser.id}`,
+      id: registeredUser.id,
       name: registeredUser.name,
       email: registeredUser.email,
       phone: registeredUser.phone,
