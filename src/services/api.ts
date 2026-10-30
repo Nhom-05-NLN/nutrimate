@@ -1,10 +1,12 @@
 import {
   ApiResponse,
   Category,
+  ChatSuggestedProduct,
   CreateOrderPayload,
   KnowledgeBaseEntry,
   KnowledgeBaseEntryPayload,
   KnowledgeImportResult,
+  NutritionImagePrediction,
   Order,
   Product,
   ProductFilterQuery,
@@ -170,7 +172,7 @@ export interface ChatbotResponse {
   conversationId: string;
   messages: ChatHistoryMessage[];
   reply: string;
-  suggestedProducts: Product[];
+  suggestedProducts: ChatSuggestedProduct[];
   intent?: string;
 }
 
@@ -181,7 +183,7 @@ export interface ChatHistoryMessage {
   content: string;
   createdAt: string;
   requestId: string;
-  suggestedProducts: Product[];
+  suggestedProducts: ChatSuggestedProduct[];
 }
 function chatHeaders(token?: string | null): Record<string, string> {
   return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
@@ -257,6 +259,8 @@ export async function deleteKnowledgeEntry(id: number): Promise<{ deleted: boole
   });
   if (!res.data) throw new Error('Không thể xóa tri thức.');
   return res.data;
+}
+
 async function prepareNutritionImage(image: File): Promise<File> {
   if (typeof createImageBitmap !== 'function') return image;
 

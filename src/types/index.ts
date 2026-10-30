@@ -52,6 +52,8 @@ export interface Product {
   traceability?: string;
 }
 
+export type ChatSuggestedProduct = Omit<Product, 'nutrition'> & { nutrition?: NutritionFacts };
+
 export interface Category {
   id: string;
   name: string;
@@ -156,7 +158,7 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   imagePreview?: string;
-  suggestedProducts?: Product[];
+  suggestedProducts?: ChatSuggestedProduct[];
   actionLink?: {
     text: string;
     action: string;
@@ -182,6 +184,8 @@ export interface KnowledgeImportResult {
   imported: number;
   skipped: number;
   total: number;
+}
+
 export interface NutritionImagePrediction {
   imageId: number;
   imageUrl: string;

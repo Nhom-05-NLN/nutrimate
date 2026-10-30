@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import { getPool } from '../db/index.js';
-import { ChatError, type ChatOwner, type Conversation, type StoredChatMessage } from '../types/chat.js';
-import type { Product } from '../types/index.js';
+import { ChatError, type ChatOwner, type ChatSuggestedProduct, type Conversation, type StoredChatMessage } from '../types/chat.js';
 
 const ownerClause = '(user_id = $2 OR (user_id IS NULL AND guest_owner_hash = $3))';
 const messageColumns = 'id::text, role, content, created_at AS "createdAt", request_id AS "requestId", suggested_products AS "suggestedProducts"';
@@ -67,7 +66,7 @@ export class ChatConversationRepository {
     );
     return result.rows;
   }
-  async save(client: PoolClient, id: string, requestId: string, content: string, reply: string, products: Product[]): Promise<StoredChatMessage[]> {
+  async save(client: PoolClient, id: string, requestId: string, content: string, reply: string, products: ChatSuggestedProduct[]): Promise<StoredChatMessage[]> {
     const result = await client.query<StoredChatMessage>(
       `INSERT INTO chat_messages (conversation_id, request_id, role, content, suggested_products)
        VALUES ($1, $2, 'user', $3, '[]'::jsonb), ($1, $2, 'assistant', $4, $5::jsonb)

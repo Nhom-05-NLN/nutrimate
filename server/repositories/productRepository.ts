@@ -1,4 +1,5 @@
 import { Product, ProductFilterQuery } from '../types/index.js';
+import type { ChatSuggestedProduct } from '../types/chat.js';
 import { INITIAL_PRODUCTS } from '../db/seedData.js';
 import { isDbConnected, queryPostgres } from '../db/index.js';
 
@@ -145,7 +146,7 @@ export async function findProducts(filter: ProductFilterQuery, requirePostgres =
   return list;
 }
 
-export async function findChatProducts(filter: ProductFilterQuery, executeQuery = queryPostgres): Promise<Product[]> {
+export async function findChatProducts(filter: ProductFilterQuery, executeQuery = queryPostgres): Promise<ChatSuggestedProduct[]> {
   const schema = await executeQuery<{ column_name: string }>(
     `SELECT column_name
      FROM information_schema.columns
@@ -158,20 +159,12 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
     return findProducts(filter, true, executeQuery);
   }
 
-  if (!columns.has('product_id')) {
+  if (!columns.has('product_id') || !columns.has('base_price') || !columns.has('status')) {
     throw new Error('Schema PostgreSQL không có cấu trúc sản phẩm được NutriBot hỗ trợ.');
   }
 
-  const conditions = ['TRUE'];
+  const conditions = ['p.status IS TRUE'];
   const values: unknown[] = [];
-  if (filter.category && filter.category !== 'all') {
-    values.push(filter.category);
-    conditions.push(`LOWER(c.name) LIKE '%' || LOWER($${values.length}) || '%'`);
-  }
-  if (filter.diet && filter.diet !== 'all') {
-    values.push(filter.diet);
-    conditions.push(`LOWER(c.name) LIKE '%' || LOWER($${values.length}) || '%'`);
-  }
   if (filter.search?.trim()) {
     values.push(`%${filter.search.trim()}%`);
     conditions.push(`(p.name ILIKE $${values.length} OR p.description ILIKE $${values.length})`);
@@ -192,32 +185,32 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
     price: string;
     description: string | null;
     image_url: string | null;
-    serving_size: string;
-    calories: string;
-    protein: string;
-    carbs: string;
-    fat: string;
-    sugar: string;
+    serving_size: string | null;
+    calories: string | null;
+    protein: string | null;
+    carbs: string | null;
+    fat: string | null;
+    sugar: string | null;
     stock: number;
   }>(
-    `SELECT p.product_id AS id, p.name, c.name AS category_name, p.price,
+    `SELECT p.product_id AS id, p.name, p.base_price AS price,
+            NULL::text AS category_name,
             p.description, p.image_url, nf.serving_size, nf.calories, nf.protein,
             nf.carbs, nf.fat, nf.sugar, COALESCE(stock.quantity, 0)::int AS stock
      FROM products p
-     JOIN nutrition_facts nf ON nf.product_id = p.product_id
-     LEFT JOIN categories c ON c.category_id = p.category_id
+     LEFT JOIN LATERAL (
+       SELECT serving_size, calories, protein, carbs, fat, sugar
+       FROM nutrition_facts
+       WHERE product_id = p.product_id
+       ORDER BY nutrition_fact_id DESC
+       LIMIT 1
+     ) nf ON TRUE
      LEFT JOIN LATERAL (
        SELECT SUM(i.quantity) AS quantity
        FROM inventory i
        WHERE i.product_id = p.product_id
      ) stock ON TRUE
-     WHERE nf.serving_size IS NOT NULL
-       AND nf.calories IS NOT NULL
-       AND nf.protein IS NOT NULL
-       AND nf.carbs IS NOT NULL
-       AND nf.fat IS NOT NULL
-       AND nf.sugar IS NOT NULL
-       AND ${conditions.join(' AND ')}
+     WHERE ${conditions.join(' AND ')}
      ORDER BY p.product_id
      LIMIT 3`,
     values,
@@ -233,14 +226,17 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
     image: row.image_url || '',
     description: row.description || '',
     ingredients: [],
-    nutrition: {
-      servingSize: row.serving_size,
-      calories: Number(row.calories),
-      protein: Number(row.protein),
-      carbs: Number(row.carbs),
-      fat: Number(row.fat),
-      sugar: Number(row.sugar),
-    },
+    ...(row.serving_size !== null && row.calories !== null && row.protein !== null
+      && row.carbs !== null && row.fat !== null && row.sugar !== null
+      ? { nutrition: {
+        servingSize: row.serving_size,
+        calories: Number(row.calories),
+        protein: Number(row.protein),
+        carbs: Number(row.carbs),
+        fat: Number(row.fat),
+        sugar: Number(row.sugar),
+      } }
+      : {}),
     stock: row.stock,
     rating: 0,
     reviewCount: 0,

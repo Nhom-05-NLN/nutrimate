@@ -1,5 +1,7 @@
 import type { Product } from './index.js';
 
+export type ChatSuggestedProduct = Omit<Product, 'nutrition'> & { nutrition?: Product['nutrition'] };
+
 export type ChatOwner = { userId: number; guestHash: null } | { userId: null; guestHash: string };
 export interface Conversation { id: string; createdAt: string; updatedAt: string }
 export interface StoredChatMessage {
@@ -8,12 +10,12 @@ export interface StoredChatMessage {
   content: string;
   createdAt: string;
   requestId: string;
-  suggestedProducts: Product[];
+  suggestedProducts: ChatSuggestedProduct[];
 }
 export interface ChatTurn {
   conversationId: string;
   reply: string;
-  suggestedProducts: Product[];
+  suggestedProducts: ChatSuggestedProduct[];
   messages: StoredChatMessage[];
 }
 export class ChatError extends Error {

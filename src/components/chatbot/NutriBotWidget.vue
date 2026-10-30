@@ -3,7 +3,7 @@ import { computed, ref, watch, nextTick } from 'vue';
 import { useChatStore } from '../../stores/chatStore';
 import { useCartStore } from '../../stores/cartStore';
 import { useProductStore } from '../../stores/productStore';
-import { Product } from '../../types';
+import { ChatSuggestedProduct, Product } from '../../types';
 import { useAuthStore } from '../../stores/authStore';
 import { useToastStore } from '../../stores/toastStore';
 import {
@@ -85,6 +85,14 @@ function formatVnd(amount: number): string {
 
 function handleAddToCartFromChat(product: Product) {
   cartStore.addItem(product, 1);
+}
+
+function hasNutritionFacts(product: ChatSuggestedProduct): product is Product {
+  return product.nutrition !== undefined;
+}
+
+function openSuggestedProduct(product: ChatSuggestedProduct) {
+  if (hasNutritionFacts(product)) productStore.selectProduct(product);
 }
 </script>
 
@@ -205,22 +213,26 @@ function handleAddToCartFromChat(product: Product) {
                   :src="prod.image"
                   :alt="prod.name"
                   class="w-12 h-12 rounded-xl object-cover shrink-0 cursor-pointer"
-                  @click="productStore.selectProduct(prod)"
+                  @click="openSuggestedProduct(prod)"
                 />
-                <div class="flex-1 min-w-0 cursor-pointer" @click="productStore.selectProduct(prod)">
+                <div class="flex-1 min-w-0" :class="hasNutritionFacts(prod) ? 'cursor-pointer' : ''" @click="openSuggestedProduct(prod)">
                   <h4 class="font-heading text-xs font-bold text-[#2D3B1E] truncate">
                     {{ prod.name }}
                   </h4>
                   <div class="flex items-center gap-2 text-[10px] text-[#68725F]">
-                    <span>{{ prod.nutrition.calories }} kcal</span>
-                    <span>•</span>
-                    <span class="text-[#4D6A34] font-semibold">{{ prod.nutrition.protein }}g đạm</span>
+                    <template v-if="hasNutritionFacts(prod)">
+                      <span>{{ prod.nutrition.calories }} kcal</span>
+                      <span>•</span>
+                      <span class="text-[#4D6A34] font-semibold">{{ prod.nutrition.protein }}g đạm</span>
+                    </template>
+                    <span v-else>Thông tin dinh dưỡng chưa cập nhật</span>
                   </div>
                   <span class="text-xs font-bold text-[#4D6A34]">
                     {{ formatVnd(prod.price) }}
                   </span>
                 </div>
                 <button
+                  v-if="hasNutritionFacts(prod)"
                   type="button"
                   @click="handleAddToCartFromChat(prod)"
                   class="px-2.5 py-1.5 rounded-xl bg-[#EBF1E6] hover:bg-[#4D6A34] text-[#4D6A34] hover:text-white shrink-0 transition-colors text-xs font-bold flex items-center gap-1"
