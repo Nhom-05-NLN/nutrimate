@@ -99,7 +99,7 @@ export interface RegisteredUser {
   name: string;
   email: string;
   phone: string;
-  accessToken: string;
+  role: 'customer' | 'admin';
 }
 
 export async function postRegister(payload: RegisterPayload): Promise<RegisteredUser> {

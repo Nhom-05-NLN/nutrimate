@@ -3,44 +3,38 @@ import { ref } from "vue";
 import { UserProfile } from "../types";
 import { useToastStore } from "./toastStore";
 
-export const useAuthStore = defineStore("auth", () => {
-  const profileDefaults: Omit<UserProfile, "id" | "name" | "email" | "phone"> =
-    {
-      avatar:
-        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80",
-      birthDate: "1998-06-18",
-      city: "TP. Hồ Chí Minh",
-      membershipTier: "Gold",
-      nutriPoints: 490,
-      currentDiet: "Eat Clean & Low-Carb",
-      fitnessGoal: "Giảm 3kg mỡ và săn chắc cơ bắp",
-      heightCm: 165,
-      weightKg: 58.5,
-      age: 26,
-      gender: "female",
-      bmi: 21.5,
-      bmiClassification: "Bình thường (Thể trạng Cân đối lý tưởng)",
-      bmrKcal: 1340,
-      tdeeKcal: 1850,
-      targetDailyCalories: 1550,
-      targetMacros: {
-        proteinPercent: 25,
-        proteinGrams: 80,
-        proteinKcal: 320,
-        carbsPercent: 45,
-        carbsGrams: 150,
-        carbsKcal: 600,
-        fatPercent: 30,
-        fatGrams: 45,
-        fatKcal: 405,
-      },
-      dietPreferences: [
-        "Low-Carb",
-        "Giàu Protein",
-        "Ít đường",
-        "Không bột ngọt",
-      ],
-    };
+export const useAuthStore = defineStore('auth', () => {
+  const profileDefaults: Omit<UserProfile, 'id' | 'name' | 'email' | 'phone'> = {
+    role: 'customer',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+    birthDate: '1998-06-18',
+    city: 'TP. Hồ Chí Minh',
+    membershipTier: 'Gold',
+    nutriPoints: 490,
+    currentDiet: 'Eat Clean & Low-Carb',
+    fitnessGoal: 'Giảm 3kg mỡ và săn chắc cơ bắp',
+    heightCm: 165,
+    weightKg: 58.5,
+    age: 26,
+    gender: 'female',
+    bmi: 21.5,
+    bmiClassification: 'Bình thường (Thể trạng Cân đối lý tưởng)',
+    bmrKcal: 1340,
+    tdeeKcal: 1850,
+    targetDailyCalories: 1550,
+    targetMacros: {
+      proteinPercent: 25,
+      proteinGrams: 80,
+      proteinKcal: 320,
+      carbsPercent: 45,
+      carbsGrams: 150,
+      carbsKcal: 600,
+      fatPercent: 30,
+      fatGrams: 45,
+      fatKcal: 405,
+    },
+    dietPreferences: ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt'],
+  };
 
   const authStorageKey = "nutrimate-auth-user";
   const localStorageRef =
@@ -77,6 +71,7 @@ export const useAuthStore = defineStore("auth", () => {
               name: profile.name,
               email: profile.email,
               phone: profile.phone,
+              role: 'role' in profile && profile.role === 'admin' ? 'admin' : 'customer',
             },
             storage,
           };

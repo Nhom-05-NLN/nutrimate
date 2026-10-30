@@ -23,6 +23,7 @@ export interface RegisteredUser {
   name: string;
   email: string;
   phone: string;
+  role: "customer" | "admin";
 }
 
 export interface AuthenticatedUser extends RegisteredUser {
@@ -151,7 +152,7 @@ export async function register(input: RegisterUserInput): Promise<AuthenticatedU
       name: user.name,
       email: user.email,
       phone: user.phone,
-      accessToken: createAccessToken(user.id),
+      role: 'customer',
     };
   } catch (err: unknown) {
     if (err instanceof DuplicateEmailError) {
@@ -193,6 +194,6 @@ export async function login(input: LoginUserInput): Promise<AuthenticatedUser> {
     name: user.name,
     email: user.email,
     phone: user.phone,
-    accessToken: createAccessToken(user.id),
+    role: user.role,
   };
 }

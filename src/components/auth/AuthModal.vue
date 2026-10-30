@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '../../stores/authStore';
 import { useToastStore } from '../../stores/toastStore';
 import { postLogin } from '../../services/api';
@@ -15,6 +16,7 @@ import {
 
 const authStore = useAuthStore();
 const toastStore = useToastStore();
+const router = useRouter();
 
 const mode = ref<'login' | 'register'>('login');
 const name = ref('');
@@ -25,7 +27,10 @@ async function handleSubmit() {
   if (mode.value === 'login') {
     try {
       const user = await postLogin({ identifier: email.value, password: password.value });
-      authStore.login(user, user.accessToken);
+      authStore.login(user);
+      if (user.role === 'admin') {
+        await router.push('/admin');
+      }
     } catch (err: unknown) {
       toastStore.show(
         err instanceof Error ? err.message : 'Không thể đăng nhập. Vui lòng thử lại.',

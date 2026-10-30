@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS customers (
     user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS admins (
+    user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- 2. Bảng Danh mục thực phẩm ăn kiêng (Categories)
 CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,

@@ -184,11 +184,14 @@ export interface ApiResponse<T> {
 }
 
 // User Profile & Body Metrics (Figma 07)
+export type UserRole = 'customer' | 'admin';
+
 export interface UserProfile {
   id: string;
   name: string;
   email: string;
   phone: string;
+  role?: UserRole;
   avatar: string;
   birthDate: string;
   city: string;

@@ -64,6 +64,17 @@ cp .env.example .env
 npm run dev
 ```
 
+### Cấp Quyền Quản Trị
+Quyền quản trị được xác định bằng bản ghi trong bảng `admins`, liên kết với tài khoản ở bảng `users` qua `user_id`. Sau khi chạy schema trong `server/db/schema.sql`, cấp quyền cho tài khoản đã đăng ký bằng email:
+
+```sql
+INSERT INTO admins (user_id)
+SELECT id FROM users WHERE email = 'admin@example.com'
+ON CONFLICT (user_id) DO NOTHING;
+```
+
+Chỉ tài khoản có bản ghi tương ứng trong `admins` mới được mở trang quản trị. Cột `users.role` không được dùng để cấp quyền này.
+
 ---
 
 ## 👥 Quản Lý Dự Án & Mã Nguồn
