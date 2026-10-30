@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { UserProfile } from '../types';
 import { useToastStore } from './toastStore';
+import { fetchCurrentUser, postLogout, RegisteredUser } from '../services/api';
 
 export const useAuthStore = defineStore('auth', () => {
   const profileDefaults: Omit<UserProfile, 'id' | 'name' | 'email' | 'phone'> = {
@@ -84,9 +85,10 @@ export const useAuthStore = defineStore('auth', () => {
     return null;
   }
 
-  const restoredSession = restoreUser();
-  const currentUser = ref<UserProfile | null>(restoredSession?.user ?? null);
-  let activeStorage = restoredSession?.storage ?? null;
+  const currentUser = ref<UserProfile | null>(null);
+  let activeStorage: Storage | null = null;
+  let sessionInitialized = false;
+  let sessionRequest: Promise<void> | null = null;
 
   const isAuthModalOpen = ref<boolean>(false);
   const toast = useToastStore();
@@ -99,6 +101,45 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthModalOpen.value = false;
   }
 
+  function toProfile(user: RegisteredUser, cachedProfile?: UserProfile): UserProfile {
+    return {
+      ...profileDefaults,
+      ...cachedProfile,
+      ...user,
+      role: user.role,
+    };
+  }
+
+  async function restoreSession(): Promise<void> {
+    if (sessionInitialized) return;
+    if (!sessionRequest) {
+      sessionRequest = (async () => {
+        const user = await fetchCurrentUser();
+        if (!user) {
+          localStorageRef?.removeItem(authStorageKey);
+          sessionStorageRef?.removeItem(authStorageKey);
+          currentUser.value = null;
+          activeStorage = null;
+        } else {
+          const cachedSession = restoreUser();
+          const cachedProfile =
+            cachedSession?.user.id === user.id ? cachedSession.user : undefined;
+          currentUser.value = toProfile(user, cachedProfile);
+          activeStorage = cachedSession?.storage ?? null;
+        }
+        sessionInitialized = true;
+      })();
+    }
+
+    const request = sessionRequest;
+    try {
+      await request;
+    } catch (error: unknown) {
+      if (sessionRequest === request) sessionRequest = null;
+      throw error;
+    }
+  }
+
   function updateProfile(updated: Partial<UserProfile>) {
     if (currentUser.value) {
       currentUser.value = { ...currentUser.value, ...updated };
@@ -108,7 +149,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function login(
-    profile: Pick<UserProfile, 'id' | 'name' | 'email' | 'phone'> | UserProfile,
+    profile: Pick<UserProfile, 'id' | 'name' | 'email' | 'phone'> & { role?: UserProfile['role'] },
     remember = true
   ) {
     const storage = remember ? localStorageRef : sessionStorageRef;
@@ -116,31 +157,48 @@ export const useAuthStore = defineStore('auth', () => {
       throw new Error('Trình duyệt không hỗ trợ lưu phiên đăng nhập.');
     }
 
-    const user = { ...profileDefaults, ...profile };
+    const user = toProfile({
+      id: profile.id,
+      name: profile.name,
+      email: profile.email,
+      phone: profile.phone,
+      role: profile.role === 'admin' ? 'admin' : 'customer',
+    });
     storage.setItem(authStorageKey, JSON.stringify(user));
     (remember ? sessionStorageRef : localStorageRef)?.removeItem(authStorageKey);
     currentUser.value = user;
     activeStorage = storage;
+    sessionInitialized = true;
     isAuthModalOpen.value = false;
     toast.show(`Chào mừng ${profile.name} đã đăng nhập NutriMate!`);
   }
 
-  function logout() {
+  async function logout(): Promise<void> {
     const wasAuthenticated = currentUser.value !== null;
-    currentUser.value = null;
-    activeStorage = null;
-    isAuthModalOpen.value = false;
-    localStorageRef?.removeItem(authStorageKey);
-    sessionStorageRef?.removeItem(authStorageKey);
+    try {
+      await postLogout();
+      currentUser.value = null;
+      activeStorage = null;
+      isAuthModalOpen.value = false;
+      localStorageRef?.removeItem(authStorageKey);
+      sessionStorageRef?.removeItem(authStorageKey);
+      sessionInitialized = true;
 
-    if (wasAuthenticated) {
-      toast.show('Đã đăng xuất tài khoản thành công.', 'info');
+      if (wasAuthenticated) {
+        toast.show('Đã đăng xuất tài khoản thành công.', 'info');
+      }
+    } catch (error: unknown) {
+      toast.show(
+        error instanceof Error ? error.message : 'Không thể đăng xuất. Vui lòng thử lại.',
+        'error'
+      );
     }
   }
 
   return {
     currentUser,
     isAuthModalOpen,
+    restoreSession,
     openAuthModal,
     closeAuthModal,
     updateProfile,

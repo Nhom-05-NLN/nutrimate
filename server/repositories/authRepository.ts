@@ -35,6 +35,10 @@ interface CreatedUserRow {
   phone: string | null;
 }
 
+interface CurrentUserRow extends CreatedUserRow {
+  role: "customer" | "admin";
+}
+
 export class DuplicateEmailError extends Error {
   constructor() {
     super("Email này đã được đăng ký.");
@@ -75,6 +79,35 @@ export async function findUserForLogin(identifier: string): Promise<LoginUserRec
     phone: user.phone ?? "",
     role: user.role,
     passwordHash: user.password_hash,
+  };
+}
+
+export async function findUserById(id: string): Promise<(UserRecord & { role: "customer" | "admin" }) | null> {
+  if (!isDbConnected()) {
+    throw new Error("PostgreSQL chưa sẵn sàng.");
+  }
+
+  const result = await getPool().query<CurrentUserRow>(
+    `SELECT users.id, users.full_name, users.email, users.phone,
+            CASE WHEN EXISTS (
+              SELECT 1 FROM admins WHERE admins.user_id = users.id
+            ) THEN 'admin' ELSE 'customer' END AS role
+     FROM users
+     WHERE users.id = $1
+     LIMIT 1`,
+    [id],
+  );
+  const user = result.rows[0];
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    name: user.full_name,
+    email: user.email,
+    phone: user.phone ?? "",
+    role: user.role,
   };
 }
 

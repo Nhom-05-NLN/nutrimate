@@ -15,6 +15,7 @@ export interface RegisterUserInput {
 export interface LoginUserInput {
   identifier: unknown;
   password: unknown;
+  rememberMe?: unknown;
 }
 
 export interface RegisteredUser {
@@ -166,6 +167,25 @@ export async function login(input: LoginUserInput): Promise<AuthenticatedUser> {
   const user = await authRepository.findUserForLogin(identifier);
   if (!user?.passwordHash || !(await verifyPassword(input.password, user.passwordHash))) {
     throw new AuthServiceError('Email, số điện thoại hoặc mật khẩu không chính xác.', 401);
+  }
+
+  return {
+    id: String(user.id),
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    role: user.role,
+  };
+}
+
+export async function getAuthenticatedUser(id: string): Promise<AuthenticatedUser | null> {
+  if (!isDbConnected()) {
+    throw new AuthServiceError('Máy chủ cơ sở dữ liệu hiện không khả dụng.', 503);
+  }
+
+  const user = await authRepository.findUserById(id);
+  if (!user) {
+    return null;
   }
 
   return {
