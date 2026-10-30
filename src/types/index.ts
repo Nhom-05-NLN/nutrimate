@@ -149,10 +149,13 @@ export interface CreateOrderPayload {
 }
 
 export interface ChatMessage {
+  requestId?: string;
+  failed?: boolean;
   id: string;
   sender: 'user' | 'bot';
   text: string;
   timestamp: string;
+  imagePreview?: string;
   suggestedProducts?: Product[];
   actionLink?: {
     text: string;
@@ -179,6 +182,17 @@ export interface KnowledgeImportResult {
   imported: number;
   skipped: number;
   total: number;
+export interface NutritionImagePrediction {
+  imageId: number;
+  imageUrl: string;
+  ocrText: string;
+  uploadDate: string;
+  status: 'completed' | 'unrecognized';
+  predictedCalories: number | null;
+  predictedProtein: number | null;
+  predictedCarbs: number | null;
+  predictedFat: number | null;
+  predictedSugar: number | null;
 }
 
 export interface ApiResponse<T> {
@@ -189,11 +203,14 @@ export interface ApiResponse<T> {
 }
 
 // User Profile & Body Metrics (Figma 07)
+export type UserRole = 'customer' | 'admin';
+
 export interface UserProfile {
   id: string;
   name: string;
   email: string;
   phone: string;
+  role?: UserRole;
   avatar: string;
   birthDate: string;
   city: string;

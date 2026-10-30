@@ -25,6 +25,14 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS customers (
+    user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS admins (
+    user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- 2. Bảng Danh mục thực phẩm ăn kiêng (Categories)
 CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
@@ -138,7 +146,21 @@ CREATE TABLE IF NOT EXISTS knowledge_base (
     category VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+-- 9. Dự đoán dinh dưỡng từ ảnh (NutritionImage)
+CREATE TABLE IF NOT EXISTS nutrition_images (
+    image_id SERIAL PRIMARY KEY,
+    customer_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    image_url TEXT NOT NULL UNIQUE,
+    ocr_text TEXT,
+    upload_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('processing', 'completed', 'unrecognized', 'failed')),
+    predicted_calories DOUBLE PRECISION,
+    predicted_protein DOUBLE PRECISION,
+    predicted_carbs DOUBLE PRECISION,
+    predicted_fat DOUBLE PRECISION,
+    predicted_sugar DOUBLE PRECISION
 );
+CREATE INDEX IF NOT EXISTS idx_nutrition_images_customer_date ON nutrition_images(customer_id, upload_date DESC);
 
 -- Tối ưu hóa hiệu năng truy vấn (Indexes)
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
