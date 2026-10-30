@@ -1,5 +1,6 @@
-import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { isDbConnected } from '../db/index.js';
+import { config } from '../config.js';
 import * as authRepository from '../repositories/authRepository.js';
 import { DuplicateEmailError } from '../repositories/authRepository.js';
 
@@ -26,7 +27,9 @@ export interface RegisteredUser {
   role: "customer" | "admin";
 }
 
-export type AuthenticatedUser = RegisteredUser;
+export interface AuthenticatedUser extends RegisteredUser {
+  accessToken: string;
+}
 
 export class AuthServiceError extends Error {
   constructor(message: string, public readonly statusCode: number) {
@@ -85,7 +88,22 @@ function requireString(value: unknown, fieldName: string): string {
   return value.trim();
 }
 
-export async function register(input: RegisterUserInput): Promise<RegisteredUser> {
+function createAccessToken(userId: number): string {
+  const secret = config.chat.jwtSecret;
+  if (secret.length < 32) {
+    throw new AuthServiceError('Máy chủ chưa được cấu hình xác thực an toàn.', 503);
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ sub: String(userId), iat: now, exp: now + 3600 })).toString('base64url');
+  const signature = createHmac('sha256', secret).update(`${header}.${payload}`).digest('base64url');
+  return `${header}.${payload}.${signature}`;
+}
+
+export async function register(input: RegisterUserInput): Promise<AuthenticatedUser> {
+  if (config.chat.jwtSecret.length < 32) {
+    throw new AuthServiceError('Máy chủ chưa được cấu hình xác thực an toàn.', 503);
+  }
   const fullName = requireString(input.fullName, 'họ và tên');
   const email = requireString(input.email, 'email').toLowerCase();
   const phone = requireString(input.phone, 'số điện thoại');
@@ -135,6 +153,7 @@ export async function register(input: RegisterUserInput): Promise<RegisteredUser
       name: user.name,
       email: user.email,
       phone: user.phone,
+      accessToken: createAccessToken(user.id),
       role: 'customer',
     };
   } catch (err: unknown) {
@@ -146,6 +165,9 @@ export async function register(input: RegisterUserInput): Promise<RegisteredUser
 }
 
 export async function login(input: LoginUserInput): Promise<AuthenticatedUser> {
+  if (config.chat.jwtSecret.length < 32) {
+    throw new AuthServiceError('Máy chủ chưa được cấu hình xác thực an toàn.', 503);
+  }
   const identifier = requireString(input.identifier, 'email hoặc số điện thoại');
 
   if (identifier.length > 255) {
@@ -174,6 +196,7 @@ export async function login(input: LoginUserInput): Promise<AuthenticatedUser> {
     name: user.name,
     email: user.email,
     phone: user.phone,
+    accessToken: createAccessToken(user.id),
     role: user.role,
   };
 }

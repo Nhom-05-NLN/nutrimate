@@ -37,11 +37,14 @@ export const useAuthStore = defineStore('auth', () => {
     dietPreferences: ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt'],
   };
 
-  const authStorageKey = 'nutrimate-auth-user';
-  const localStorageRef = typeof localStorage === 'undefined' ? null : localStorage;
-  const sessionStorageRef = typeof sessionStorage === 'undefined' ? null : sessionStorage;
+  const authStorageKey = "nutrimate-auth-user";
+  const authTokenKey = "nutrimate-access-token";
+  const localStorageRef =
+    typeof localStorage === "undefined" ? null : localStorage;
+  const sessionStorageRef =
+    typeof sessionStorage === "undefined" ? null : sessionStorage;
 
-  function restoreUser(): { user: UserProfile; storage: Storage } | null {
+  function restoreUser(): { user: UserProfile; storage: Storage; token: string } | null {
     for (const storage of [sessionStorageRef, localStorageRef]) {
       if (!storage) continue;
 
@@ -50,17 +53,20 @@ export const useAuthStore = defineStore('auth', () => {
         if (!serializedUser) continue;
 
         const profile: unknown = JSON.parse(serializedUser);
+        const token = storage.getItem(authTokenKey);
         if (
-          typeof profile === 'object' &&
+          typeof profile === "object" &&
           profile !== null &&
-          'id' in profile &&
-          typeof profile.id === 'string' &&
-          'name' in profile &&
-          typeof profile.name === 'string' &&
-          'email' in profile &&
-          typeof profile.email === 'string' &&
-          'phone' in profile &&
-          typeof profile.phone === 'string'
+          "id" in profile &&
+          typeof profile.id === "string" &&
+          "name" in profile &&
+          typeof profile.name === "string" &&
+          "email" in profile &&
+          typeof profile.email === "string" &&
+          "phone" in profile &&
+          typeof profile.phone === "string" &&
+          typeof token === "string" &&
+          token.length > 0
         ) {
           return {
             user: {
@@ -73,12 +79,17 @@ export const useAuthStore = defineStore('auth', () => {
               role: 'role' in profile && profile.role === 'admin' ? 'admin' : 'customer',
             },
             storage,
+            token,
           };
         }
 
         storage.removeItem(authStorageKey);
+        storage.removeItem(authTokenKey);
       } catch (error: unknown) {
-        console.error('[AuthStore] Không thể khôi phục phiên đăng nhập:', error);
+        console.error(
+          "[AuthStore] Không thể khôi phục phiên đăng nhập:",
+          error,
+        );
       }
     }
 
@@ -91,6 +102,8 @@ export const useAuthStore = defineStore('auth', () => {
   let sessionRequest: Promise<void> | null = null;
 
   const isAuthModalOpen = ref<boolean>(false);
+  // Set only from the real authentication module's response. Demo login has no JWT.
+  const accessToken = ref<string | null>(restoredSession?.token ?? null);
   const toast = useToastStore();
 
   function openAuthModal() {
@@ -144,17 +157,21 @@ export const useAuthStore = defineStore('auth', () => {
     if (currentUser.value) {
       currentUser.value = { ...currentUser.value, ...updated };
       activeStorage?.setItem(authStorageKey, JSON.stringify(currentUser.value));
-      toast.show('Đã cập nhật hồ sơ cá nhân thành công!');
+      toast.show("Đã cập nhật hồ sơ cá nhân thành công!");
     }
   }
 
   function login(
-    profile: Pick<UserProfile, 'id' | 'name' | 'email' | 'phone'> & { role?: UserProfile['role'] },
+    profile: Pick<UserProfile, "id" | "name" | "email" | "phone"> | UserProfile,
+    token?: string,
     remember = true
   ) {
+    if (!token) {
+      throw new Error("Không nhận được token đăng nhập hợp lệ từ máy chủ.");
+    }
     const storage = remember ? localStorageRef : sessionStorageRef;
     if (!storage) {
-      throw new Error('Trình duyệt không hỗ trợ lưu phiên đăng nhập.');
+      throw new Error("Trình duyệt không hỗ trợ lưu phiên đăng nhập.");
     }
 
     const user = toProfile({
@@ -165,8 +182,13 @@ export const useAuthStore = defineStore('auth', () => {
       role: profile.role === 'admin' ? 'admin' : 'customer',
     });
     storage.setItem(authStorageKey, JSON.stringify(user));
-    (remember ? sessionStorageRef : localStorageRef)?.removeItem(authStorageKey);
+    storage.setItem(authTokenKey, token);
+    (remember ? sessionStorageRef : localStorageRef)?.removeItem(
+      authStorageKey,
+    );
+    (remember ? sessionStorageRef : localStorageRef)?.removeItem(authTokenKey);
     currentUser.value = user;
+    accessToken.value = token;
     activeStorage = storage;
     sessionInitialized = true;
     isAuthModalOpen.value = false;
@@ -175,27 +197,22 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function logout(): Promise<void> {
     const wasAuthenticated = currentUser.value !== null;
-    try {
-      await postLogout();
-      currentUser.value = null;
-      activeStorage = null;
-      isAuthModalOpen.value = false;
-      localStorageRef?.removeItem(authStorageKey);
-      sessionStorageRef?.removeItem(authStorageKey);
-      sessionInitialized = true;
+    currentUser.value = null;
+    accessToken.value = null;
+    activeStorage = null;
+    isAuthModalOpen.value = false;
+    localStorageRef?.removeItem(authStorageKey);
+    localStorageRef?.removeItem(authTokenKey);
+    sessionStorageRef?.removeItem(authStorageKey);
+    sessionStorageRef?.removeItem(authTokenKey);
 
-      if (wasAuthenticated) {
-        toast.show('Đã đăng xuất tài khoản thành công.', 'info');
-      }
-    } catch (error: unknown) {
-      toast.show(
-        error instanceof Error ? error.message : 'Không thể đăng xuất. Vui lòng thử lại.',
-        'error'
-      );
+    if (wasAuthenticated) {
+      toast.show("Đã đăng xuất tài khoản thành công.", "info");
     }
   }
 
   return {
+    accessToken,
     currentUser,
     isAuthModalOpen,
     restoreSession,
