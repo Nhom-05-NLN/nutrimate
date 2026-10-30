@@ -6,6 +6,7 @@ export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   isProduction: process.env.NODE_ENV === 'production',
+  jwtSecret: process.env.JWT_SECRET || '',
 
   chat: {
     apiKey: process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || '',

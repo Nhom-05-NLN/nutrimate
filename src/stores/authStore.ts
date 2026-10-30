@@ -1,7 +1,8 @@
-import { defineStore } from "pinia";
-import { ref } from "vue";
-import { UserProfile } from "../types";
-import { useToastStore } from "./toastStore";
+import { defineStore } from 'pinia';
+import { ref } from 'vue';
+import { UserProfile } from '../types';
+import { useToastStore } from './toastStore';
+import { fetchCurrentUser, postLogout, RegisteredUser } from '../services/api';
 
 export const useAuthStore = defineStore('auth', () => {
   const profileDefaults: Omit<UserProfile, 'id' | 'name' | 'email' | 'phone'> = {
@@ -95,9 +96,10 @@ export const useAuthStore = defineStore('auth', () => {
     return null;
   }
 
-  const restoredSession = restoreUser();
-  const currentUser = ref<UserProfile | null>(restoredSession?.user ?? null);
-  let activeStorage = restoredSession?.storage ?? null;
+  const currentUser = ref<UserProfile | null>(null);
+  let activeStorage: Storage | null = null;
+  let sessionInitialized = false;
+  let sessionRequest: Promise<void> | null = null;
 
   const isAuthModalOpen = ref<boolean>(false);
   // Set only from the real authentication module's response. Demo login has no JWT.
@@ -112,6 +114,45 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthModalOpen.value = false;
   }
 
+  function toProfile(user: RegisteredUser, cachedProfile?: UserProfile): UserProfile {
+    return {
+      ...profileDefaults,
+      ...cachedProfile,
+      ...user,
+      role: user.role,
+    };
+  }
+
+  async function restoreSession(): Promise<void> {
+    if (sessionInitialized) return;
+    if (!sessionRequest) {
+      sessionRequest = (async () => {
+        const user = await fetchCurrentUser();
+        if (!user) {
+          localStorageRef?.removeItem(authStorageKey);
+          sessionStorageRef?.removeItem(authStorageKey);
+          currentUser.value = null;
+          activeStorage = null;
+        } else {
+          const cachedSession = restoreUser();
+          const cachedProfile =
+            cachedSession?.user.id === user.id ? cachedSession.user : undefined;
+          currentUser.value = toProfile(user, cachedProfile);
+          activeStorage = cachedSession?.storage ?? null;
+        }
+        sessionInitialized = true;
+      })();
+    }
+
+    const request = sessionRequest;
+    try {
+      await request;
+    } catch (error: unknown) {
+      if (sessionRequest === request) sessionRequest = null;
+      throw error;
+    }
+  }
+
   function updateProfile(updated: Partial<UserProfile>) {
     if (currentUser.value) {
       currentUser.value = { ...currentUser.value, ...updated };
@@ -123,7 +164,7 @@ export const useAuthStore = defineStore('auth', () => {
   function login(
     profile: Pick<UserProfile, "id" | "name" | "email" | "phone"> | UserProfile,
     token?: string,
-    remember = true,
+    remember = true
   ) {
     if (!token) {
       throw new Error("Không nhận được token đăng nhập hợp lệ từ máy chủ.");
@@ -133,7 +174,13 @@ export const useAuthStore = defineStore('auth', () => {
       throw new Error("Trình duyệt không hỗ trợ lưu phiên đăng nhập.");
     }
 
-    const user = { ...profileDefaults, ...profile };
+    const user = toProfile({
+      id: profile.id,
+      name: profile.name,
+      email: profile.email,
+      phone: profile.phone,
+      role: profile.role === 'admin' ? 'admin' : 'customer',
+    });
     storage.setItem(authStorageKey, JSON.stringify(user));
     storage.setItem(authTokenKey, token);
     (remember ? sessionStorageRef : localStorageRef)?.removeItem(
@@ -143,11 +190,12 @@ export const useAuthStore = defineStore('auth', () => {
     currentUser.value = user;
     accessToken.value = token;
     activeStorage = storage;
+    sessionInitialized = true;
     isAuthModalOpen.value = false;
     toast.show(`Chào mừng ${profile.name} đã đăng nhập NutriMate!`);
   }
 
-  function logout() {
+  async function logout(): Promise<void> {
     const wasAuthenticated = currentUser.value !== null;
     currentUser.value = null;
     accessToken.value = null;
@@ -167,6 +215,7 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken,
     currentUser,
     isAuthModalOpen,
+    restoreSession,
     openAuthModal,
     closeAuthModal,
     updateProfile,
