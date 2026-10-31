@@ -45,7 +45,8 @@ const formattedCountdown = computed(() => {
 
 // Thông tin tài khoản MoMo chính thức từ mã QR của TRAN TUONG VY
 const momoMerchant = {
-  accountName: 'TRAN TUONG VY',
+  accountName: 'TRAN TUONG VY', // Token định danh tài khoản MoMo trong payload QR
+  displayName: 'CONG TY NUTRIMATE VN', // Tên hiển thị thương hiệu trên giao diện NutriMate
   accountNo: 'PSP2630419900000115',
   maskedAccountNo: '*******115',
   accountPhone: '0333 636 045',
@@ -235,7 +236,7 @@ onUnmounted(() => {
           </div>
           <div class="flex justify-between">
             <span>Cổng thanh toán:</span>
-            <strong class="text-[#242424]">Ví MoMo (TRAN TUONG VY)</strong>
+            <strong class="text-[#242424]">Ví MoMo ({{ momoMerchant.displayName }})</strong>
           </div>
         </div>
 
@@ -287,7 +288,7 @@ onUnmounted(() => {
             </div>
             <div class="mt-2 text-center space-y-0.5">
               <span class="text-xs font-black text-[#242424] block">
-                {{ momoMerchant.accountName }}
+                {{ momoMerchant.displayName }}
               </span>
               <span class="text-[11px] font-bold text-[#A50064] flex items-center justify-center gap-1">
                 <ShieldCheck class="w-3.5 h-3.5 text-[#D82D8B] shrink-0" />
@@ -301,25 +302,24 @@ onUnmounted(() => {
             <!-- Đơn vị thụ hưởng -->
             <div class="p-2.5 rounded-xl bg-pink-50/60 border border-pink-100">
               <div class="text-[11px] text-[#7A866E]">Chủ ví MoMo nhận tiền:</div>
-              <div class="font-bold text-[#242424] truncate mt-0.5 flex items-center justify-between">
-                <span class="font-black text-[#242424]">{{ momoMerchant.accountName }}</span>
-                <span class="text-[11px] font-semibold text-[#D82D8B] bg-pink-100/80 px-2 py-0.5 rounded-md">Ví Chính Chủ</span>
+              <div class="font-bold text-[#242424] truncate mt-0.5 flex items-center justify-between gap-2">
+                <span class="font-black text-[#242424] truncate">{{ momoMerchant.displayName }}</span>
+                <span class="shrink-0 text-[11px] font-semibold text-[#D82D8B] bg-pink-100/80 px-2 py-0.5 rounded-md">Ví Chính Chủ</span>
               </div>
             </div>
 
             <!-- Số tài khoản MoMo (PSP... / đuôi 115) -->
-            <div class="flex items-center justify-between p-2.5 rounded-xl bg-white border border-pink-200">
-              <div>
-                <span class="text-[11px] text-[#7A866E] block">Mã TK Ví MoMo (Napas 247):</span>
-                <div class="flex items-center gap-1.5">
-                  <span class="font-mono text-xs sm:text-sm font-black text-[#242424]">{{ momoMerchant.accountNo }}</span>
-                  <span class="text-[10px] text-pink-700 bg-pink-50 px-1.5 py-0.2 rounded font-bold">({{ momoMerchant.maskedAccountNo }})</span>
-                </div>
+            <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-pink-200">
+              <div class="min-w-0 flex-1">
+                <span class="text-[11px] text-[#7A866E] block truncate">Mã TK Ví MoMo (Napas 247):</span>
+                <span class="font-mono text-xs sm:text-sm font-black text-[#242424] block truncate" :title="momoMerchant.accountNo">
+                  {{ momoMerchant.accountNo }}
+                </span>
               </div>
               <button
                 type="button"
                 @click="copyText(momoMerchant.accountNo, 'Mã tài khoản MoMo')"
-                class="px-2.5 py-1.5 rounded-lg bg-pink-100 hover:bg-[#D82D8B] text-[#A50064] hover:text-white text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer min-h-[32px]"
+                class="shrink-0 px-2.5 py-1.5 rounded-lg bg-pink-100 hover:bg-[#D82D8B] text-[#A50064] hover:text-white text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer min-h-[32px]"
                 title="Sao chép mã tài khoản MoMo"
               >
                 <Copy class="w-3.5 h-3.5" />
@@ -328,15 +328,15 @@ onUnmounted(() => {
             </div>
 
             <!-- SĐT MoMo với nút Copy -->
-            <div class="flex items-center justify-between p-2.5 rounded-xl bg-white border border-pink-200">
-              <div>
+            <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-pink-200">
+              <div class="min-w-0 flex-1">
                 <span class="text-[11px] text-[#7A866E] block">Số điện thoại MoMo:</span>
-                <span class="font-mono text-sm sm:text-base font-black text-[#D82D8B]">{{ momoMerchant.accountPhone }}</span>
+                <span class="font-mono text-sm sm:text-base font-black text-[#D82D8B] block truncate">{{ momoMerchant.accountPhone }}</span>
               </div>
               <button
                 type="button"
                 @click="copyText(momoMerchant.rawPhone, 'Số điện thoại MoMo')"
-                class="px-2.5 py-1.5 rounded-lg bg-pink-100 hover:bg-[#D82D8B] text-[#A50064] hover:text-white text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer min-h-[32px]"
+                class="shrink-0 px-2.5 py-1.5 rounded-lg bg-pink-100 hover:bg-[#D82D8B] text-[#A50064] hover:text-white text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer min-h-[32px]"
                 title="Sao chép số MoMo"
               >
                 <Copy class="w-3.5 h-3.5" />
@@ -345,17 +345,17 @@ onUnmounted(() => {
             </div>
 
             <!-- Số tiền cần thanh toán -->
-            <div class="flex items-center justify-between p-2.5 rounded-xl bg-white border border-pink-200">
-              <div>
+            <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-pink-200">
+              <div class="min-w-0 flex-1">
                 <span class="text-[11px] text-[#7A866E] block">Số tiền thanh toán:</span>
-                <span class="font-heading text-base sm:text-lg font-black text-[#D82D8B]">
+                <span class="font-heading text-base sm:text-lg font-black text-[#D82D8B] block truncate">
                   {{ formatVnd(order.totalAmount) }}
                 </span>
               </div>
               <button
                 type="button"
                 @click="copyText(String(Math.round(order.totalAmount)), 'Số tiền')"
-                class="px-2.5 py-1.5 rounded-lg bg-pink-100 hover:bg-[#D82D8B] text-[#A50064] hover:text-white text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer min-h-[32px]"
+                class="shrink-0 px-2.5 py-1.5 rounded-lg bg-pink-100 hover:bg-[#D82D8B] text-[#A50064] hover:text-white text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer min-h-[32px]"
                 title="Sao chép số tiền"
               >
                 <Copy class="w-3.5 h-3.5" />
@@ -364,15 +364,15 @@ onUnmounted(() => {
             </div>
 
             <!-- Nội dung lời nhắn chuyển MoMo (Bắt buộc) -->
-            <div class="flex items-center justify-between p-2.5 rounded-xl bg-pink-50 border border-pink-300">
-              <div>
-                <span class="text-[11px] text-[#A50064] font-bold block">Lời nhắn / Nội dung MoMo:</span>
-                <span class="font-mono text-sm sm:text-base font-black text-[#242424]">{{ order.orderCode }}</span>
+            <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-pink-50 border border-pink-300">
+              <div class="min-w-0 flex-1">
+                <span class="text-[11px] text-[#A50064] font-bold block truncate">Lời nhắn / Nội dung MoMo:</span>
+                <span class="font-mono text-sm sm:text-base font-black text-[#242424] block truncate">{{ order.orderCode }}</span>
               </div>
               <button
                 type="button"
                 @click="copyText(order.orderCode, 'Nội dung MoMo')"
-                class="px-3 py-1.5 rounded-lg bg-[#D82D8B] text-white hover:bg-[#A50064] text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer min-h-[32px]"
+                class="shrink-0 px-3 py-1.5 rounded-lg bg-[#D82D8B] text-white hover:bg-[#A50064] text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer min-h-[32px]"
                 title="Sao chép mã đơn hàng"
               >
                 <Copy class="w-3.5 h-3.5" />
@@ -398,7 +398,7 @@ onUnmounted(() => {
             </button>
           </div>
           <p class="text-[11px] text-[#7A866E] leading-relaxed">
-            💡 Quét mã QR bằng ứng dụng <strong>MoMo</strong> hoặc bất kỳ App Ngân Hàng nào. Mã đã được nhúng sẵn số tiền <strong>{{ formatVnd(order.totalAmount) }}</strong> và nội dung <strong>{{ order.orderCode }}</strong> gửi tới <strong>{{ momoMerchant.accountName }}</strong>.
+            💡 Quét mã QR bằng ứng dụng <strong>MoMo</strong> hoặc bất kỳ App Ngân Hàng nào. Mã đã được nhúng sẵn số tiền <strong>{{ formatVnd(order.totalAmount) }}</strong> và nội dung <strong>{{ order.orderCode }}</strong> gửi tới <strong>{{ momoMerchant.displayName }}</strong>.
           </p>
         </div>
 
