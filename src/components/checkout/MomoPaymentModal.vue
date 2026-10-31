@@ -13,6 +13,7 @@ import {
   Smartphone,
   ExternalLink,
   Sparkles,
+  QrCode,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -33,6 +34,9 @@ const isPaidSuccess = ref(false);
 const remainingSeconds = ref(15 * 60);
 let timerInterval: ReturnType<typeof setInterval> | null = null;
 
+// Tab chuyển đổi loại mã QR (Mặc định dùng Napas MoMo tự động điền tiền và SĐT 100%)
+const selectedQrMode = ref<'napas_momo' | 'p2p_momo'>('napas_momo');
+
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
@@ -44,18 +48,41 @@ const formattedCountdown = computed(() => {
 });
 
 const momoMerchant = {
-  accountName: 'CONG TY TNHH NUTRIMATE VIET NAM',
-  accountPhone: '0901 234 567',
-  merchantId: 'MOMONUTRI_MERCHANT_2026',
+  accountName: 'TRAN TUONG VY',
+  accountPhone: '0333 636 045',
+  rawPhone: '0333636045',
+  bankBin: '971025', // BIN Napas chính thức của Ví MoMo (CTCP Dịch Vụ Di Động Trực Tuyến)
+  momoPageUrl: 'https://nhantien.momo.vn/0333636045',
 };
 
-// Tạo QR Code cho MoMo chuyển khoản / thanh toán
-const momoQrImageUrl = computed(() => {
+// 1. Mã QR Napas MoMo (Mã liên thông VietQR - BIN 971025 của MoMo - App MoMo quét tự động điền SĐT, Tên & Tiền 100%)
+const momoNapasQrUrl = computed(() => {
   if (!props.order) return '';
   const amount = Math.round(props.order.totalAmount);
   const memo = encodeURIComponent(props.order.orderCode);
-  const data = `2|99|0901234567|||0|0|${amount}|${memo}|transfer_myqr`;
+  const accName = encodeURIComponent(momoMerchant.accountName);
+  return `https://img.vietqr.io/image/${momoMerchant.bankBin}-${momoMerchant.rawPhone}-compact2.png?amount=${amount}&addInfo=${memo}&accountName=${accName}`;
+});
+
+// 2. Mã QR MoMo Nội Bộ (P2P cá nhân chuẩn tên chủ ví TRAN TUONG VY kèm số tiền và lời nhắn)
+const momoP2pQrUrl = computed(() => {
+  if (!props.order) return '';
+  const amount = Math.round(props.order.totalAmount);
+  const memo = props.order.orderCode;
+  const data = `2|99|${momoMerchant.rawPhone}|${momoMerchant.accountName}||0|0|${amount}|${memo}|transfer_myqr`;
   return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(data)}`;
+});
+
+const currentQrUrl = computed(() => {
+  return selectedQrMode.value === 'napas_momo' ? momoNapasQrUrl.value : momoP2pQrUrl.value;
+});
+
+// Deeplink mở ứng dụng MoMo trực tiếp trên điện thoại
+const momoDeeplink = computed(() => {
+  if (!props.order) return '#';
+  const amount = Math.round(props.order.totalAmount);
+  const memo = encodeURIComponent(props.order.orderCode);
+  return `momo://?action=transfer&receiver=${momoMerchant.rawPhone}&amount=${amount}&comment=${memo}`;
 });
 
 function copyText(text: string, label: string) {
@@ -63,6 +90,12 @@ function copyText(text: string, label: string) {
     navigator.clipboard.writeText(text);
   }
   toastStore.show(`Đã sao chép ${label}`, 'success', text);
+}
+
+function openMomoApp() {
+  if (props.order) {
+    window.location.href = momoDeeplink.value;
+  }
 }
 
 async function handleConfirmPayment() {
@@ -184,7 +217,7 @@ onUnmounted(() => {
                 Ví MoMo Pay
               </span>
               <span class="text-xs font-bold text-pink-700 bg-pink-50 px-2.5 py-0.5 rounded-full border border-pink-200">
-                Chính thức 2026
+                Tự Động Điền Tiền
               </span>
             </div>
 
@@ -197,8 +230,30 @@ onUnmounted(() => {
             Quét Mã QR Bằng Ứng Dụng MoMo
           </h3>
           <p class="text-xs text-[#7A866E]">
-            Mở App MoMo trên điện thoại, chọn <strong>"Quét Mã"</strong> hoặc quét mã QR dưới đây để thanh toán tức thì.
+            Mở App MoMo, bấm chọn <strong>"Quét Mã"</strong> để quét mã QR bên dưới. Hệ thống sẽ tự động điền sẵn SĐT và Số tiền cho bạn.
           </p>
+
+          <!-- Toggle Chế Độ Quét QR -->
+          <div class="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              @click="selectedQrMode = 'napas_momo'"
+              class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+              :class="selectedQrMode === 'napas_momo' ? 'bg-[#D82D8B] text-white shadow-2xs' : 'bg-pink-50 text-[#A50064] hover:bg-pink-100'"
+            >
+              <Sparkles class="w-3.5 h-3.5" />
+              <span>QR MoMo Đa Năng (Tự điền 100%)</span>
+            </button>
+            <button
+              type="button"
+              @click="selectedQrMode = 'p2p_momo'"
+              class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+              :class="selectedQrMode === 'p2p_momo' ? 'bg-[#D82D8B] text-white shadow-2xs' : 'bg-pink-50 text-[#A50064] hover:bg-pink-100'"
+            >
+              <QrCode class="w-3.5 h-3.5" />
+              <span>QR MoMo Nội Bộ</span>
+            </button>
+          </div>
         </div>
 
         <!-- 2 Cột: QR Code & Thông tin ví nhận -->
@@ -207,23 +262,25 @@ onUnmounted(() => {
           <div class="sm:col-span-5 flex flex-col items-center justify-center p-3.5 bg-linear-to-b from-pink-50/80 to-[#FAF9F5] rounded-3xl border border-pink-200 shadow-2xs">
             <div class="relative w-44 h-44 bg-white rounded-2xl border-2 border-[#D82D8B] p-2 shadow-xs overflow-hidden flex items-center justify-center">
               <img
-                :src="momoQrImageUrl"
+                :src="currentQrUrl"
                 :alt="`MoMo QR ${order.orderCode}`"
                 class="w-full h-full object-contain"
                 loading="eager"
               />
             </div>
-            <span class="text-[11px] font-bold text-[#A50064] mt-2 flex items-center gap-1">
-              <ShieldCheck class="w-3.5 h-3.5 text-[#D82D8B]" /> Cổng MoMo Bảo Mật Chuẩn PCI-DSS
+            <span class="text-[11px] font-bold text-[#A50064] mt-2 flex items-center gap-1 text-center">
+              <ShieldCheck class="w-3.5 h-3.5 text-[#D82D8B] shrink-0" />
+              <span>{{ selectedQrMode === 'napas_momo' ? 'Mã chuẩn Napas MoMo tự điền tiền' : 'Mã MoMo Transfer P2P' }}</span>
             </span>
           </div>
 
           <!-- Cột Thông tin chi tiết thanh toán -->
           <div class="sm:col-span-7 space-y-2.5 text-xs sm:text-sm">
             <div class="p-2.5 rounded-xl bg-pink-50/60 border border-pink-100">
-              <div class="text-[11px] text-[#7A866E]">Đơn vị thụ hưởng:</div>
-              <div class="font-bold text-[#242424] truncate mt-0.5">
-                {{ momoMerchant.accountName }}
+              <div class="text-[11px] text-[#7A866E]">Chủ ví MoMo nhận tiền:</div>
+              <div class="font-bold text-[#242424] truncate mt-0.5 flex items-center justify-between">
+                <span>{{ momoMerchant.accountName }}</span>
+                <span class="text-[11px] font-semibold text-[#D82D8B] bg-pink-100/80 px-2 py-0.5 rounded-md">Đã xác thực MoMo</span>
               </div>
             </div>
 
@@ -235,7 +292,7 @@ onUnmounted(() => {
               </div>
               <button
                 type="button"
-                @click="copyText(momoMerchant.accountPhone, 'Số MoMo')"
+                @click="copyText(momoMerchant.rawPhone, 'Số MoMo')"
                 class="px-2.5 py-1.5 rounded-lg bg-pink-100 hover:bg-[#D82D8B] text-[#A50064] hover:text-white text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer min-h-[32px]"
                 title="Sao chép số MoMo"
               >
@@ -282,16 +339,34 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Hướng dẫn 3 bước thao tác -->
-        <div class="p-3 bg-[#FAF9F5] rounded-2xl border border-[#E8ECE2] text-xs text-[#576449] space-y-1">
-          <div class="font-bold text-[#242424] flex items-center gap-1.5 mb-1 text-[11px]">
-            <Smartphone class="w-3.5 h-3.5 text-[#D82D8B]" /> Các bước thanh toán nhanh trên di động:
+        <!-- Hướng dẫn & Nút Deeplink mở App trên Mobile -->
+        <div class="p-3 bg-[#FAF9F5] rounded-2xl border border-[#E8ECE2] text-xs text-[#576449] space-y-2">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <span class="font-bold text-[#242424] flex items-center gap-1.5 text-[11px]">
+              <Smartphone class="w-3.5 h-3.5 text-[#D82D8B]" /> Đang dùng điện thoại?
+            </span>
+            <div class="flex items-center gap-1.5">
+              <button
+                type="button"
+                @click="openMomoApp"
+                class="px-3 py-1 rounded-xl bg-[#D82D8B] hover:bg-[#A50064] text-white font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+              >
+                <ExternalLink class="w-3 h-3" />
+                <span>Mở App MoMo</span>
+              </button>
+              <a
+                :href="momoMerchant.momoPageUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="px-2.5 py-1 rounded-xl bg-pink-50 hover:bg-pink-100 text-[#A50064] font-semibold text-xs flex items-center gap-1 transition-colors"
+              >
+                <span>Trang MoMo</span>
+              </a>
+            </div>
           </div>
-          <ol class="list-decimal list-inside space-y-0.5 text-[11px] text-[#7A866E]">
-            <li>Mở ứng dụng <strong>MoMo</strong> trên điện thoại của bạn.</li>
-            <li>Chọn tính năng <strong>"Quét Mã"</strong> ở góc trên màn hình.</li>
-            <li>Quét mã QR trên màn hình hoặc sao chép thông tin để chuyển khoản.</li>
-          </ol>
+          <p class="text-[11px] text-[#7A866E] leading-relaxed">
+            💡 Mở App MoMo hoặc bất kỳ ứng dụng Ngân hàng nào, quét mã QR để chuyển tiền. Hệ thống tự động nạp SĐT <strong>{{ momoMerchant.accountPhone }}</strong> ({{ momoMerchant.accountName }}) cùng số tiền <strong>{{ formatVnd(order.totalAmount) }}</strong>.
+          </p>
         </div>
 
         <!-- Action Buttons -->

@@ -48,7 +48,7 @@ const formattedCountdown = computed(() => {
 const bankInfo = {
   bankCode: 'TCB',
   bankName: 'Techcombank (Ngân hàng TMCP Kỹ Thương)',
-  accountNo: '19038899762018',
+  accountNo: '1403123456',
   accountName: 'CONG TY NUTRIMATE VN',
 };
 
@@ -236,7 +236,7 @@ onUnmounted(() => {
             <div class="flex items-center justify-between p-2.5 rounded-xl bg-white border border-[#CCD7BC]">
               <div>
                 <span class="text-[11px] text-[#7A866E] block">Số tài khoản:</span>
-                <span class="font-mono text-sm sm:text-base font-black text-[#242424]">1903 8899 7620 18</span>
+                <span class="font-mono text-sm sm:text-base font-black text-[#242424]">{{ bankInfo.accountNo }}</span>
               </div>
               <button
                 type="button"
