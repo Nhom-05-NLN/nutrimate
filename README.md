@@ -60,9 +60,16 @@ npm install
 # 3. Cấu hình biến môi trường
 cp .env.example .env
 
-# 4. Khởi chạy dự án ở chế độ phát triển
+# 4. Tạo JWT_SECRET riêng (ít nhất 32 ký tự ngẫu nhiên) trong file .env
+#    Ví dụ tạo giá trị bằng Node.js: node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
+
+# 5. Tạo database PostgreSQL nutrimate_db và chạy server/db/schema.sql
+
+# 6. Khởi chạy dự án ở chế độ phát triển
 npm run dev
 ```
+
+Đăng ký và đăng nhập tạo phiên bằng JWT trong cookie `HttpOnly`; frontend không đọc/lưu token. `/api/auth/me` xác minh phiên hiện tại, còn `/api/auth/logout` xóa cookie phiên. Cookie ghi nhớ có hạn 7 ngày; phiên không ghi nhớ hết hạn sau 12 giờ và cookie bị xóa khi đóng trình duyệt. Các API đọc đơn hàng, cập nhật trạng thái đơn và tạo sản phẩm yêu cầu tài khoản quản trị.
 
 ### Cấp Quyền Quản Trị
 Quyền quản trị được xác định bằng bản ghi trong bảng `admins`, liên kết với tài khoản ở bảng `users` qua `user_id`. Sau khi chạy schema trong `server/db/schema.sql`, cấp quyền cho tài khoản đã đăng ký bằng email:

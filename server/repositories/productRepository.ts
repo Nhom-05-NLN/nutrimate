@@ -1,4 +1,5 @@
 import { Product, ProductFilterQuery } from '../types/index.js';
+import type { ChatSuggestedProduct } from '../types/chat.js';
 import { INITIAL_PRODUCTS } from '../db/seedData.js';
 import { isDbConnected, queryPostgres } from '../db/index.js';
 
@@ -147,6 +148,7 @@ export async function findProducts(filter: ProductFilterQuery): Promise<{ produc
         total,
       };
     } catch (err: unknown) {
+      if (requirePostgres) throw err;
       const msg = err instanceof Error ? err.message : 'Product query error';
       console.warn('[ProductRepository Fallback]:', msg);
     }
@@ -191,6 +193,105 @@ export async function findProducts(filter: ProductFilterQuery): Promise<{ produc
     products: paginatedList,
     total,
   };
+}
+
+export async function findChatProducts(filter: ProductFilterQuery, executeQuery = queryPostgres): Promise<ChatSuggestedProduct[]> {
+  const schema = await executeQuery<{ column_name: string }>(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = current_schema()
+       AND table_name = 'products'`,
+  );
+  const columns = new Set(schema.rows.map(row => row.column_name));
+
+  if (columns.has('id') && columns.has('calories') && columns.has('category')) {
+    return findProducts(filter, true, executeQuery);
+  }
+
+  if (!columns.has('product_id') || !columns.has('base_price') || !columns.has('status')) {
+    throw new Error('Schema PostgreSQL không có cấu trúc sản phẩm được NutriBot hỗ trợ.');
+  }
+
+  const conditions = ['p.status IS TRUE'];
+  const values: unknown[] = [];
+  if (filter.search?.trim()) {
+    values.push(`%${filter.search.trim()}%`);
+    conditions.push(`(p.name ILIKE $${values.length} OR p.description ILIKE $${values.length})`);
+  }
+  if (filter.maxCalories && filter.maxCalories > 0) {
+    values.push(filter.maxCalories);
+    conditions.push(`nf.calories <= $${values.length}`);
+  }
+  if (filter.minProtein && filter.minProtein > 0) {
+    values.push(filter.minProtein);
+    conditions.push(`nf.protein >= $${values.length}`);
+  }
+
+  const result = await executeQuery<{
+    id: number;
+    name: string;
+    category_name: string | null;
+    price: string;
+    description: string | null;
+    image_url: string | null;
+    serving_size: string | null;
+    calories: string | null;
+    protein: string | null;
+    carbs: string | null;
+    fat: string | null;
+    sugar: string | null;
+    stock: number;
+  }>(
+    `SELECT p.product_id AS id, p.name, p.base_price AS price,
+            NULL::text AS category_name,
+            p.description, p.image_url, nf.serving_size, nf.calories, nf.protein,
+            nf.carbs, nf.fat, nf.sugar, COALESCE(stock.quantity, 0)::int AS stock
+     FROM products p
+     LEFT JOIN LATERAL (
+       SELECT serving_size, calories, protein, carbs, fat, sugar
+       FROM nutrition_facts
+       WHERE product_id = p.product_id
+       ORDER BY nutrition_fact_id DESC
+       LIMIT 1
+     ) nf ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT SUM(i.quantity) AS quantity
+       FROM inventory i
+       WHERE i.product_id = p.product_id
+     ) stock ON TRUE
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY p.product_id
+     LIMIT 3`,
+    values,
+  );
+
+  return result.rows.map(row => ({
+    id: String(row.id),
+    code: '',
+    name: row.name,
+    category: 'all',
+    categoryName: row.category_name || 'Khác',
+    price: Number(row.price),
+    image: row.image_url || '',
+    description: row.description || '',
+    ingredients: [],
+    ...(row.serving_size !== null && row.calories !== null && row.protein !== null
+      && row.carbs !== null && row.fat !== null && row.sugar !== null
+      ? { nutrition: {
+        servingSize: row.serving_size,
+        calories: Number(row.calories),
+        protein: Number(row.protein),
+        carbs: Number(row.carbs),
+        fat: Number(row.fat),
+        sugar: Number(row.sugar),
+      } }
+      : {}),
+    stock: row.stock,
+    rating: 0,
+    reviewCount: 0,
+    badges: [],
+    bestFor: '',
+  }));
 }
 
 export async function findProductById(id: string): Promise<Product | null> {

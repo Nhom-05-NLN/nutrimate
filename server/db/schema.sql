@@ -138,15 +138,29 @@ CREATE TABLE IF NOT EXISTS water_logs (
     logged_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 8. Bảng Cơ sở tri thức Chatbot NutriBot (Chatbot Knowledge Base)
-CREATE TABLE IF NOT EXISTS chatbot_knowledge (
-    id SERIAL PRIMARY KEY,
-    intent_tag VARCHAR(50) NOT NULL,
-    keyword_patterns TEXT[] NOT NULL,
-    answer_template TEXT NOT NULL,
-    recommended_category VARCHAR(50),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+-- 8. Bảng Cơ sở tri thức Chatbot NutriBot
+CREATE TABLE IF NOT EXISTS knowledge_base (
+    knowledge_id SERIAL PRIMARY KEY,
+    question TEXT,
+    answer TEXT,
+    category VARCHAR(100),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+-- 9. Dự đoán dinh dưỡng từ ảnh (NutritionImage)
+CREATE TABLE IF NOT EXISTS nutrition_images (
+    image_id SERIAL PRIMARY KEY,
+    customer_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    image_url TEXT NOT NULL UNIQUE,
+    ocr_text TEXT,
+    upload_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('processing', 'completed', 'unrecognized', 'failed')),
+    predicted_calories DOUBLE PRECISION,
+    predicted_protein DOUBLE PRECISION,
+    predicted_carbs DOUBLE PRECISION,
+    predicted_fat DOUBLE PRECISION,
+    predicted_sugar DOUBLE PRECISION
 );
+CREATE INDEX IF NOT EXISTS idx_nutrition_images_customer_date ON nutrition_images(customer_id, upload_date DESC);
 
 -- Tối ưu hóa hiệu năng truy vấn (Indexes)
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);

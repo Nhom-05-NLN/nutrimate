@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
@@ -23,7 +23,7 @@ const toastStore = useToastStore();
 const isEditing = ref(false);
 
 const profile = ref({
-  name: authStore.currentUser?.name || 'Nguyễn Minh Anh',
+  name: authStore.currentUser?.name || '',
   birthDate: authStore.currentUser?.birthDate || '1998-06-18',
   phone: authStore.currentUser?.phone || '0912 345 678',
   email: authStore.currentUser?.email || 'minhanh.fit@gmail.com',
@@ -33,6 +33,14 @@ const profile = ref({
   age: authStore.currentUser?.age || 26,
   gender: authStore.currentUser?.gender || 'female',
 });
+
+watch(
+  () => authStore.currentUser?.name,
+  (name) => {
+    if (name) profile.value.name = name;
+  },
+  { immediate: true },
+);
 
 const selectedGoal = ref('Giảm mỡ tăng cơ');
 const dietPreferences = ref(['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt']);
@@ -91,7 +99,7 @@ function handleSave() {
           <!-- Thông tin tổng quan (To, rõ, dễ đọc) -->
           <div class="space-y-2">
             <h1 class="font-heading text-2xl sm:text-3xl lg:text-4xl font-black text-[#242424]">
-              {{ profile.name }}
+              {{ profile.name || 'Tài khoản' }}
             </h1>
 
             <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/95 border border-[#CCD7BC] text-xs font-bold text-[#E8A020]">

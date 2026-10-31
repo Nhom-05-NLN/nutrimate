@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { UserProfile } from '../types';
 import { useToastStore } from './toastStore';
+import { fetchCurrentUser, postLogout, RegisteredUser } from '../services/api';
 
 export const useAuthStore = defineStore('auth', () => {
   const profileDefaults: Omit<UserProfile, 'id' | 'name' | 'email' | 'phone'> = {
@@ -36,11 +37,14 @@ export const useAuthStore = defineStore('auth', () => {
     dietPreferences: ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt'],
   };
 
-  const authStorageKey = 'nutrimate-auth-user';
-  const localStorageRef = typeof localStorage === 'undefined' ? null : localStorage;
-  const sessionStorageRef = typeof sessionStorage === 'undefined' ? null : sessionStorage;
+  const authStorageKey = "nutrimate-auth-user";
+  const authTokenKey = "nutrimate-access-token";
+  const localStorageRef =
+    typeof localStorage === "undefined" ? null : localStorage;
+  const sessionStorageRef =
+    typeof sessionStorage === "undefined" ? null : sessionStorage;
 
-  function restoreUser(): { user: UserProfile; storage: Storage } | null {
+  function restoreUser(): { user: UserProfile; storage: Storage; token: string } | null {
     for (const storage of [sessionStorageRef, localStorageRef]) {
       if (!storage) continue;
 
@@ -49,17 +53,20 @@ export const useAuthStore = defineStore('auth', () => {
         if (!serializedUser) continue;
 
         const profile: unknown = JSON.parse(serializedUser);
+        const token = storage.getItem(authTokenKey);
         if (
-          typeof profile === 'object' &&
+          typeof profile === "object" &&
           profile !== null &&
-          'id' in profile &&
-          typeof profile.id === 'string' &&
-          'name' in profile &&
-          typeof profile.name === 'string' &&
-          'email' in profile &&
-          typeof profile.email === 'string' &&
-          'phone' in profile &&
-          typeof profile.phone === 'string'
+          "id" in profile &&
+          typeof profile.id === "string" &&
+          "name" in profile &&
+          typeof profile.name === "string" &&
+          "email" in profile &&
+          typeof profile.email === "string" &&
+          "phone" in profile &&
+          typeof profile.phone === "string" &&
+          typeof token === "string" &&
+          token.length > 0
         ) {
           return {
             user: {
@@ -72,12 +79,17 @@ export const useAuthStore = defineStore('auth', () => {
               role: 'role' in profile && profile.role === 'admin' ? 'admin' : 'customer',
             },
             storage,
+            token,
           };
         }
 
         storage.removeItem(authStorageKey);
+        storage.removeItem(authTokenKey);
       } catch (error: unknown) {
-        console.error('[AuthStore] Không thể khôi phục phiên đăng nhập:', error);
+        console.error(
+          "[AuthStore] Không thể khôi phục phiên đăng nhập:",
+          error,
+        );
       }
     }
 
@@ -85,10 +97,14 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const restoredSession = restoreUser();
-  const currentUser = ref<UserProfile | null>(restoredSession?.user ?? null);
-  let activeStorage = restoredSession?.storage ?? null;
+  const currentUser = ref<UserProfile | null>(null);
+  let activeStorage: Storage | null = null;
+  let sessionInitialized = false;
+  let sessionRequest: Promise<void> | null = null;
 
   const isAuthModalOpen = ref<boolean>(false);
+  // Set only from the real authentication module's response. Demo login has no JWT.
+  const accessToken = ref<string | null>(restoredSession?.token ?? null);
   const toast = useToastStore();
 
   function openAuthModal() {
@@ -99,48 +115,120 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthModalOpen.value = false;
   }
 
+  function toProfile(
+    user: Pick<RegisteredUser, 'id' | 'name' | 'email' | 'phone' | 'role'>,
+    cachedProfile?: UserProfile,
+  ): UserProfile {
+    return {
+      ...profileDefaults,
+      ...cachedProfile,
+      ...user,
+      role: user.role,
+    };
+  }
+
+  async function restoreSession(): Promise<void> {
+    if (sessionInitialized) return;
+    if (!sessionRequest) {
+      sessionRequest = (async () => {
+        const user = await fetchCurrentUser();
+        if (!user) {
+          localStorageRef?.removeItem(authStorageKey);
+          localStorageRef?.removeItem(authTokenKey);
+          sessionStorageRef?.removeItem(authStorageKey);
+          sessionStorageRef?.removeItem(authTokenKey);
+          currentUser.value = null;
+          accessToken.value = null;
+          activeStorage = null;
+        } else {
+          const cachedSession = restoreUser();
+          const cachedProfile =
+            cachedSession?.user.id === user.id ? cachedSession.user : undefined;
+          currentUser.value = toProfile(user, cachedProfile);
+          activeStorage = cachedSession?.storage ?? null;
+          accessToken.value = cachedSession?.user.id === user.id ? cachedSession.token : null;
+        }
+        sessionInitialized = true;
+      })();
+    }
+
+    const request = sessionRequest;
+    try {
+      await request;
+    } catch (error: unknown) {
+      if (sessionRequest === request) sessionRequest = null;
+      throw error;
+    }
+  }
+
   function updateProfile(updated: Partial<UserProfile>) {
     if (currentUser.value) {
       currentUser.value = { ...currentUser.value, ...updated };
       activeStorage?.setItem(authStorageKey, JSON.stringify(currentUser.value));
-      toast.show('Đã cập nhật hồ sơ cá nhân thành công!');
+      toast.show("Đã cập nhật hồ sơ cá nhân thành công!");
     }
   }
 
   function login(
-    profile: Pick<UserProfile, 'id' | 'name' | 'email' | 'phone'> | UserProfile,
+    profile: Pick<UserProfile, "id" | "name" | "email" | "phone"> | UserProfile,
+    token?: string,
     remember = true
   ) {
+    if (!token) {
+      throw new Error("Không nhận được token đăng nhập hợp lệ từ máy chủ.");
+    }
     const storage = remember ? localStorageRef : sessionStorageRef;
     if (!storage) {
-      throw new Error('Trình duyệt không hỗ trợ lưu phiên đăng nhập.');
+      throw new Error("Trình duyệt không hỗ trợ lưu phiên đăng nhập.");
     }
 
-    const user = { ...profileDefaults, ...profile };
+    const user = toProfile({
+      id: profile.id,
+      name: profile.name,
+      email: profile.email,
+      phone: profile.phone,
+      role: 'role' in profile && profile.role === 'admin' ? 'admin' : 'customer',
+    });
     storage.setItem(authStorageKey, JSON.stringify(user));
-    (remember ? sessionStorageRef : localStorageRef)?.removeItem(authStorageKey);
+    storage.setItem(authTokenKey, token);
+    (remember ? sessionStorageRef : localStorageRef)?.removeItem(
+      authStorageKey,
+    );
+    (remember ? sessionStorageRef : localStorageRef)?.removeItem(authTokenKey);
     currentUser.value = user;
+    accessToken.value = token;
     activeStorage = storage;
+    sessionInitialized = true;
     isAuthModalOpen.value = false;
     toast.show(`Chào mừng ${profile.name} đã đăng nhập NutriMate!`);
   }
 
-  function logout() {
+  async function logout(): Promise<void> {
     const wasAuthenticated = currentUser.value !== null;
+    try {
+      await postLogout();
+    } catch {
+      console.error('[AuthStore] Could not clear the server login session.');
+    }
     currentUser.value = null;
+    accessToken.value = null;
     activeStorage = null;
     isAuthModalOpen.value = false;
     localStorageRef?.removeItem(authStorageKey);
+    localStorageRef?.removeItem(authTokenKey);
     sessionStorageRef?.removeItem(authStorageKey);
+    sessionStorageRef?.removeItem(authTokenKey);
 
     if (wasAuthenticated) {
-      toast.show('Đã đăng xuất tài khoản thành công.', 'info');
+      toast.show("Đã đăng xuất tài khoản thành công.", "info");
     }
   }
 
   return {
+    accessToken,
     currentUser,
     isAuthModalOpen,
+    restoreSession,
     openAuthModal,
     closeAuthModal,
     updateProfile,
