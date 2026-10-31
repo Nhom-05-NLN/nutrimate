@@ -9,6 +9,7 @@ import { postOrder } from '../services/api';
 import { CustomerInfo, Order, PaymentMethod, CreateOrderPayload, Voucher } from '../types';
 import ShippingAddressForm from '../components/checkout/ShippingAddressForm.vue';
 import VietQrModal from '../components/checkout/VietQrModal.vue';
+import MomoPaymentModal from '../components/checkout/MomoPaymentModal.vue';
 import {
   ChevronRight,
   Truck,
@@ -40,6 +41,7 @@ const voucherInput = ref('');
 const appliedVoucher = ref<Voucher | null>(null);
 const isSubmitting = ref(false);
 const showVietQrModal = ref(false);
+const showMomoModal = ref(false);
 const createdOrder = ref<Order | null>(null);
 
 onMounted(() => {
@@ -192,6 +194,9 @@ async function handleFinishOrder() {
     if (paymentMethod.value === 'vietqr') {
       // Mở modal VietQR để quét mã và mô phỏng thanh toán
       showVietQrModal.value = true;
+    } else if (paymentMethod.value === 'momo') {
+      // Mở modal MoMo để quét mã ví điện tử MoMo
+      showMomoModal.value = true;
     } else {
       toastStore.show('Đặt hàng thành công!', 'success', `Mã đơn hàng: #${newOrder.orderCode}`, 'Theo dõi đơn', '/orders');
       router.push('/orders');
@@ -661,6 +666,14 @@ async function handleFinishOrder() {
       :order="createdOrder"
       @close="showVietQrModal = false"
       @payment-success="showVietQrModal = false"
+    />
+
+    <!-- MoMo Payment Modal Component -->
+    <MomoPaymentModal
+      :open="showMomoModal"
+      :order="createdOrder"
+      @close="showMomoModal = false"
+      @payment-success="showMomoModal = false"
     />
   </div>
 </template>
