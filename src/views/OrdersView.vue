@@ -3,11 +3,13 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCartStore } from '../stores/cartStore';
 import { useToastStore } from '../stores/toastStore';
-import { fetchOrders } from '../services/api';
+import { fetchOrders, cancelOrderApi } from '../services/api';
 import { Order, Product } from '../types';
 import OrderCard from '../components/orders/OrderCard.vue';
 import OrderTrackingTimeline from '../components/orders/OrderTrackingTimeline.vue';
 import OrderDetailModal from '../components/orders/OrderDetailModal.vue';
+import VietQrModal from '../components/checkout/VietQrModal.vue';
+import MomoPaymentModal from '../components/checkout/MomoPaymentModal.vue';
 import {
   ChevronRight,
   Search,
@@ -28,6 +30,10 @@ const searchQuery = ref('');
 const selectedOrderForTracking = ref<Order | null>(null);
 const selectedOrderForDetail = ref<Order | null>(null);
 const isDetailModalOpen = ref(false);
+
+const selectedOrderForQr = ref<Order | null>(null);
+const showVietQrModal = ref(false);
+const showMomoModal = ref(false);
 
 const DEFAULT_ORDERS: Order[] = [
   {
@@ -228,6 +234,37 @@ function handleReorder(order: Order) {
 
   router.push('/cart');
 }
+
+function handlePayNow(order: Order) {
+  selectedOrderForQr.value = order;
+  if (order.paymentMethod === 'momo') {
+    showMomoModal.value = true;
+  } else {
+    showVietQrModal.value = true;
+  }
+}
+
+async function handlePaymentSuccess(updatedOrder: Order) {
+  toastStore.show('Thanh toán thành công!', 'success', `Đơn hàng #${updatedOrder.orderCode} đã được chuyển sang chế biến`);
+  showVietQrModal.value = false;
+  showMomoModal.value = false;
+  await loadUserOrders();
+}
+
+async function handleCancelOrder(order: Order) {
+  const confirmed = window.confirm(`Bạn có chắc chắn muốn hủy đơn hàng #${order.orderCode} không?`);
+  if (!confirmed) return;
+
+  try {
+    await cancelOrderApi(order.id, 'Khách hàng tự hủy trên giao diện');
+    toastStore.show('Đã hủy đơn hàng thành công', 'info', `Mã đơn #${order.orderCode}`);
+    isDetailModalOpen.value = false;
+    await loadUserOrders();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Lỗi khi hủy đơn hàng';
+    toastStore.show(msg, 'error');
+  }
+}
 </script>
 
 <template>
@@ -352,6 +389,8 @@ function handleReorder(order: Order) {
           @track-order="handleSelectForTracking"
           @view-detail="handleOpenDetail"
           @reorder="handleReorder"
+          @pay-now="handlePayNow"
+          @cancel-order="handleCancelOrder"
         />
       </div>
 
@@ -383,6 +422,24 @@ function handleReorder(order: Order) {
       :order="selectedOrderForDetail"
       @close="isDetailModalOpen = false"
       @reorder="handleReorder"
+      @pay-now="handlePayNow"
+      @cancel-order="handleCancelOrder"
+    />
+
+    <!-- VietQR Payment Modal Component -->
+    <VietQrModal
+      :open="showVietQrModal"
+      :order="selectedOrderForQr"
+      @close="showVietQrModal = false"
+      @payment-success="handlePaymentSuccess"
+    />
+
+    <!-- MoMo Payment Modal Component -->
+    <MomoPaymentModal
+      :open="showMomoModal"
+      :order="selectedOrderForQr"
+      @close="showMomoModal = false"
+      @payment-success="handlePaymentSuccess"
     />
   </div>
 </template>

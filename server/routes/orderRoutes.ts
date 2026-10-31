@@ -8,5 +8,6 @@ router.get('/:id', orderController.getOrderById);
 router.post('/', orderController.createOrder);
 router.patch('/:id/status', orderController.updateOrderStatus);
 router.patch('/:id/payment', orderController.updatePaymentStatus);
+router.patch('/:id/cancel', orderController.cancelOrder);
 
 export default router;

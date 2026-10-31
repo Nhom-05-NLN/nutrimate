@@ -99,3 +99,26 @@ export async function updatePaymentStatus(
     res.status(500).json({ success: false, message });
   }
 }
+
+export async function cancelOrder(
+  req: Request<{ id: string }, ApiResponse<Order>, { reason?: string }>,
+  res: Response<ApiResponse<Order>>
+): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const cancelled = await orderService.cancelOrder(id, reason);
+    if (!cancelled) {
+      res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng để hủy' });
+      return;
+    }
+    res.json({
+      success: true,
+      message: `Đã hủy đơn hàng #${cancelled.orderCode} thành công`,
+      data: cancelled,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Lỗi khi hủy đơn hàng';
+    res.status(400).json({ success: false, message });
+  }
+}

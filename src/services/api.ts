@@ -126,6 +126,17 @@ export async function patchOrderStatus(orderId: string, status: OrderStatus): Pr
   return res.data;
 }
 
+export async function cancelOrderApi(orderId: string, reason?: string): Promise<Order> {
+  const res = await fetchJson<ApiResponse<Order>>(`/orders/${orderId}/cancel`, {
+    method: 'PATCH',
+    body: JSON.stringify({ reason }),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể hủy đơn hàng');
+  }
+  return res.data;
+}
+
 export interface ChatbotResponse {
   reply: string;
   suggestedProducts: Product[];

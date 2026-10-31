@@ -212,6 +212,28 @@ export async function incrementVoucherUsed(code: string): Promise<void> {
   }
 }
 
+export async function decrementVoucherUsed(code: string): Promise<void> {
+  const normalized = code.trim().toUpperCase();
+  if (isDbConnected()) {
+    try {
+      const sql = `
+        UPDATE vouchers
+        SET used_count = GREATEST(0, used_count - 1), updated_at = CURRENT_TIMESTAMP
+        WHERE UPPER(code) = $1
+      `;
+      await queryPostgres(sql, [normalized]);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Voucher decrement error';
+      console.warn('[VoucherRepository Decrement Fallback]:', msg);
+    }
+  }
+
+  const v = memoryVouchers.find((item) => item.code.toUpperCase() === normalized);
+  if (v && v.usedCount > 0) {
+    v.usedCount -= 1;
+  }
+}
+
 export async function deleteVoucher(id: string): Promise<boolean> {
   if (isDbConnected()) {
     try {

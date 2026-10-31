@@ -13,6 +13,7 @@ import {
   Smartphone,
   ExternalLink,
   Sparkles,
+  RefreshCw,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -28,9 +29,11 @@ const emit = defineEmits<{
 const router = useRouter();
 const toastStore = useToastStore();
 
+const QR_EXPIRE_SECONDS = 5 * 60; // 5 phút đếm ngược
 const isSimulating = ref(false);
 const isPaidSuccess = ref(false);
-const remainingSeconds = ref(15 * 60);
+const isExpired = ref(false);
+const remainingSeconds = ref(QR_EXPIRE_SECONDS);
 let timerInterval: ReturnType<typeof setInterval> | null = null;
 
 function formatVnd(amount: number): string {
@@ -42,6 +45,25 @@ const formattedCountdown = computed(() => {
   const s = remainingSeconds.value % 60;
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 });
+
+function startTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    if (remainingSeconds.value > 0) {
+      remainingSeconds.value--;
+    } else {
+      isExpired.value = true;
+      if (timerInterval) clearInterval(timerInterval);
+    }
+  }, 1000);
+}
+
+function handleRefreshQr() {
+  remainingSeconds.value = QR_EXPIRE_SECONDS;
+  isExpired.value = false;
+  startTimer();
+  toastStore.show('Đã làm mới mã QR MoMo', 'info', 'Bộ đếm 5 phút đã được khởi động lại');
+}
 
 // Thông tin tài khoản MoMo chính thức từ mã QR của TRAN TUONG VY
 const momoMerchant = {
@@ -164,16 +186,10 @@ watch(
   () => props.open,
   (val) => {
     if (val) {
-      remainingSeconds.value = 15 * 60;
+      remainingSeconds.value = QR_EXPIRE_SECONDS;
       isPaidSuccess.value = false;
-      if (timerInterval) clearInterval(timerInterval);
-      timerInterval = setInterval(() => {
-        if (remainingSeconds.value > 0) {
-          remainingSeconds.value--;
-        } else if (timerInterval) {
-          clearInterval(timerInterval);
-        }
-      }, 1000);
+      isExpired.value = false;
+      startTimer();
     } else {
       if (timerInterval) clearInterval(timerInterval);
     }
@@ -243,6 +259,44 @@ onUnmounted(() => {
         <p class="text-xs text-[#7A866E] animate-pulse">
           Đang chuyển hướng sang trang quản lý đơn hàng...
         </p>
+      </div>
+
+      <!-- EXPIRED STATE (Timeout 5 phút) -->
+      <div v-else-if="isExpired" class="p-8 sm:p-12 text-center space-y-6">
+        <div class="w-20 h-20 rounded-full bg-pink-50 text-[#D82D8B] flex items-center justify-center mx-auto border-2 border-pink-200">
+          <Clock class="w-10 h-10 stroke-[2]" />
+        </div>
+
+        <div class="space-y-2">
+          <span class="px-3.5 py-1 rounded-full bg-pink-100 text-xs font-bold text-[#A50064] border border-pink-200">
+            HẾT HẠN PHIÊN QUÉT MÃ MOMO (5 PHÚT)
+          </span>
+          <h3 class="font-heading text-2xl sm:text-3xl font-black text-[#242424]">
+            Phiên Mã MoMo Đã Hết Hiệu Lực
+          </h3>
+          <p class="text-sm text-[#7A866E] max-w-sm mx-auto">
+            Mã QR MoMo đã hết hạn phiên này để bảo mật giao dịch. Đơn hàng <strong>#{{ order.orderCode }}</strong> vẫn được lưu giữ trong <strong>30 phút</strong> để bạn thanh toán.
+          </p>
+        </div>
+
+        <div class="space-y-3 max-w-xs mx-auto pt-2">
+          <button
+            type="button"
+            @click="handleRefreshQr"
+            class="w-full py-3.5 rounded-2xl bg-[#D82D8B] hover:bg-[#A50064] text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer min-h-[44px]"
+          >
+            <RefreshCw class="w-4 h-4" />
+            <span>Làm mới mã MoMo (Thanh toán tiếp)</span>
+          </button>
+
+          <button
+            type="button"
+            @click="emit('close'); router.push('/orders')"
+            class="w-full py-2.5 rounded-xl bg-pink-50 hover:bg-pink-100 border border-pink-200 text-xs font-bold text-pink-700 transition-colors cursor-pointer min-h-[40px]"
+          >
+            Thanh toán sau & Xem đơn hàng
+          </button>
+        </div>
       </div>
 
       <!-- MAIN PAYMENT VIEW -->

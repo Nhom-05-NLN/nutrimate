@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Order } from '../../types';
 import { useChatStore } from '../../stores/chatStore';
 import {
@@ -15,6 +16,8 @@ import {
   CheckCircle2,
   Clock,
   ShieldCheck,
+  QrCode,
+  AlertTriangle,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -25,9 +28,32 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'reorder', order: Order): void;
+  (e: 'payNow', order: Order): void;
+  (e: 'cancelOrder', order: Order): void;
 }>();
 
 const chatStore = useChatStore();
+
+const isPendingQrPayment = computed(() => {
+  if (!props.order) return false;
+  return (
+    props.order.status === 'pending' &&
+    props.order.paymentStatus === 'pending' &&
+    (props.order.paymentMethod === 'vietqr' || props.order.paymentMethod === 'momo')
+  );
+});
+
+const remainingMinutes = computed(() => {
+  if (!props.order) return 0;
+  const createdTime = new Date(props.order.createdAt).getTime();
+  if (isNaN(createdTime)) return 0;
+  const diffMs = 30 * 60 * 1000 - (Date.now() - createdTime);
+  return Math.max(0, Math.ceil(diffMs / (60 * 1000)));
+});
+
+const isExpired30Min = computed(() => {
+  return isPendingQrPayment.value && remainingMinutes.value <= 0;
+});
 
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -48,20 +74,29 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function getStatusBadge(status: Order['status']) {
-  switch (status) {
+function getStatusBadge(order: Order) {
+  if (order.status === 'cancelled') {
+    const isTimeout = order.notes?.includes('quá hạn') || order.notes?.includes('30 phút');
+    return {
+      text: isTimeout ? '✕ Đã hủy (Quá hạn 30p)' : '✕ Đã hủy',
+      class: 'bg-rose-50 text-rose-800 border-rose-200',
+    };
+  }
+
+  switch (order.status) {
     case 'delivered':
-      return { text: 'Đã giao thành công', class: 'bg-[#EBF7E5] text-[#4D6A34] border-[#CCD7BC]' };
+      return { text: '✓ Đã giao thành công', class: 'bg-[#EBF7E5] text-[#4D6A34] border-[#CCD7BC]' };
     case 'shipping':
-      return { text: 'Đang vận chuyển 2H', class: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
+      return { text: '🛵 Đang vận chuyển 2H', class: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
     case 'packing':
-      return { text: 'Đang đóng thùng giữ lạnh', class: 'bg-sky-50 text-sky-800 border-sky-200' };
+      return { text: '📦 Đang đóng thùng giữ lạnh', class: 'bg-sky-50 text-sky-800 border-sky-200' };
     case 'confirmed':
-      return { text: 'Đã xác nhận đơn', class: 'bg-indigo-50 text-indigo-800 border-indigo-200' };
-    case 'cancelled':
-      return { text: 'Đã hủy', class: 'bg-rose-50 text-rose-800 border-rose-200' };
+      return { text: '✓ Đã xác nhận đơn', class: 'bg-indigo-50 text-indigo-800 border-indigo-200' };
     default:
-      return { text: 'Chờ xác nhận', class: 'bg-amber-50 text-amber-800 border-amber-200' };
+      if (order.paymentStatus === 'pending' && (order.paymentMethod === 'vietqr' || order.paymentMethod === 'momo')) {
+        return { text: '⏳ Chờ thanh toán QR', class: 'bg-amber-50 text-amber-800 border-amber-200' };
+      }
+      return { text: '⏳ Chờ xác nhận', class: 'bg-amber-50 text-amber-800 border-amber-200' };
   }
 }
 </script>
@@ -88,9 +123,9 @@ function getStatusBadge(status: Order['status']) {
               <h3 class="font-heading text-lg font-black text-[#242424]">Đơn hàng #{{ order.orderCode }}</h3>
               <span
                 class="px-2.5 py-0.5 rounded-full text-xs font-bold border"
-                :class="getStatusBadge(order.status).class"
+                :class="getStatusBadge(order).class"
               >
-                {{ getStatusBadge(order.status).text }}
+                {{ getStatusBadge(order).text }}
               </span>
             </div>
             <p class="text-xs text-[#7A866E] flex items-center gap-1.5 mt-0.5">
@@ -112,6 +147,35 @@ function getStatusBadge(status: Order['status']) {
 
       <!-- Body Content -->
       <div class="p-6 sm:p-7 space-y-6 max-h-[75vh] overflow-y-auto">
+        <!-- Banner cảnh báo đơn chờ thanh toán QR -->
+        <div
+          v-if="isPendingQrPayment && !isExpired30Min"
+          class="p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+          :class="order.paymentMethod === 'momo' ? 'bg-pink-50 border border-pink-200 text-pink-950' : 'bg-[#EBF7E5] border border-[#CCD7BC] text-[#242424]'"
+        >
+          <div class="flex items-center gap-2.5">
+            <Clock class="w-5 h-5 shrink-0" :class="order.paymentMethod === 'momo' ? 'text-[#D82D8B]' : 'text-[#4D6A34]'" />
+            <div>
+              <span class="font-bold block">
+                Đơn hàng đang chờ thanh toán {{ order.paymentMethod === 'momo' ? 'Ví MoMo' : 'VietQR' }}
+              </span>
+              <span class="text-[11px] opacity-80">
+                Hệ thống sẽ tự động hủy đơn sau <strong>{{ remainingMinutes }} phút</strong> nếu chưa hoàn tất chuyển tiền.
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            @click="emit('payNow', order)"
+            class="px-4 py-2 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer shrink-0"
+            :class="order.paymentMethod === 'momo' ? 'bg-[#D82D8B] hover:bg-[#A50064]' : 'bg-[#4D6A34] hover:bg-[#3B4E24]'"
+          >
+            <QrCode class="w-4 h-4" />
+            <span>Mở mã QR thanh toán ngay</span>
+          </button>
+        </div>
+
         <!-- Nutrition Banner -->
         <div class="p-4 rounded-2xl bg-[#232722] text-white flex items-center justify-between text-xs">
           <div class="flex items-center gap-2">
@@ -219,6 +283,14 @@ function getStatusBadge(status: Order['status']) {
         </button>
 
         <div class="flex items-center gap-2.5 w-full sm:w-auto">
+          <button
+            v-if="order.status === 'pending'"
+            type="button"
+            @click="emit('cancelOrder', order)"
+            class="px-4 py-3 rounded-2xl bg-white hover:bg-rose-50 border border-rose-200 text-xs font-bold text-rose-600 transition-colors cursor-pointer min-h-[44px]"
+          >
+            Hủy đơn hàng
+          </button>
           <button
             type="button"
             @click="emit('close')"

@@ -77,16 +77,103 @@ export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
   return savedOrder;
 }
 
+const QR_PAYMENT_TIMEOUT_MS = 30 * 60 * 1000; // 30 phút
+
+/**
+ * Tự động hủy các đơn hàng thanh toán qua QR (VietQR / MoMo) quá 30 phút không hoàn tất thanh toán
+ */
+export async function autoCancelExpiredOrders(): Promise<number> {
+  try {
+    const orders = await orderRepo.getAllOrders();
+    const now = Date.now();
+    let cancelledCount = 0;
+
+    for (const order of orders) {
+      const isPending = order.status === 'pending' && order.paymentStatus === 'pending';
+      const isQrPayment = order.paymentMethod === 'vietqr' || order.paymentMethod === 'momo';
+      if (!isPending || !isQrPayment) continue;
+
+      const createdAtTime = new Date(order.createdAt).getTime();
+      if (!isNaN(createdAtTime) && now - createdAtTime >= QR_PAYMENT_TIMEOUT_MS) {
+        const cancelReason = order.notes
+          ? `${order.notes} | [Hệ thống tự động hủy do quá hạn 30 phút thanh toán QR]`
+          : '[Hệ thống tự động hủy do quá hạn 30 phút thanh toán QR]';
+
+        await orderRepo.updateOrderStatus(order.id, 'cancelled', cancelReason);
+
+        if (order.voucherCode) {
+          try {
+            await voucherService.releaseVoucherUsage(order.voucherCode);
+          } catch (err: unknown) {
+            console.warn(`[OrderService] Release voucher ${order.voucherCode} error:`, err);
+          }
+        }
+        cancelledCount++;
+      }
+    }
+
+    return cancelledCount;
+  } catch (err: unknown) {
+    console.warn('[OrderService autoCancelExpiredOrders error]:', err);
+    return 0;
+  }
+}
+
 export async function getOrders(): Promise<Order[]> {
+  await autoCancelExpiredOrders();
   return orderRepo.getAllOrders();
 }
 
 export async function getOrderById(id: string): Promise<Order | null> {
-  return orderRepo.getOrderById(id);
+  const order = await orderRepo.getOrderById(id);
+  if (order) {
+    const isPending = order.status === 'pending' && order.paymentStatus === 'pending';
+    const isQrPayment = order.paymentMethod === 'vietqr' || order.paymentMethod === 'momo';
+    const createdAtTime = new Date(order.createdAt).getTime();
+    if (isPending && isQrPayment && !isNaN(createdAtTime) && Date.now() - createdAtTime >= QR_PAYMENT_TIMEOUT_MS) {
+      const cancelReason = order.notes
+        ? `${order.notes} | [Hệ thống tự động hủy do quá hạn 30 phút thanh toán QR]`
+        : '[Hệ thống tự động hủy do quá hạn 30 phút thanh toán QR]';
+      const cancelled = await orderRepo.updateOrderStatus(order.id, 'cancelled', cancelReason);
+      if (order.voucherCode) {
+        await voucherService.releaseVoucherUsage(order.voucherCode).catch(() => {});
+      }
+      return cancelled;
+    }
+  }
+  return order;
 }
 
 export async function updateStatus(id: string, status: OrderStatus): Promise<Order | null> {
   return orderRepo.updateOrderStatus(id, status);
+}
+
+export async function cancelOrder(id: string, reason?: string): Promise<Order | null> {
+  const order = await orderRepo.getOrderById(id);
+  if (!order) {
+    throw new Error('Đơn hàng không tồn tại trên hệ thống');
+  }
+
+  if (order.status !== 'pending') {
+    throw new Error('Chỉ có thể hủy đơn hàng khi đơn đang ở trạng thái chờ xác nhận');
+  }
+
+  const cancelNote = reason
+    ? (order.notes ? `${order.notes} | [Lý do hủy: ${reason}]` : `[Lý do hủy: ${reason}]`)
+    : (order.notes ? `${order.notes} | [Khách hàng yêu cầu hủy đơn]` : '[Khách hàng yêu cầu hủy đơn]');
+
+  const updated = await orderRepo.updateOrderStatus(order.id, 'cancelled', cancelNote);
+
+  // Hoàn lại voucher nếu có
+  if (order.voucherCode) {
+    try {
+      await voucherService.releaseVoucherUsage(order.voucherCode);
+    } catch (err: unknown) {
+      console.warn(`[OrderService] Release voucher on cancel error:`, err);
+    }
+  }
+
+  return updated;
 }
 
 export async function updatePaymentStatus(

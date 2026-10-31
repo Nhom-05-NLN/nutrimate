@@ -146,3 +146,7 @@ export async function deleteVoucher(id: string): Promise<boolean> {
 export async function recordVoucherUsage(code: string): Promise<void> {
   await voucherRepo.incrementVoucherUsed(code);
 }
+
+export async function releaseVoucherUsage(code: string): Promise<void> {
+  await voucherRepo.decrementVoucherUsed(code);
+}

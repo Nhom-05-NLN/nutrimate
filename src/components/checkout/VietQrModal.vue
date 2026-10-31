@@ -15,6 +15,8 @@ import {
   UserCheck,
   CreditCard,
   ExternalLink,
+  RefreshCw,
+  AlertTriangle,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -30,9 +32,11 @@ const emit = defineEmits<{
 const router = useRouter();
 const toastStore = useToastStore();
 
+const QR_EXPIRE_SECONDS = 5 * 60; // 5 phút đếm ngược phiên QR
 const isSimulating = ref(false);
 const isPaidSuccess = ref(false);
-const remainingSeconds = ref(15 * 60); // 15 phút đếm ngược
+const isExpired = ref(false);
+const remainingSeconds = ref(QR_EXPIRE_SECONDS);
 let timerInterval: ReturnType<typeof setInterval> | null = null;
 
 function formatVnd(amount: number): string {
@@ -44,6 +48,25 @@ const formattedCountdown = computed(() => {
   const s = remainingSeconds.value % 60;
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 });
+
+function startTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    if (remainingSeconds.value > 0) {
+      remainingSeconds.value--;
+    } else {
+      isExpired.value = true;
+      if (timerInterval) clearInterval(timerInterval);
+    }
+  }, 1000);
+}
+
+function handleRefreshQr() {
+  remainingSeconds.value = QR_EXPIRE_SECONDS;
+  isExpired.value = false;
+  startTimer();
+  toastStore.show('Đã làm mới mã QR', 'info', 'Bộ đếm 5 phút đã được khởi động lại');
+}
 
 const bankInfo = {
   bankCode: 'TCB',
@@ -95,16 +118,10 @@ watch(
   () => props.open,
   (val) => {
     if (val) {
-      remainingSeconds.value = 15 * 60;
+      remainingSeconds.value = QR_EXPIRE_SECONDS;
       isPaidSuccess.value = false;
-      if (timerInterval) clearInterval(timerInterval);
-      timerInterval = setInterval(() => {
-        if (remainingSeconds.value > 0) {
-          remainingSeconds.value--;
-        } else if (timerInterval) {
-          clearInterval(timerInterval);
-        }
-      }, 1000);
+      isExpired.value = false;
+      startTimer();
     } else {
       if (timerInterval) clearInterval(timerInterval);
     }
@@ -174,6 +191,44 @@ onUnmounted(() => {
         <p class="text-xs text-[#7A866E] animate-pulse">
           Đang chuyển hướng sang trang quản lý đơn hàng...
         </p>
+      </div>
+
+      <!-- EXPIRED STATE (Timeout 5 phút) -->
+      <div v-else-if="isExpired" class="p-8 sm:p-12 text-center space-y-6">
+        <div class="w-20 h-20 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border-2 border-amber-200">
+          <Clock class="w-10 h-10 stroke-[2]" />
+        </div>
+
+        <div class="space-y-2">
+          <span class="px-3.5 py-1 rounded-full bg-amber-100 text-xs font-bold text-amber-800 border border-amber-300">
+            HẾT HẠN PHIÊN QUÉT MÃ QR (5 PHÚT)
+          </span>
+          <h3 class="font-heading text-2xl sm:text-3xl font-black text-[#242424]">
+            Phiên Mã QR Đã Hết Hiệu Lực
+          </h3>
+          <p class="text-sm text-[#7A866E] max-w-sm mx-auto">
+            Mã QR tạm thời đóng để đảm bảo an toàn giao dịch. Đơn hàng <strong>#{{ order.orderCode }}</strong> vẫn được lưu giữ trong <strong>30 phút</strong> để bạn thanh toán.
+          </p>
+        </div>
+
+        <div class="space-y-3 max-w-xs mx-auto pt-2">
+          <button
+            type="button"
+            @click="handleRefreshQr"
+            class="w-full py-3.5 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer min-h-[44px]"
+          >
+            <RefreshCw class="w-4 h-4" />
+            <span>Làm mới mã QR (Thanh toán tiếp)</span>
+          </button>
+
+          <button
+            type="button"
+            @click="emit('close'); router.push('/orders')"
+            class="w-full py-2.5 rounded-xl bg-[#FAF9F5] hover:bg-[#E8ECE2] border border-[#CCD7BC] text-xs font-bold text-[#576449] transition-colors cursor-pointer min-h-[40px]"
+          >
+            Thanh toán sau & Xem đơn hàng
+          </button>
+        </div>
       </div>
 
       <!-- MAIN PAYMENT VIEW -->

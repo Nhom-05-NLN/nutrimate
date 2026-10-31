@@ -249,16 +249,18 @@ export async function createOrder(order: Order): Promise<Order> {
   return order;
 }
 
-export async function updateOrderStatus(id: string, status: OrderStatus): Promise<Order | null> {
+export async function updateOrderStatus(id: string, status: OrderStatus, notes?: string): Promise<Order | null> {
   if (isDbConnected()) {
     try {
       const sql = `
         UPDATE orders
-        SET status = $1, updated_at = CURRENT_TIMESTAMP
+        SET status = $1,
+            notes = COALESCE($3, notes),
+            updated_at = CURRENT_TIMESTAMP
         WHERE id::text = $2 OR order_code = $2
         RETURNING id
       `;
-      const res = await queryPostgres(sql, [status, id]);
+      const res = await queryPostgres(sql, [status, id, notes || null]);
       if (res.rowCount && res.rowCount > 0) {
         return getOrderById(id);
       }
@@ -271,6 +273,9 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
   const order = memoryOrders.find((o) => o.id === id || o.orderCode === id);
   if (order) {
     order.status = status;
+    if (notes) {
+      order.notes = notes;
+    }
     return order;
   }
   return null;
