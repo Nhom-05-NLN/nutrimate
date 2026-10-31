@@ -1,23 +1,32 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import { useChatStore } from '../../stores/chatStore';
 import { useCartStore } from '../../stores/cartStore';
 import { useProductStore } from '../../stores/productStore';
-import { Product } from '../../types';
+import { ChatSuggestedProduct, Product } from '../../types';
+import { useAuthStore } from '../../stores/authStore';
+import { useToastStore } from '../../stores/toastStore';
 import {
   Bot,
   X,
   Send,
   Sparkles,
   ShoppingBag,
+  ImagePlus,
 } from 'lucide-vue-next';
 
 const chatStore = useChatStore();
+const authStore = useAuthStore();
+const toastStore = useToastStore();
+const chatBlocked = computed(() => chatStore.isThinking || chatStore.requiresAuthentication || chatStore.guestSessionExpired);
 const cartStore = useCartStore();
 const productStore = useProductStore();
 
 const inputText = ref('');
 const messagesContainer = ref<HTMLDivElement | null>(null);
+const imageInput = ref<HTMLInputElement | null>(null);
+const maxNutritionImageBytes = 5 * 1024 * 1024;
+const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
 const quickPrompts = [
   'Tôi muốn giảm cân nhưng hay đói vặt tầm 4h chiều',
@@ -42,7 +51,7 @@ watch(
 );
 
 function handleSend() {
-  if (inputText.value.trim()) {
+  if (inputText.value.trim() && !chatBlocked.value) {
     const txt = inputText.value;
     inputText.value = '';
     chatStore.sendMessage(txt);
@@ -53,12 +62,37 @@ function handleQuickPrompt(promptText: string) {
   chatStore.sendMessage(promptText);
 }
 
+function handleImageSelected(event: Event) {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (file.size > maxNutritionImageBytes) {
+    toastStore.show('Ảnh vượt quá dung lượng tối đa 5 MB.', 'error');
+    return;
+  }
+  if (file.type && !allowedImageTypes.includes(file.type)) {
+    toastStore.show('Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.', 'error');
+    return;
+  }
+  void chatStore.analyzeImage(file);
+}
+
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
 function handleAddToCartFromChat(product: Product) {
   cartStore.addItem(product, 1);
+}
+
+function hasNutritionFacts(product: ChatSuggestedProduct): product is Product {
+  return product.nutrition !== undefined;
+}
+
+function openSuggestedProduct(product: ChatSuggestedProduct) {
+  if (hasNutritionFacts(product)) productStore.selectProduct(product);
 }
 </script>
 
@@ -125,10 +159,17 @@ function handleAddToCartFromChat(product: Product) {
       </div>
 
       <!-- Messages Stream -->
+      <div class="px-4 py-2 flex gap-2 border-b border-[#E3E8DC] text-xs">
+        <select :value="chatStore.conversationId || ''" :disabled="chatBlocked" aria-label="Chọn hội thoại" class="flex-1 min-w-0" @change="chatStore.selectConversation(($event.target as HTMLSelectElement).value)">
+          <option v-for="(conversation, index) in chatStore.conversations" :key="conversation.id" :value="conversation.id">Hội thoại {{ index + 1 }} · {{ new Date(conversation.createdAt).toLocaleDateString('vi-VN') }}</option>
+        </select>
+        <button type="button" :disabled="chatBlocked" @click="chatStore.newConversation()">Chat mới</button>
+      </div>
       <div
         ref="messagesContainer"
         class="flex-1 overflow-y-auto p-4 space-y-4 bg-[#FAF9F5]"
       >
+        <button v-if="chatStore.hasEarlier" type="button" :disabled="chatBlocked" class="text-xs text-[#4D6A34] underline" @click="chatStore.loadEarlier()">Tải tin nhắn trước</button>
         <div
           v-for="msg in chatStore.messages"
           :key="msg.id"
@@ -144,8 +185,15 @@ function handleAddToCartFromChat(product: Product) {
                 : 'bg-white text-[#2D3B1E] border border-[#E3E8DC] rounded-tl-xs'
             "
           >
+            <img
+              v-if="msg.imagePreview"
+              :src="msg.imagePreview"
+              alt="Ảnh thực phẩm được gửi để phân tích"
+              class="mb-2 max-h-48 max-w-full rounded-xl object-contain"
+            />
             {{ msg.text }}
           </div>
+          <button v-if="msg.failed" type="button" :disabled="chatBlocked" class="text-xs text-red-700 underline" @click="chatStore.retryMessage(msg)">Gửi lại tin nhắn</button>
 
           <!-- Suggested Products Card in Bot Reply -->
           <div
@@ -165,22 +213,26 @@ function handleAddToCartFromChat(product: Product) {
                   :src="prod.image"
                   :alt="prod.name"
                   class="w-12 h-12 rounded-xl object-cover shrink-0 cursor-pointer"
-                  @click="productStore.selectProduct(prod)"
+                  @click="openSuggestedProduct(prod)"
                 />
-                <div class="flex-1 min-w-0 cursor-pointer" @click="productStore.selectProduct(prod)">
+                <div class="flex-1 min-w-0" :class="hasNutritionFacts(prod) ? 'cursor-pointer' : ''" @click="openSuggestedProduct(prod)">
                   <h4 class="font-heading text-xs font-bold text-[#2D3B1E] truncate">
                     {{ prod.name }}
                   </h4>
                   <div class="flex items-center gap-2 text-[10px] text-[#68725F]">
-                    <span>{{ prod.nutrition.calories }} kcal</span>
-                    <span>•</span>
-                    <span class="text-[#4D6A34] font-semibold">{{ prod.nutrition.protein }}g đạm</span>
+                    <template v-if="hasNutritionFacts(prod)">
+                      <span>{{ prod.nutrition.calories }} kcal</span>
+                      <span>•</span>
+                      <span class="text-[#4D6A34] font-semibold">{{ prod.nutrition.protein }}g đạm</span>
+                    </template>
+                    <span v-else>Thông tin dinh dưỡng chưa cập nhật</span>
                   </div>
                   <span class="text-xs font-bold text-[#4D6A34]">
                     {{ formatVnd(prod.price) }}
                   </span>
                 </div>
                 <button
+                  v-if="hasNutritionFacts(prod)"
                   type="button"
                   @click="handleAddToCartFromChat(prod)"
                   class="px-2.5 py-1.5 rounded-xl bg-[#EBF1E6] hover:bg-[#4D6A34] text-[#4D6A34] hover:text-white shrink-0 transition-colors text-xs font-bold flex items-center gap-1"
@@ -207,12 +259,19 @@ function handleAddToCartFromChat(product: Product) {
       </div>
 
       <!-- Quick Prompt Suggestions -->
+      <div v-if="chatStore.error" role="alert" class="px-4 py-2 bg-red-50 text-red-800 text-xs">
+        {{ chatStore.error }}
+        <RouterLink v-if="chatStore.requiresAuthentication || chatStore.requiresImageAuthentication" to="/login" class="underline ml-2">Đăng nhập Customer</RouterLink>
+        <button v-else-if="chatStore.guestSessionExpired" type="button" :disabled="chatStore.isThinking" class="underline ml-2" @click="chatStore.restartGuestSession()">Bắt đầu phiên Guest mới</button>
+        <button v-else-if="!chatStore.conversationId" type="button" :disabled="chatStore.isThinking" class="underline ml-2" @click="chatStore.initialize()">Thử kết nối lại</button>
+      </div>
       <div class="px-4 py-2 border-t border-[#ECEFE7] bg-white overflow-x-auto flex gap-1.5 no-scrollbar">
         <button
           v-for="qp in quickPrompts"
           :key="qp"
           type="button"
           @click="handleQuickPrompt(qp)"
+          :disabled="chatBlocked"
           class="shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#F3F6EE] hover:bg-[#EBF1E6] hover:text-[#2D3B1E] text-[#556345] transition-colors border border-[#DEE5D4]"
         >
           {{ qp }}
@@ -222,14 +281,34 @@ function handleAddToCartFromChat(product: Product) {
       <!-- Chat Input Field -->
       <form @submit.prevent="handleSend" class="p-3 bg-white border-t border-[#ECEFE7] flex items-center gap-2">
         <input
+          ref="imageInput"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          class="hidden"
+          @change="handleImageSelected"
+        />
+        <button
+          type="button"
+          :disabled="chatBlocked"
+          @click="imageInput?.click()"
+          class="p-2.5 rounded-xl border border-[#DEE5D4] bg-white text-[#4D6A34] hover:bg-[#F3F6EE] disabled:opacity-40 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
+          aria-label="Tải ảnh thực phẩm để ước tính dinh dưỡng"
+          :title="authStore.accessToken ? 'Phân tích ảnh thực phẩm' : 'Đăng nhập Customer để phân tích ảnh'"
+        >
+          <ImagePlus class="w-4 h-4" />
+        </button>
+        <input
           type="text"
           v-model="inputText"
+          maxlength="4000"
+          :disabled="chatBlocked"
+          aria-label="Câu hỏi gửi NutriBot"
           placeholder="Hỏi về calo, đạm, thực đơn giảm cân..."
           class="flex-1 px-3.5 py-2.5 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-xs sm:text-sm text-[#2D3B1E] placeholder-[#8C9882] focus:bg-white focus:border-[#4D6A34] outline-none"
         />
         <button
           type="submit"
-          :disabled="!inputText.trim() || chatStore.isThinking"
+          :disabled="!inputText.trim() || chatBlocked"
           class="p-2.5 rounded-xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white disabled:opacity-40 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
           aria-label="Gửi tin nhắn"
         >

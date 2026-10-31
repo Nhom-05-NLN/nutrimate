@@ -19,6 +19,16 @@ CREATE TABLE IF NOT EXISTS users (
     full_name VARCHAR(150) NOT NULL,
     phone VARCHAR(20),
     role VARCHAR(20) DEFAULT 'customer' CHECK (role IN ('customer', 'admin')),
+    height_cm NUMERIC(5, 1),
+    weight_kg NUMERIC(5, 1),
+    age INT,
+    gender VARCHAR(10) CHECK (gender IN ('male', 'female', 'other')),
+    activity_level VARCHAR(20) DEFAULT 'moderate',
+    daily_calorie_target INT DEFAULT 1800,
+    daily_protein_target INT DEFAULT 110,
+    daily_carb_target INT DEFAULT 120,
+    daily_sugar_target INT DEFAULT 25,
+    nutrition_goal VARCHAR(20) CHECK (nutrition_goal IN ('lose_weight', 'maintain_weight', 'gain_weight')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -70,7 +80,6 @@ CREATE TABLE IF NOT EXISTS health_profiles (
 -- ================================================================
 -- 2. CỤM SẢN PHẨM & DINH DƯỠNG (Category, Product, NutritionFact, ProductVariant, Inventory, ProductReview)
 -- ================================================================
-
 CREATE TABLE IF NOT EXISTS categories (
     category_id SERIAL PRIMARY KEY,
     id INT,
@@ -294,6 +303,57 @@ CREATE TABLE IF NOT EXISTS chatbot_knowledge (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 6. Bảng Nhật ký dinh dưỡng hàng ngày (Daily Nutrition Logs)
+CREATE TABLE IF NOT EXISTS nutrition_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    log_date DATE NOT NULL,
+    meal_type VARCHAR(20) NOT NULL CHECK (meal_type IN ('breakfast', 'lunch', 'dinner', 'snack')),
+    food_name VARCHAR(200) NOT NULL,
+    calories NUMERIC(6, 1) NOT NULL,
+    protein NUMERIC(6, 1) DEFAULT 0,
+    carbs NUMERIC(6, 1) DEFAULT 0,
+    fat NUMERIC(6, 1) DEFAULT 0,
+    sugar NUMERIC(6, 1) DEFAULT 0,
+    product_id INT REFERENCES products(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 7. Bảng Theo dõi lượng nước uống (Water Intake Logs)
+CREATE TABLE IF NOT EXISTS water_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    log_date DATE NOT NULL,
+    amount_ml INT NOT NULL CHECK (amount_ml > 0),
+    logged_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8. Bảng Cơ sở tri thức Chatbot NutriBot
+CREATE TABLE IF NOT EXISTS knowledge_base (
+    knowledge_id SERIAL PRIMARY KEY,
+    question TEXT,
+    answer TEXT,
+    category VARCHAR(100),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 9. Dự đoán dinh dưỡng từ ảnh (NutritionImage)
+CREATE TABLE IF NOT EXISTS nutrition_images (
+    image_id SERIAL PRIMARY KEY,
+    customer_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    image_url TEXT NOT NULL UNIQUE,
+    ocr_text TEXT,
+    upload_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('processing', 'completed', 'unrecognized', 'failed')),
+    predicted_calories DOUBLE PRECISION,
+    predicted_protein DOUBLE PRECISION,
+    predicted_carbs DOUBLE PRECISION,
+    predicted_fat DOUBLE PRECISION,
+    predicted_sugar DOUBLE PRECISION
+);
+CREATE INDEX IF NOT EXISTS idx_nutrition_images_customer_date ON nutrition_images(customer_id, upload_date DESC);
 
 -- ================================================================
 -- 5. NÂNG CẤP & ĐỒNG BỘ CỘT CHO BẢNG ĐÃ TỒN TẠI (IDEMPOTENT MIGRATION)

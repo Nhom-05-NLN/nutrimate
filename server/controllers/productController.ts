@@ -1,23 +1,29 @@
 import { Request, Response } from 'express';
 import * as productService from '../services/productService.js';
-import { ApiResponse, Product, ProductFilterQuery } from '../types/index.js';
+import { ApiResponse, Product, ProductFilterQuery, PaginatedProductResponse } from '../types/index.js';
 
-export async function getProducts(req: Request, res: Response<ApiResponse<Product[]>>): Promise<void> {
+export async function getProducts(req: Request, res: Response<PaginatedProductResponse | ApiResponse<Product[]>>): Promise<void> {
   try {
-    const { category, diet, search, maxCalories, minProtein } = req.query;
+    const { category, diet, search, maxCalories, minProtein, page, limit, sort } = req.query;
     const filter: ProductFilterQuery = {
       category: typeof category === 'string' ? category : undefined,
       diet: typeof diet === 'string' ? diet : undefined,
       search: typeof search === 'string' ? search : undefined,
       maxCalories: typeof maxCalories === 'string' ? parseFloat(maxCalories) : undefined,
       minProtein: typeof minProtein === 'string' ? parseFloat(minProtein) : undefined,
+      page: typeof page === 'string' ? parseInt(page, 10) : 1,
+      limit: typeof limit === 'string' ? parseInt(limit, 10) : 12,
+      sort: typeof sort === 'string' ? (sort as ProductFilterQuery['sort']) : undefined,
     };
 
-    const products = await productService.getProducts(filter);
+    const result = await productService.getProducts(filter);
     res.json({
       success: true,
-      total: products.length,
-      data: products,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      totalPages: result.totalPages,
+      data: result.products,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Lỗi khi tải danh sách sản phẩm';
