@@ -150,6 +150,11 @@ function getStatusBadge(status: OrderStatus) {
                 {{ order.paymentMethod }} • {{ order.paymentStatus === 'paid' ? 'Đã thu' : 'Chưa thu' }}
               </span>
             </div>
+            <div v-if="order.discountAmount" class="mt-1">
+              <span class="px-2 py-0.5 rounded-md bg-purple-50 text-[10px] font-bold text-purple-700 inline-block" :title="order.voucherCode">
+                🏷️ -{{ formatVnd(order.discountAmount) }} <span v-if="order.voucherCode">({{ order.voucherCode }})</span>
+              </span>
+            </div>
           </td>
 
           <!-- Cột 5: Vận chuyển -->

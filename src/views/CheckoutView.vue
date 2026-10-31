@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCartStore, getCartItemKey } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
+import { useVoucherStore } from '../stores/voucherStore';
 import { postOrder } from '../services/api';
-import { CustomerInfo, Order, PaymentMethod, CreateOrderPayload } from '../types';
+import { CustomerInfo, Order, PaymentMethod, CreateOrderPayload, Voucher } from '../types';
 import ShippingAddressForm from '../components/checkout/ShippingAddressForm.vue';
 import VietQrModal from '../components/checkout/VietQrModal.vue';
 import {
@@ -21,21 +22,29 @@ import {
   AlertCircle,
   Tag,
   ShoppingBag,
+  Ticket,
+  Check,
+  X,
 } from 'lucide-vue-next';
 
 const router = useRouter();
 const cartStore = useCartStore();
 const authStore = useAuthStore();
 const toastStore = useToastStore();
+const voucherStore = useVoucherStore();
 
 const isAgreed = ref(true);
 const shippingMethod = ref<'standard' | 'express_2h'>('standard');
 const paymentMethod = ref<PaymentMethod>('vietqr');
-const voucherInput = ref('NUTRIFREESHIP');
-const appliedVoucher = ref<string>('NUTRIFREESHIP');
+const voucherInput = ref('');
+const appliedVoucher = ref<Voucher | null>(null);
 const isSubmitting = ref(false);
 const showVietQrModal = ref(false);
 const createdOrder = ref<Order | null>(null);
+
+onMounted(() => {
+  voucherStore.loadVouchers();
+});
 
 const customer = ref<CustomerInfo>({
   name: authStore.currentUser?.name || 'Nguyễn Minh Anh',
@@ -76,17 +85,17 @@ const baseShippingFee = computed(() => {
 
 const voucherDiscount = computed(() => {
   if (!appliedVoucher.value) return 0;
-  const code = appliedVoucher.value.trim().toUpperCase();
-  if (code === 'NUTRIFREESHIP' || code === 'FREESHIP') {
-    return Math.min(baseShippingFee.value, 25000);
+  const v = appliedVoucher.value;
+  if (subtotal.value < v.minOrderAmount) return 0;
+
+  if (v.discountType === 'fixed') {
+    return Math.min(v.discountValue, subtotal.value);
   }
-  if (code === 'HEALTHY20K') {
-    return 20000;
+  let discount = Math.round(subtotal.value * (v.discountValue / 100));
+  if (v.maxDiscountAmount && v.maxDiscountAmount > 0) {
+    discount = Math.min(discount, v.maxDiscountAmount);
   }
-  if (code === 'CLEANEAT10') {
-    return Math.round(subtotal.value * 0.1);
-  }
-  return 0;
+  return discount;
 });
 
 const shippingFee = computed(() => {
@@ -97,16 +106,36 @@ const grandTotal = computed(() => {
   return Math.max(0, subtotal.value + shippingFee.value - voucherDiscount.value);
 });
 
-function applyVoucher() {
-  const code = voucherInput.value.trim().toUpperCase();
-  if (!code) {
-    appliedVoucher.value = '';
-    toastStore.show('Đã gỡ bỏ mã giảm giá', 'info');
+function selectVoucher(v: Voucher) {
+  if (subtotal.value < v.minOrderAmount) {
+    const diff = v.minOrderAmount - subtotal.value;
+    toastStore.show(
+      `Mã ${v.code} áp dụng cho đơn từ ${formatVnd(v.minOrderAmount)} (còn thiếu ${formatVnd(diff)})`,
+      'warning'
+    );
     return;
   }
-  if (['NUTRIFREESHIP', 'FREESHIP', 'HEALTHY20K', 'CLEANEAT10'].includes(code)) {
-    appliedVoucher.value = code;
-    toastStore.show(`Áp dụng thành công mã ${code}`, 'success');
+
+  appliedVoucher.value = v;
+  voucherInput.value = v.code;
+  toastStore.show(`Đã áp dụng mã ${v.code}`, 'success');
+}
+
+function removeVoucher() {
+  appliedVoucher.value = null;
+  voucherInput.value = '';
+  toastStore.show('Đã gỡ bỏ mã giảm giá', 'info');
+}
+
+function applyVoucherInput() {
+  const code = voucherInput.value.trim().toUpperCase();
+  if (!code) {
+    removeVoucher();
+    return;
+  }
+  const found = voucherStore.getVoucherByCode(code);
+  if (found) {
+    selectVoucher(found);
   } else {
     toastStore.show('Mã voucher không hợp lệ hoặc đã hết hạn', 'warning');
   }
@@ -146,7 +175,7 @@ async function handleFinishOrder() {
       })),
       shippingMethod: shippingMethod.value,
       paymentMethod: paymentMethod.value,
-      voucherCode: appliedVoucher.value || undefined,
+      voucherCode: appliedVoucher.value ? appliedVoucher.value.code : undefined,
       notes: customer.value.note,
     };
 
@@ -431,29 +460,141 @@ async function handleFinishOrder() {
           </div>
 
           <!-- Voucher Apply Form (CN_20) -->
-          <div class="pt-4 border-t border-[#F0F3EC] space-y-2">
-            <label class="text-xs font-bold text-[#576449] flex items-center gap-1.5">
-              <Tag class="w-3.5 h-3.5 text-[#4D6A34]" />
-              <span>Mã giảm giá / Voucher NutriMate</span>
-            </label>
+          <div class="pt-4 border-t border-[#F0F3EC] space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-[#576449] flex items-center gap-1.5">
+                <Ticket class="w-3.5 h-3.5 text-[#4D6A34]" />
+                <span>Mã giảm giá NutriMate</span>
+              </label>
+              <span v-if="appliedVoucher" class="text-xs font-bold text-[#4D6A34]">
+                -{{ formatVnd(voucherDiscount) }}
+              </span>
+            </div>
+
+            <!-- Input áp mã thủ công -->
             <div class="flex items-center gap-2 p-1.5 bg-[#FAF9F5] border border-[#CCD7BC] rounded-2xl">
               <input
                 type="text"
                 v-model="voucherInput"
-                placeholder="Nhập NUTRIFREESHIP hoặc HEALTHY20K"
+                placeholder="Nhập mã (VD: HELLO_NUTRI, HEALTHY20...)"
                 class="flex-1 bg-transparent px-3 text-xs sm:text-sm font-bold text-[#242424] uppercase outline-none"
+                @keyup.enter="applyVoucherInput"
               />
               <button
+                v-if="appliedVoucher && appliedVoucher.code === voucherInput.trim().toUpperCase()"
                 type="button"
-                @click="applyVoucher"
+                @click="removeVoucher"
+                class="px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-[#576449] text-xs font-bold transition-colors cursor-pointer shrink-0"
+              >
+                Gỡ bỏ
+              </button>
+              <button
+                v-else
+                type="button"
+                @click="applyVoucherInput"
                 class="px-4 py-2 rounded-xl bg-[#4D6A34] text-white hover:bg-[#3B4E24] text-xs font-bold transition-colors cursor-pointer shrink-0"
               >
                 Áp dụng
               </button>
             </div>
-            <p v-if="appliedVoucher" class="text-[11px] text-[#4D6A34] font-semibold flex items-center gap-1">
-              ✓ Đang áp dụng mã <strong>{{ appliedVoucher }}</strong> (-{{ formatVnd(voucherDiscount) }})
-            </p>
+
+            <!-- Box thông báo khi đã áp dụng thành công -->
+            <div
+              v-if="appliedVoucher"
+              class="p-2.5 rounded-2xl bg-[#EBF7E5] border border-[#CCD7BC] text-xs flex items-center justify-between text-[#4D6A34]"
+            >
+              <div class="flex items-center gap-2">
+                <Check class="w-4 h-4 shrink-0" />
+                <div>
+                  <span class="font-bold">Đã áp dụng: {{ appliedVoucher.code }}</span>
+                  <span class="text-[11px] text-[#576449] block sm:inline sm:ml-1">({{ appliedVoucher.title }})</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                @click="removeVoucher"
+                class="text-xs font-bold text-rose-600 hover:text-rose-800 transition-colors ml-2 cursor-pointer shrink-0"
+              >
+                Gỡ mã
+              </button>
+            </div>
+
+            <!-- Danh sách Voucher gợi ý (Chọn nhanh 1-click) -->
+            <div class="space-y-2 pt-1">
+              <span class="text-[11px] font-bold text-[#7A866E] block">
+                Gợi ý voucher hôm nay (Bấm chọn nhanh):
+              </span>
+
+              <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                <div
+                  v-for="v in voucherStore.activeVouchers"
+                  :key="v.id"
+                  class="p-2.5 rounded-2xl border transition-all text-xs flex items-center justify-between gap-2"
+                  :class="[
+                    appliedVoucher?.code === v.code
+                      ? 'bg-[#EBF7E5] border-[#4D6A34] ring-1 ring-[#4D6A34]'
+                      : subtotal >= v.minOrderAmount
+                        ? 'bg-white border-[#E3E8DC] hover:border-[#CCD7BC]'
+                        : 'bg-slate-50 border-slate-200 opacity-60'
+                  ]"
+                >
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="font-black text-[#242424] uppercase tracking-wide">{{ v.code }}</span>
+                      <span
+                        v-if="v.targetType === 'first_order'"
+                        class="px-2 py-0.2 rounded-full bg-purple-100 text-purple-700 font-bold text-[10px]"
+                      >
+                        Khách mới
+                      </span>
+                      <span
+                        v-else-if="v.discountType === 'percent'"
+                        class="px-2 py-0.2 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]"
+                      >
+                        -{{ v.discountValue }}%
+                      </span>
+                      <span
+                        v-else
+                        class="px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]"
+                      >
+                        -{{ v.discountValue / 1000 }}k
+                      </span>
+                    </div>
+
+                    <div class="text-[11px] text-[#7A866E] truncate mt-0.5">
+                      Đơn từ {{ formatVnd(v.minOrderAmount) }}
+                      <span v-if="v.maxDiscountAmount" class="text-[10px]"> (Tối đa {{ formatVnd(v.maxDiscountAmount) }})</span>
+                    </div>
+                  </div>
+
+                  <button
+                    v-if="appliedVoucher?.code === v.code"
+                    type="button"
+                    @click="removeVoucher"
+                    class="px-3 py-1.5 rounded-xl bg-[#4D6A34] text-white font-bold text-xs flex items-center gap-1 cursor-pointer shrink-0"
+                  >
+                    <Check class="w-3.5 h-3.5" />
+                    <span>Đang dùng</span>
+                  </button>
+
+                  <button
+                    v-else-if="subtotal >= v.minOrderAmount"
+                    type="button"
+                    @click="selectVoucher(v)"
+                    class="px-3 py-1.5 rounded-xl bg-[#F0F4E8] hover:bg-[#4D6A34] text-[#4D6A34] hover:text-white font-bold text-xs transition-colors cursor-pointer shrink-0"
+                  >
+                    Dùng mã
+                  </button>
+
+                  <span
+                    v-else
+                    class="text-[10px] text-amber-700 font-semibold text-right shrink-0"
+                  >
+                    Thiếu {{ formatVnd(v.minOrderAmount - subtotal) }}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Bảng tính tiền chi tiết -->
@@ -464,10 +605,13 @@ async function handleFinishOrder() {
             </div>
             <div class="flex justify-between">
               <span>Phí vận chuyển:</span>
-              <span class="font-bold text-[#242424]">{{ formatVnd(shippingFee) }}</span>
+              <div class="text-right">
+                <span v-if="shippingFee === 0" class="font-bold text-[#4D6A34]">MIỄN PHÍ (Đơn ≥ 300k)</span>
+                <span v-else class="font-bold text-[#242424]">{{ formatVnd(shippingFee) }}</span>
+              </div>
             </div>
-            <div v-if="voucherDiscount > 0" class="flex justify-between text-[#4D6A34] font-semibold">
-              <span>Giảm giá voucher ({{ appliedVoucher }}):</span>
+            <div v-if="appliedVoucher && voucherDiscount > 0" class="flex justify-between text-[#4D6A34] font-semibold">
+              <span>Giảm giá voucher ({{ appliedVoucher.code }}):</span>
               <span>-{{ formatVnd(voucherDiscount) }}</span>
             </div>
           </div>

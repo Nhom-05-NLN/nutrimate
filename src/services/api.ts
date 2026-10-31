@@ -1,4 +1,4 @@
-import { ApiResponse, Category, Product, ProductFilterQuery, Order, CreateOrderPayload, PaymentStatus, OrderStatus } from '../types';
+import { ApiResponse, Category, Product, ProductFilterQuery, Order, CreateOrderPayload, PaymentStatus, OrderStatus, Voucher, CreateVoucherPayload } from '../types';
 
 const API_BASE = '/api';
 
@@ -138,4 +138,57 @@ export async function postChatMessage(message: string): Promise<ChatbotResponse>
 
 export async function fetchHealth(): Promise<{ status: string; service: string }> {
   return fetchJson<{ status: string; service: string }>('/health');
+}
+
+export async function fetchVouchers(): Promise<Voucher[]> {
+  const res = await fetchJson<ApiResponse<Voucher[]>>('/vouchers');
+  return res.data || [];
+}
+
+export async function validateVoucherApi(
+  code: string,
+  itemsTotal: number,
+  customerPhone?: string,
+  customerEmail?: string
+): Promise<{ discountAmount: number; voucher: Voucher; message: string }> {
+  const res = await fetchJson<ApiResponse<{ discountAmount: number; voucher: Voucher }>>('/vouchers/validate', {
+    method: 'POST',
+    body: JSON.stringify({ code, itemsTotal, customerPhone, customerEmail }),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Mã voucher không hợp lệ');
+  }
+  return {
+    discountAmount: res.data.discountAmount,
+    voucher: res.data.voucher,
+    message: res.message || 'Áp dụng mã thành công',
+  };
+}
+
+export async function createVoucherApi(payload: CreateVoucherPayload): Promise<Voucher> {
+  const res = await fetchJson<ApiResponse<Voucher>>('/vouchers', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể tạo voucher');
+  }
+  return res.data;
+}
+
+export async function toggleVoucherApi(id: string): Promise<Voucher> {
+  const res = await fetchJson<ApiResponse<Voucher>>(`/vouchers/${id}/toggle`, {
+    method: 'PATCH',
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể cập nhật trạng thái voucher');
+  }
+  return res.data;
+}
+
+export async function deleteVoucherApi(id: string): Promise<boolean> {
+  const res = await fetchJson<ApiResponse<null>>(`/vouchers/${id}`, {
+    method: 'DELETE',
+  });
+  return res.success;
 }

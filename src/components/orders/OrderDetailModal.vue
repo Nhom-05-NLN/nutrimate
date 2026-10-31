@@ -192,7 +192,9 @@ function getStatusBadge(status: Order['status']) {
           </div>
           <div class="flex justify-between">
             <span>Phí vận chuyển:</span>
-            <span class="font-bold text-[#242424]">{{ formatVnd(order.shippingFee) }}</span>
+            <span class="font-bold text-[#242424]">
+              {{ order.shippingFee === 0 ? 'MIỄN PHÍ (0đ)' : formatVnd(order.shippingFee) }}
+            </span>
           </div>
           <div v-if="order.discountAmount" class="flex justify-between text-[#4D6A34] font-semibold">
             <span>Giảm giá voucher ({{ order.voucherCode }}):</span>

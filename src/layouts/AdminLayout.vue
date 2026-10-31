@@ -6,6 +6,7 @@ import {
   Package,
   ShoppingCart,
   Users,
+  Ticket,
   Bot,
   BarChart3,
   Settings,
@@ -26,6 +27,7 @@ const navItems = [
   { path: '/admin/products', label: 'Sản phẩm & Kho', icon: Package },
   { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart, badge: '12 mới' },
   { path: '/admin/customers', label: 'Khách hàng', icon: Users, badge: '3.8k' },
+  { path: '/admin/vouchers', label: 'Mã giảm giá', icon: Ticket, badge: 'Ưu đãi' },
   { path: '/admin/knowledge-base', label: 'AI Knowledge Base', icon: Bot, badge: 'v2.4' },
 ];
 </script>
@@ -76,7 +78,7 @@ const navItems = [
               VẬN HÀNH LÕI
             </span>
             <RouterLink
-              v-for="item in navItems.slice(0, 4)"
+              v-for="item in navItems.slice(0, 5)"
               :key="item.path"
               :to="item.path"
               class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition-colors"
@@ -107,10 +109,10 @@ const navItems = [
               DINH DƯỠNG & TRÍ TUỆ AI
             </span>
             <RouterLink
-              :to="navItems[4].path"
+              :to="navItems[5].path"
               class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition-colors"
               :class="[
-                route.path === navItems[4].path
+                route.path === navItems[5].path
                   ? 'bg-[#536124] text-white shadow-xs font-bold hover:bg-[#434F1D] hover:text-white'
                   : 'text-[#576449] hover:bg-[#EBF7E5] hover:text-[#2D3B1E] font-semibold'
               ]"

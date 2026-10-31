@@ -1,5 +1,6 @@
 import { Order, CreateOrderPayload, OrderStatus, PaymentStatus } from '../types/index.js';
 import * as orderRepo from '../repositories/orderRepository.js';
+import * as voucherService from './voucherService.js';
 
 export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
   if (!payload.items || payload.items.length === 0) {
@@ -10,22 +11,33 @@ export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
     throw new Error('Vui lòng cung cấp đầy đủ tên và số điện thoại người nhận.');
   }
 
-  const isExpress = payload.shippingMethod === 'express_2h';
-  const shippingFee = isExpress ? 35000 : 25000;
   const itemsTotal = payload.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const totalCalories = payload.items.reduce((sum, item) => sum + item.calories * item.quantity, 0);
   const totalProtein = payload.items.reduce((sum, item) => sum + item.protein * item.quantity, 0);
 
-  // Voucher discount tính toán
+  // Phí vận chuyển theo chính sách tự động: Tiền hàng >= 300k miễn phí ship (standard)
+  const isExpress = payload.shippingMethod === 'express_2h';
+  let shippingFee = 25000;
+  if (isExpress) {
+    shippingFee = 35000;
+  } else if (itemsTotal >= 300000) {
+    shippingFee = 0;
+  }
+
+  // Voucher discount tính toán thông qua voucherService
   let discountAmount = 0;
-  if (payload.voucherCode) {
-    const code = payload.voucherCode.trim().toUpperCase();
-    if (code === 'NUTRIFREESHIP' || code === 'FREESHIP') {
-      discountAmount = Math.min(shippingFee, 25000);
-    } else if (code === 'HEALTHY20K') {
-      discountAmount = 20000;
-    } else if (code === 'CLEANEAT10') {
-      discountAmount = Math.round(itemsTotal * 0.1);
+  let appliedCode: string | undefined = undefined;
+
+  if (payload.voucherCode && payload.voucherCode.trim()) {
+    const rawCode = payload.voucherCode.trim().toUpperCase();
+    const customerId = payload.customer.phone || payload.customer.email || undefined;
+    const validation = await voucherService.validateVoucher(rawCode, itemsTotal, customerId);
+
+    if (validation.isValid) {
+      discountAmount = validation.discountAmount;
+      appliedCode = validation.voucher?.code || rawCode;
+    } else {
+      console.warn(`[OrderService] Voucher ${rawCode} không hợp lệ: ${validation.message}`);
     }
   }
 
@@ -43,15 +55,26 @@ export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
     totalProtein: Math.round(totalProtein * 10) / 10,
     shippingFee,
     discountAmount: discountAmount > 0 ? discountAmount : undefined,
-    voucherCode: payload.voucherCode,
+    voucherCode: appliedCode,
     shippingMethod: payload.shippingMethod || 'standard',
     paymentMethod: payload.paymentMethod || 'vietqr',
-    paymentStatus: payload.paymentMethod === 'vietqr' ? 'pending' : 'pending',
+    paymentStatus: 'pending',
     status: 'pending',
     notes: payload.notes,
   };
 
-  return orderRepo.createOrder(order);
+  const savedOrder = await orderRepo.createOrder(order);
+
+  // Ghi nhận lượt sử dụng voucher nếu có áp dụng
+  if (appliedCode && discountAmount > 0) {
+    try {
+      await voucherService.recordVoucherUsage(appliedCode);
+    } catch (err: unknown) {
+      console.warn('[OrderService Voucher Usage Error]:', err);
+    }
+  }
+
+  return savedOrder;
 }
 
 export async function getOrders(): Promise<Order[]> {

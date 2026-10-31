@@ -258,6 +258,29 @@ CREATE TABLE IF NOT EXISTS payments (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS vouchers (
+    voucher_id SERIAL PRIMARY KEY,
+    id VARCHAR(50),
+    code VARCHAR(50) UNIQUE NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    description TEXT,
+    discount_type VARCHAR(20) NOT NULL CHECK (discount_type IN ('fixed', 'percent')),
+    discount_value NUMERIC(10, 2) NOT NULL CHECK (discount_value >= 0),
+    min_order_amount NUMERIC(10, 2) DEFAULT 0 CHECK (min_order_amount >= 0),
+    max_discount_amount NUMERIC(10, 2),
+    target_type VARCHAR(30) DEFAULT 'all' CHECK (target_type IN ('all', 'first_order')),
+    usage_limit INT DEFAULT 100 CHECK (usage_limit >= 0),
+    used_count INT DEFAULT 0 CHECK (used_count >= 0),
+    start_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    end_date TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_vouchers_code ON vouchers(code);
+CREATE INDEX IF NOT EXISTS idx_vouchers_active ON vouchers(is_active);
+
 -- ================================================================
 -- 4. CỤM AI, NHẬT KÝ & TRI THỨC (M4 & M5)
 -- ================================================================

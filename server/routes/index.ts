@@ -2,6 +2,7 @@ import { Router } from 'express';
 import categoryRoutes from './categoryRoutes.js';
 import productRoutes from './productRoutes.js';
 import orderRoutes from './orderRoutes.js';
+import voucherRoutes from './voucherRoutes.js';
 import chatRoutes from './chatRoutes.js';
 import healthRoutes from './healthRoutes.js';
 
@@ -11,6 +12,7 @@ apiRouter.use('/', healthRoutes);
 apiRouter.use('/categories', categoryRoutes);
 apiRouter.use('/products', productRoutes);
 apiRouter.use('/orders', orderRoutes);
+apiRouter.use('/vouchers', voucherRoutes);
 apiRouter.use('/chat', chatRoutes);
 
 export default apiRouter;

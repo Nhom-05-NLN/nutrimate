@@ -15,6 +15,7 @@ import {
   Flame,
   Dumbbell,
   AlertCircle,
+  Tag,
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -28,8 +29,9 @@ function formatVnd(amount: number): string {
 // Tính toán dựa trên các món ĐƯỢC CHỌN để checkout
 const subtotal = computed(() => cartStore.selectedAmount);
 const shippingFee = computed(() => (subtotal.value > 0 ? (subtotal.value >= 300000 ? 0 : 25000) : 0));
-const voucherDiscount = computed(() => (subtotal.value >= 200000 ? 25000 : 0));
-const grandTotal = computed(() => Math.max(0, subtotal.value + shippingFee.value - voucherDiscount.value));
+const amountToFreeship = computed(() => Math.max(0, 300000 - subtotal.value));
+const freeshipProgress = computed(() => Math.min(100, Math.round((subtotal.value / 300000) * 100)));
+const grandTotal = computed(() => Math.max(0, subtotal.value + shippingFee.value));
 
 function goToCheckout() {
   if (cartStore.selectedCount === 0) {
@@ -219,6 +221,25 @@ const suggestedUpsells = [
           <span>Vui lòng tích chọn ít nhất 1 sản phẩm ở cột bên trái để tiến hành thanh toán.</span>
         </div>
 
+        <!-- Progress Freeship (Hệ thống tự tính) -->
+        <div class="p-3.5 rounded-2xl bg-[#F4F7EF] border border-[#DEE5D4] space-y-2 text-xs">
+          <div class="flex items-center justify-between font-bold">
+            <span v-if="subtotal >= 300000" class="text-[#4D6A34] flex items-center gap-1.5">
+              <span>✓ Đơn đã đủ điều kiện <strong>FREESHIP</strong></span>
+            </span>
+            <span v-else class="text-[#576449]">
+              Mua thêm <strong class="text-[#4D6A34]">{{ formatVnd(amountToFreeship) }}</strong> để được Freeship
+            </span>
+            <span class="text-[#7A866E] text-[11px] font-semibold">{{ freeshipProgress }}%</span>
+          </div>
+          <div class="w-full h-2 bg-[#E3E8DC] rounded-full overflow-hidden">
+            <div
+              class="h-full bg-[#4D6A34] rounded-full transition-all duration-300"
+              :style="{ width: `${freeshipProgress}%` }"
+            ></div>
+          </div>
+        </div>
+
         <div class="space-y-3.5 text-sm text-[#576449]">
           <div class="flex justify-between">
             <span>Tạm tính ({{ cartStore.selectedCount }} món)</span>
@@ -228,14 +249,19 @@ const suggestedUpsells = [
           <div class="flex justify-between">
             <span>Phí vận chuyển</span>
             <div class="text-right">
-              <span v-if="shippingFee === 0 && subtotal > 0" class="font-bold text-[#4D6A34]">FREESHIP (Đơn >300k)</span>
+              <span v-if="shippingFee === 0 && subtotal > 0" class="font-bold text-[#4D6A34]">MIỄN PHÍ (Đơn ≥ 300k)</span>
               <span v-else class="font-bold text-[#242424]">{{ formatVnd(shippingFee) }}</span>
             </div>
           </div>
 
-          <div class="flex justify-between text-[#4D6A34] font-semibold">
-            <span>Giảm giá voucher</span>
-            <span>-{{ formatVnd(voucherDiscount) }}</span>
+          <div class="pt-1">
+            <div class="p-2.5 rounded-xl bg-[#FAF9F5] border border-[#E3E8DC] text-xs text-[#576449] flex items-center justify-between">
+              <span class="flex items-center gap-1.5 font-semibold text-[#4D6A34]">
+                <Tag class="w-3.5 h-3.5" />
+                Mã giảm giá
+              </span>
+              <span class="text-[11px] text-[#7A866E]">Áp dụng ở bước Thanh toán</span>
+            </div>
           </div>
         </div>
 

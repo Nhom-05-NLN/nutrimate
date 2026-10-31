@@ -68,6 +68,41 @@ export interface CartItem {
   selectedPortion?: string;
 }
 
+export type VoucherDiscountType = 'fixed' | 'percent';
+export type VoucherTargetType = 'all' | 'first_order';
+
+export interface Voucher {
+  id: string;
+  code: string;
+  title: string;
+  description?: string;
+  discountType: VoucherDiscountType;
+  discountValue: number;
+  minOrderAmount: number;
+  maxDiscountAmount?: number;
+  targetType: VoucherTargetType;
+  usageLimit: number;
+  usedCount: number;
+  startDate?: string;
+  endDate: string;
+  isActive: boolean;
+  createdAt?: string;
+}
+
+export interface CreateVoucherPayload {
+  code: string;
+  title: string;
+  description?: string;
+  discountType: VoucherDiscountType;
+  discountValue: number;
+  minOrderAmount: number;
+  maxDiscountAmount?: number;
+  targetType?: VoucherTargetType;
+  usageLimit: number;
+  endDate: string;
+  isActive?: boolean;
+}
+
 export type OrderStatus = 'pending' | 'confirmed' | 'packing' | 'shipping' | 'delivered' | 'cancelled';
 export type PaymentMethod = 'cod' | 'vietqr' | 'momo' | 'bank_card';
 export type PaymentStatus = 'pending' | 'paid' | 'failed';
