@@ -11,7 +11,6 @@ import {
   User,
   Menu,
   X,
-  ShieldCheck,
   LogOut,
   ChevronDown,
 } from 'lucide-vue-next';
@@ -184,15 +183,6 @@ function handleSearchSubmit() {
 
               <div class="my-1 border-t border-[#ECEFE7]"></div>
 
-              <RouterLink
-                to="/admin"
-                @click="isUserDropdownOpen = false"
-                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#6B7A3A] hover:bg-[#EBF7E5] transition-colors"
-              >
-                <ShieldCheck class="w-4 h-4 text-[#6B7A3A]" />
-                Trang Quản trị (Admin Portal)
-              </RouterLink>
-
               <button
                 v-if="authStore.currentUser"
                 type="button"
@@ -266,13 +256,6 @@ function handleSearchSubmit() {
           class="px-4 py-2.5 rounded-xl text-sm font-semibold text-[#242424] hover:bg-[#EBF7E5]"
         >
           Tài khoản
-        </RouterLink>
-        <RouterLink
-          to="/admin"
-          @click="isMobileMenuOpen = false"
-          class="px-4 py-2.5 rounded-xl text-sm font-bold text-[#6B7A3A] bg-[#EBF7E5]"
-        >
-          Quản trị viên (Admin)
         </RouterLink>
       </div>
     </div>
