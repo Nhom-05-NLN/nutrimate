@@ -246,6 +246,30 @@ export interface UserProfile {
   name: string;
   email: string;
   phone: string;
+  defaultAddress?: {
+    addressId: number;
+    receiverName: string;
+    receiverPhone: string;
+    address: string;
+    houseNumber: string;
+    street: string;
+    hamlet: string;
+    ward: string;
+    province: string;
+    isDefault: boolean;
+  } | null;
+  addresses?: {
+    addressId: number;
+    receiverName: string;
+    receiverPhone: string;
+    address: string;
+    houseNumber: string;
+    street: string;
+    hamlet: string;
+    ward: string;
+    province: string;
+    isDefault: boolean;
+  }[];
   role?: UserRole;
   avatar: string;
   birthDate: string;

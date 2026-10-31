@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255),
     full_name VARCHAR(150) NOT NULL,
     phone VARCHAR(20),
+    avt_url TEXT,
     role VARCHAR(20) DEFAULT 'customer' CHECK (role IN ('customer', 'admin')),
     height_cm NUMERIC(5, 1),
     weight_kg NUMERIC(5, 1),
@@ -25,6 +26,8 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avt_url TEXT;
+ALTER TABLE users ALTER COLUMN avt_url TYPE TEXT;
 
 CREATE TABLE IF NOT EXISTS customers (
     user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE
