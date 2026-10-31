@@ -10,6 +10,8 @@ import {
   Order,
   Product,
   ProductFilterQuery,
+  CaloriePlanResponse,
+  CalorieProfileInput,
 } from '../types';
 
 const API_BASE = '/api';
@@ -326,4 +328,19 @@ export async function postNutritionImage(image: File, token: string): Promise<Nu
 
 export async function fetchHealth(): Promise<{ status: string; service: string }> {
   return fetchJson<{ status: string; service: string }>('/health');
+}
+
+export async function fetchCaloriePlan(): Promise<CaloriePlanResponse> {
+  const response = await fetchJson<ApiResponse<CaloriePlanResponse>>('/calorie-plan');
+  if (!response.data) throw new Error(response.message || 'Không thể tải hồ sơ Calories.');
+  return response.data;
+}
+
+export async function saveCalorieProfile(profile: CalorieProfileInput): Promise<CaloriePlanResponse> {
+  const response = await fetchJson<ApiResponse<CaloriePlanResponse>>('/calorie-plan/profile', {
+    method: 'PUT',
+    body: JSON.stringify(profile),
+  });
+  if (!response.data) throw new Error(response.message || 'Không thể lưu hồ sơ Calories.');
+  return response.data;
 }

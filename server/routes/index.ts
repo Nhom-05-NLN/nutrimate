@@ -5,6 +5,7 @@ import orderRoutes from './orderRoutes.js';
 import chatRoutes from './chatRoutes.js';
 import knowledgeRoutes from './knowledgeRoutes.js';
 import healthRoutes from './healthRoutes.js';
+import caloriePlanRoutes from './caloriePlanRoutes.js';
 import authRoutes from './authRoutes.js';
 
 const apiRouter = Router();
@@ -15,6 +16,7 @@ apiRouter.use('/categories', categoryRoutes);
 apiRouter.use('/products', productRoutes);
 apiRouter.use('/orders', orderRoutes);
 apiRouter.use('/chat', chatRoutes);
+apiRouter.use('/calorie-plan', caloriePlanRoutes);
 apiRouter.use('/knowledge', knowledgeRoutes);
 
 export default apiRouter;

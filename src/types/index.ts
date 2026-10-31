@@ -206,6 +206,38 @@ export interface ApiResponse<T> {
   total?: number;
 }
 
+export type NutritionGoal = 'lose_weight' | 'maintain_weight' | 'gain_weight';
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'high';
+
+export interface CalorieProfileInput {
+  heightCm: number;
+  weightKg: number;
+  age: number;
+  gender: 'male' | 'female' | 'other';
+  activityLevel: ActivityLevel;
+  nutritionGoal: NutritionGoal;
+}
+
+export interface CaloriePlanResult extends CalorieProfileInput {
+  bmi: number;
+  bmrKcal: number;
+  tdeeKcal: number;
+  targetCalories: number;
+  adjustmentKcal: number;
+}
+
+export interface CaloriePlanResponse {
+  profile: {
+    heightCm: number | null;
+    weightKg: number | null;
+    age: number | null;
+    gender: CalorieProfileInput['gender'] | null;
+    activityLevel: ActivityLevel | null;
+    nutritionGoal: NutritionGoal | null;
+  };
+  plan: CaloriePlanResult | null;
+}
+
 // User Profile & Body Metrics (Figma 07)
 export type UserRole = 'customer' | 'admin';
 

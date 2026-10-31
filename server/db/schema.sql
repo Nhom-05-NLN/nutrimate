@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
     daily_protein_target INT DEFAULT 110,
     daily_carb_target INT DEFAULT 120,
     daily_sugar_target INT DEFAULT 25,
+    nutrition_goal VARCHAR(20) CHECK (nutrition_goal IN ('lose_weight', 'maintain_weight', 'gain_weight')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
