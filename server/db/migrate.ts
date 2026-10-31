@@ -21,17 +21,54 @@ export async function runMigration(): Promise<void> {
   try {
     console.log('[Migration] Đang thực thi cấu trúc CSDL lên PostgreSQL / Neon Cloud...');
     await client.query('BEGIN');
-    await client.query(sqlContent);
+
+    // Tách các khối lệnh SQL
+    // Các function body có $$...$$ cần được giữ nguyên vẹn
+    const statements: string[] = [];
+    let current = '';
+    let inDollarQuote = false;
+
+    for (const line of sqlContent.split('\n')) {
+      const trimmed = line.trim();
+      if (!inDollarQuote && trimmed.startsWith('--')) {
+        continue;
+      }
+      if (line.includes('$$')) {
+        inDollarQuote = !inDollarQuote;
+      }
+      current += line + '\n';
+      if (!inDollarQuote && trimmed.endsWith(';')) {
+        const stmt = current.trim();
+        if (stmt) {
+          statements.push(stmt);
+        }
+        current = '';
+      }
+    }
+    if (current.trim()) {
+      statements.push(current.trim());
+    }
+
+    for (let i = 0; i < statements.length; i++) {
+      const stmt = statements[i];
+      if (!stmt) continue;
+      try {
+        await client.query(stmt);
+      } catch (err) {
+        console.error(`❌ [Lỗi tại câu lệnh ${i + 1}]:\n${stmt}\n`);
+        throw err;
+      }
+    }
+
     await client.query('COMMIT');
 
     console.log('✅ [Migration Success] Khởi tạo toàn bộ CSDL NutriMate thành công!');
     console.log('📋 Danh sách bảng đã sẵn sàng:');
-    console.log('   - users, addresses, health_profiles');
-    console.log('   - categories, products, nutrition_facts, product_variants, inventories, product_reviews');
+    console.log('   - users, customers, admins, addresses, health_profiles');
+    console.log('   - categories, products, nutrition_facts, product_variants, inventory, product_reviews');
     console.log('   - carts, cart_items (M3 - Cart Management)');
     console.log('   - orders, order_items, payments (M3 - Orders & Payment)');
-    console.log('   - chat_sessions, chat_messages, chatbot_knowledge, meal_plan_suggestions (M4)');
-    console.log('   - nutrition_images, nutrition_diaries, diary_entries, water_logs (M5)');
+    console.log('   - chatbot_knowledge (M4)');
   } catch (err: unknown) {
     await client.query('ROLLBACK');
     const msg = err instanceof Error ? err.message : 'Unknown migration error';
