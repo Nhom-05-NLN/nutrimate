@@ -12,6 +12,7 @@ interface OrderRow {
   customer_phone: string;
   customer_email: string;
   shipping_address: string;
+  shipping_method?: string | null;
   payment_method: string;
   payment_status: string;
   status: string;
@@ -19,6 +20,8 @@ interface OrderRow {
   total_calories: string;
   total_protein: string;
   shipping_fee: string;
+  discount_amount?: string | null;
+  voucher_code?: string | null;
   notes: string | null;
 }
 
@@ -38,8 +41,9 @@ export async function getAllOrders(): Promise<Order[]> {
     try {
       const ordersSql = `
         SELECT id, order_code, created_at, customer_name, customer_phone,
-               customer_email, shipping_address, payment_method, payment_status,
-               status, total_amount, total_calories, total_protein, shipping_fee, notes
+               customer_email, shipping_address, shipping_method, payment_method, payment_status,
+               status, total_amount, total_calories, total_protein, shipping_fee,
+               discount_amount, voucher_code, notes
         FROM orders
         ORDER BY created_at DESC
       `;
@@ -89,6 +93,9 @@ export async function getAllOrders(): Promise<Order[]> {
         totalCalories: parseFloat(row.total_calories),
         totalProtein: parseFloat(row.total_protein),
         shippingFee: parseFloat(row.shipping_fee),
+        discountAmount: row.discount_amount ? parseFloat(row.discount_amount) : undefined,
+        voucherCode: row.voucher_code || undefined,
+        shippingMethod: (row.shipping_method as Order['shippingMethod']) || 'standard',
         paymentMethod: row.payment_method as Order['paymentMethod'],
         paymentStatus: row.payment_status as Order['paymentStatus'],
         status: row.status as OrderStatus,
@@ -108,8 +115,9 @@ export async function getOrderById(id: string): Promise<Order | null> {
     try {
       const orderSql = `
         SELECT id, order_code, created_at, customer_name, customer_phone,
-               customer_email, shipping_address, payment_method, payment_status,
-               status, total_amount, total_calories, total_protein, shipping_fee, notes
+               customer_email, shipping_address, shipping_method, payment_method, payment_status,
+               status, total_amount, total_calories, total_protein, shipping_fee,
+               discount_amount, voucher_code, notes
         FROM orders
         WHERE id::text = $1 OR order_code = $1
         LIMIT 1
@@ -150,6 +158,9 @@ export async function getOrderById(id: string): Promise<Order | null> {
         totalCalories: parseFloat(orderRow.total_calories),
         totalProtein: parseFloat(orderRow.total_protein),
         shippingFee: parseFloat(orderRow.shipping_fee),
+        discountAmount: orderRow.discount_amount ? parseFloat(orderRow.discount_amount) : undefined,
+        voucherCode: orderRow.voucher_code || undefined,
+        shippingMethod: (orderRow.shipping_method as Order['shippingMethod']) || 'standard',
         paymentMethod: orderRow.payment_method as Order['paymentMethod'],
         paymentStatus: orderRow.payment_status as Order['paymentStatus'],
         status: orderRow.status as OrderStatus,
@@ -174,9 +185,10 @@ export async function createOrder(order: Order): Promise<Order> {
       const orderSql = `
         INSERT INTO orders (
           order_code, customer_name, customer_phone, customer_email,
-          shipping_address, payment_method, payment_status, status,
-          total_amount, total_calories, total_protein, shipping_fee, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          shipping_address, shipping_method, payment_method, payment_status, status,
+          total_amount, total_calories, total_protein, shipping_fee,
+          discount_amount, voucher_code, notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING id
       `;
       const orderValues = [
@@ -185,6 +197,7 @@ export async function createOrder(order: Order): Promise<Order> {
         order.customer.phone,
         order.customer.email,
         order.customer.address,
+        order.shippingMethod || 'standard',
         order.paymentMethod,
         order.paymentStatus,
         order.status,
@@ -192,6 +205,8 @@ export async function createOrder(order: Order): Promise<Order> {
         order.totalCalories,
         order.totalProtein,
         order.shippingFee,
+        order.discountAmount || 0,
+        order.voucherCode || null,
         order.notes || null,
       ];
       const res = await client.query<{ id: number }>(orderSql, orderValues);
@@ -234,16 +249,18 @@ export async function createOrder(order: Order): Promise<Order> {
   return order;
 }
 
-export async function updateOrderStatus(id: string, status: OrderStatus): Promise<Order | null> {
+export async function updateOrderStatus(id: string, status: OrderStatus, notes?: string): Promise<Order | null> {
   if (isDbConnected()) {
     try {
       const sql = `
         UPDATE orders
-        SET status = $1, updated_at = CURRENT_TIMESTAMP
+        SET status = $1,
+            notes = COALESCE($3, notes),
+            updated_at = CURRENT_TIMESTAMP
         WHERE id::text = $2 OR order_code = $2
         RETURNING id
       `;
-      const res = await queryPostgres(sql, [status, id]);
+      const res = await queryPostgres(sql, [status, id, notes || null]);
       if (res.rowCount && res.rowCount > 0) {
         return getOrderById(id);
       }
@@ -256,6 +273,9 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
   const order = memoryOrders.find((o) => o.id === id || o.orderCode === id);
   if (order) {
     order.status = status;
+    if (notes) {
+      order.notes = notes;
+    }
     return order;
   }
   return null;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Order } from '../../types';
 import { useChatStore } from '../../stores/chatStore';
 import {
@@ -10,6 +11,8 @@ import {
   CheckCircle2,
   Clock,
   Package,
+  QrCode,
+  XCircle,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -21,9 +24,30 @@ const emit = defineEmits<{
   (e: 'viewDetail', order: Order): void;
   (e: 'trackOrder', order: Order): void;
   (e: 'reorder', order: Order): void;
+  (e: 'payNow', order: Order): void;
+  (e: 'cancelOrder', order: Order): void;
 }>();
 
 const chatStore = useChatStore();
+
+const isPendingQrPayment = computed(() => {
+  return (
+    props.order.status === 'pending' &&
+    props.order.paymentStatus === 'pending' &&
+    (props.order.paymentMethod === 'vietqr' || props.order.paymentMethod === 'momo')
+  );
+});
+
+const remainingMinutes = computed(() => {
+  const createdTime = new Date(props.order.createdAt).getTime();
+  if (isNaN(createdTime)) return 0;
+  const diffMs = 30 * 60 * 1000 - (Date.now() - createdTime);
+  return Math.max(0, Math.ceil(diffMs / (60 * 1000)));
+});
+
+const isExpired30Min = computed(() => {
+  return isPendingQrPayment.value && remainingMinutes.value <= 0;
+});
 
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -44,8 +68,16 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function getStatusBadge(status: Order['status']) {
-  switch (status) {
+function getStatusBadge(order: Order) {
+  if (order.status === 'cancelled') {
+    const isTimeout = order.notes?.includes('quá hạn') || order.notes?.includes('30 phút');
+    return {
+      text: isTimeout ? '✕ Đã hủy (Quá hạn thanh toán)' : '✕ Đã hủy',
+      class: 'bg-rose-50 text-rose-800 border-rose-200',
+    };
+  }
+
+  switch (order.status) {
     case 'delivered':
       return { text: '✓ Đã giao thành công', class: 'bg-[#EBF7E5] text-[#4D6A34] border-[#CCD7BC]' };
     case 'shipping':
@@ -54,9 +86,10 @@ function getStatusBadge(status: Order['status']) {
       return { text: '📦 Đang đóng thùng mát', class: 'bg-sky-50 text-sky-800 border-sky-200' };
     case 'confirmed':
       return { text: '✓ Đã xác nhận đơn', class: 'bg-indigo-50 text-indigo-800 border-indigo-200' };
-    case 'cancelled':
-      return { text: '✕ Đã hủy', class: 'bg-rose-50 text-rose-800 border-rose-200' };
     default:
+      if (order.paymentStatus === 'pending' && (order.paymentMethod === 'vietqr' || order.paymentMethod === 'momo')) {
+        return { text: '⏳ Chờ thanh toán QR', class: 'bg-amber-50 text-amber-800 border-amber-200' };
+      }
       return { text: '⏳ Chờ xác nhận', class: 'bg-amber-50 text-amber-800 border-amber-200' };
   }
 }
@@ -82,9 +115,9 @@ function getStatusBadge(status: Order['status']) {
             <h3 class="font-heading text-base font-black text-[#242424]">#{{ order.orderCode }}</h3>
             <span
               class="px-2.5 py-0.5 rounded-full text-xs font-bold border"
-              :class="getStatusBadge(order.status).class"
+              :class="getStatusBadge(order).class"
             >
-              {{ getStatusBadge(order.status).text }}
+              {{ getStatusBadge(order).text }}
             </span>
           </div>
           <p class="text-xs text-[#7A866E] flex items-center gap-1 mt-0.5">
@@ -139,6 +172,40 @@ function getStatusBadge(status: Order['status']) {
       </p>
     </div>
 
+    <!-- Pending QR Payment Alert Bar (Khi đơn chờ thanh toán QR trong vòng 30 phút) -->
+    <div
+      v-if="isPendingQrPayment && !isExpired30Min"
+      class="p-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+      :class="order.paymentMethod === 'momo' ? 'bg-pink-50/80 border border-pink-200 text-pink-950' : 'bg-[#EBF7E5]/70 border border-[#CCD7BC] text-[#242424]'"
+    >
+      <div class="flex items-center gap-2">
+        <Clock class="w-4 h-4 shrink-0" :class="order.paymentMethod === 'momo' ? 'text-[#D82D8B]' : 'text-[#4D6A34]'" />
+        <span>
+          Đơn hàng đang chờ thanh toán qua <strong>{{ order.paymentMethod === 'momo' ? 'Ví MoMo' : 'VietQR' }}</strong>.
+          Tự động hủy sau: <strong class="font-mono font-black" :class="order.paymentMethod === 'momo' ? 'text-[#D82D8B]' : 'text-[#4D6A34]'">{{ remainingMinutes }} phút</strong>
+        </span>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          @click="emit('payNow', order)"
+          class="px-3.5 py-1.5 rounded-xl text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer min-h-[32px]"
+          :class="order.paymentMethod === 'momo' ? 'bg-[#D82D8B] hover:bg-[#A50064]' : 'bg-[#4D6A34] hover:bg-[#3B4E24]'"
+        >
+          <QrCode class="w-3.5 h-3.5" />
+          <span>Thanh toán ngay</span>
+        </button>
+        <button
+          type="button"
+          @click="emit('cancelOrder', order)"
+          class="px-2.5 py-1.5 rounded-xl bg-white hover:bg-rose-50 text-rose-600 font-bold text-xs border border-rose-200 transition-colors cursor-pointer min-h-[32px]"
+        >
+          Hủy đơn
+        </button>
+      </div>
+    </div>
+
     <!-- Actions Row -->
     <div class="pt-4 border-t border-[#F0F3EC] flex flex-wrap items-center justify-between gap-3">
       <!-- NutriBot Button (CN_23) -->
@@ -153,6 +220,15 @@ function getStatusBadge(status: Order['status']) {
 
       <!-- Action Buttons -->
       <div class="flex items-center gap-2">
+        <button
+          v-if="order.status === 'pending' && !isPendingQrPayment"
+          type="button"
+          @click="emit('cancelOrder', order)"
+          class="px-3 py-2 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-xs font-bold text-rose-600 transition-colors cursor-pointer min-h-[36px]"
+        >
+          Hủy đơn
+        </button>
+
         <button
           type="button"
           @click="emit('viewDetail', order)"

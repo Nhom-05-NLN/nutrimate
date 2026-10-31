@@ -6,6 +6,7 @@ import {
   Package,
   ShoppingCart,
   Users,
+  Ticket,
   Bot,
   BarChart3,
   Settings,
@@ -21,11 +22,15 @@ import {
 const route = useRoute();
 const isSidebarOpen = ref(false);
 
-const navItems = [
+const coreNavItems = [
   { path: '/admin', label: 'Tổng quan', icon: LayoutDashboard },
   { path: '/admin/products', label: 'Sản phẩm & Kho', icon: Package },
   { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart, badge: '12 mới' },
   { path: '/admin/customers', label: 'Khách hàng', icon: Users, badge: '3.8k' },
+  { path: '/admin/vouchers', label: 'Mã giảm giá', icon: Ticket, badge: 'Ưu đãi' },
+];
+
+const aiNavItems = [
   { path: '/admin/knowledge-base', label: 'AI Knowledge Base', icon: Bot, badge: 'v2.4' },
 ];
 </script>
@@ -76,7 +81,7 @@ const navItems = [
               VẬN HÀNH LÕI
             </span>
             <RouterLink
-              v-for="item in navItems.slice(0, 4)"
+              v-for="item in coreNavItems"
               :key="item.path"
               :to="item.path"
               class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition-colors"
@@ -107,24 +112,27 @@ const navItems = [
               DINH DƯỠNG & TRÍ TUỆ AI
             </span>
             <RouterLink
-              :to="navItems[4].path"
+              v-for="item in aiNavItems"
+              :key="item.path"
+              :to="item.path"
               class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition-colors"
               :class="[
-                route.path === navItems[4].path
+                route.path === item.path
                   ? 'bg-[#536124] text-white shadow-xs font-bold hover:bg-[#434F1D] hover:text-white'
                   : 'text-[#576449] hover:bg-[#EBF7E5] hover:text-[#2D3B1E] font-semibold'
               ]"
               @click="isSidebarOpen = false"
             >
               <div class="flex items-center gap-3">
-                <component :is="navItems[4].icon" class="w-4 h-4" />
-                <span>{{ navItems[4].label }}</span>
+                <component :is="item.icon" class="w-4 h-4" />
+                <span>{{ item.label }}</span>
               </div>
               <span
+                v-if="item.badge"
                 class="px-2 py-0.5 rounded-full text-[9px] font-bold"
-                :class="route.path === navItems[4].path ? 'bg-white/20 text-white' : 'bg-[#EBF7E5] text-[#536124]'"
+                :class="route.path === item.path ? 'bg-white/20 text-white' : 'bg-[#EBF7E5] text-[#536124]'"
               >
-                {{ navItems[4].badge }}
+                {{ item.badge }}
               </span>
             </RouterLink>
 
