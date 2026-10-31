@@ -13,7 +13,7 @@ import {
   Smartphone,
   ExternalLink,
   Sparkles,
-  QrCode,
+  Building2,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -34,8 +34,8 @@ const isPaidSuccess = ref(false);
 const remainingSeconds = ref(15 * 60);
 let timerInterval: ReturnType<typeof setInterval> | null = null;
 
-// Tab chuyển đổi loại mã QR (Mặc định dùng Napas MoMo tự động điền tiền và SĐT 100%)
-const selectedQrMode = ref<'napas_momo' | 'p2p_momo'>('napas_momo');
+// Tab chuyển đổi loại mã QR (Mặc định dùng MoMo P2P vào thẳng mục Ví điện tử)
+const selectedQrMode = ref<'p2p_momo' | 'link_momo' | 'napas_momo'>('p2p_momo');
 
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -48,23 +48,14 @@ const formattedCountdown = computed(() => {
 });
 
 const momoMerchant = {
-  accountName: 'TRAN TUONG VY',
+  accountName: 'Trần Tường Vy',
   accountPhone: '0333 636 045',
   rawPhone: '0333636045',
   bankBin: '971025', // BIN Napas chính thức của Ví MoMo (CTCP Dịch Vụ Di Động Trực Tuyến)
   momoPageUrl: 'https://nhantien.momo.vn/0333636045',
 };
 
-// 1. Mã QR Napas MoMo (Mã liên thông VietQR - BIN 971025 của MoMo - App MoMo quét tự động điền SĐT, Tên & Tiền 100%)
-const momoNapasQrUrl = computed(() => {
-  if (!props.order) return '';
-  const amount = Math.round(props.order.totalAmount);
-  const memo = encodeURIComponent(props.order.orderCode);
-  const accName = encodeURIComponent(momoMerchant.accountName);
-  return `https://img.vietqr.io/image/${momoMerchant.bankBin}-${momoMerchant.rawPhone}-compact2.png?amount=${amount}&addInfo=${memo}&accountName=${accName}`;
-});
-
-// 2. Mã QR MoMo Nội Bộ (P2P cá nhân chuẩn tên chủ ví TRAN TUONG VY kèm số tiền và lời nhắn)
+// 1. Mã QR MoMo Nội Bộ (P2P vào thẳng mục Ví Điện Tử MoMo, tự động điền SĐT & Tiền 100%)
 const momoP2pQrUrl = computed(() => {
   if (!props.order) return '';
   const amount = Math.round(props.order.totalAmount);
@@ -73,16 +64,47 @@ const momoP2pQrUrl = computed(() => {
   return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(data)}`;
 });
 
-const currentQrUrl = computed(() => {
-  return selectedQrMode.value === 'napas_momo' ? momoNapasQrUrl.value : momoP2pQrUrl.value;
+// 2. Mã QR Link nhận tiền MoMo chính thức (Quét bằng camera hoặc MoMo mở thẳng trang Ví của Trần Tường Vy)
+const momoLinkQrUrl = computed(() => {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(momoMerchant.momoPageUrl)}`;
 });
 
-// Deeplink mở ứng dụng MoMo trực tiếp trên điện thoại
+// 3. Mã QR Napas MoMo (Mã liên thông VietQR - Dành cho khách dùng App Ngân Hàng để quét)
+const momoNapasQrUrl = computed(() => {
+  if (!props.order) return '';
+  const amount = Math.round(props.order.totalAmount);
+  const memo = encodeURIComponent(props.order.orderCode);
+  const accName = encodeURIComponent(momoMerchant.accountName);
+  return `https://img.vietqr.io/image/${momoMerchant.bankBin}-${momoMerchant.rawPhone}-compact2.png?amount=${amount}&addInfo=${memo}&accountName=${accName}`;
+});
+
+const currentQrUrl = computed(() => {
+  if (selectedQrMode.value === 'p2p_momo') return momoP2pQrUrl.value;
+  if (selectedQrMode.value === 'link_momo') return momoLinkQrUrl.value;
+  return momoNapasQrUrl.value;
+});
+
+// Deeplink mở ứng dụng MoMo trực tiếp vào mục Ví Điện Tử P2P trên điện thoại
 const momoDeeplink = computed(() => {
   if (!props.order) return '#';
   const amount = Math.round(props.order.totalAmount);
-  const memo = encodeURIComponent(props.order.orderCode);
-  return `momo://?action=transfer&receiver=${momoMerchant.rawPhone}&amount=${amount}&comment=${memo}`;
+  const memo = props.order.orderCode;
+
+  const dataExtract = JSON.stringify({
+    userId: momoMerchant.rawPhone,
+    name: momoMerchant.accountName,
+    amount: amount,
+    message: memo,
+    receiverType: '1', // 1: Ví Điện Tử MoMo
+    transferSource: 'link',
+  });
+
+  try {
+    const b64 = btoa(unescape(encodeURIComponent(dataExtract)));
+    return `momo://app?action=p2p&extra=${encodeURIComponent(JSON.stringify({ dataExtract: b64 }))}`;
+  } catch {
+    return `momo://?action=transfer&receiver=${momoMerchant.rawPhone}&amount=${amount}&comment=${encodeURIComponent(memo)}`;
+  }
 });
 
 function copyText(text: string, label: string) {
@@ -95,6 +117,9 @@ function copyText(text: string, label: string) {
 function openMomoApp() {
   if (props.order) {
     window.location.href = momoDeeplink.value;
+    setTimeout(() => {
+      window.open(momoMerchant.momoPageUrl, '_blank');
+    }, 1200);
   }
 }
 
@@ -227,31 +252,40 @@ onUnmounted(() => {
           </div>
 
           <h3 class="font-heading text-xl sm:text-2xl font-black text-[#242424]">
-            Quét Mã QR Bằng Ứng Dụng MoMo
+            Chuyển Tiền Ví Điện Tử MoMo
           </h3>
           <p class="text-xs text-[#7A866E]">
-            Mở App MoMo, bấm chọn <strong>"Quét Mã"</strong> để quét mã QR bên dưới. Hệ thống sẽ tự động điền sẵn SĐT và Số tiền cho bạn.
+            Mở App MoMo, bấm chọn <strong>"Quét Mã"</strong> để chuyển tiền trực tiếp trong mục <strong>Ví MoMo</strong> (Ví-đến-Ví). Hệ thống sẽ tự động điền sẵn SĐT và Số tiền cho bạn.
           </p>
 
           <!-- Toggle Chế Độ Quét QR -->
-          <div class="flex items-center gap-2 pt-1">
-            <button
-              type="button"
-              @click="selectedQrMode = 'napas_momo'"
-              class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
-              :class="selectedQrMode === 'napas_momo' ? 'bg-[#D82D8B] text-white shadow-2xs' : 'bg-pink-50 text-[#A50064] hover:bg-pink-100'"
-            >
-              <Sparkles class="w-3.5 h-3.5" />
-              <span>QR MoMo Đa Năng (Tự điền 100%)</span>
-            </button>
+          <div class="flex items-center gap-2 pt-1 flex-wrap">
             <button
               type="button"
               @click="selectedQrMode = 'p2p_momo'"
               class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
               :class="selectedQrMode === 'p2p_momo' ? 'bg-[#D82D8B] text-white shadow-2xs' : 'bg-pink-50 text-[#A50064] hover:bg-pink-100'"
             >
-              <QrCode class="w-3.5 h-3.5" />
-              <span>QR MoMo Nội Bộ</span>
+              <Sparkles class="w-3.5 h-3.5" />
+              <span>⚡ Ví MoMo P2P (Tự điền tiền)</span>
+            </button>
+            <button
+              type="button"
+              @click="selectedQrMode = 'link_momo'"
+              class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+              :class="selectedQrMode === 'link_momo' ? 'bg-[#D82D8B] text-white shadow-2xs' : 'bg-pink-50 text-[#A50064] hover:bg-pink-100'"
+            >
+              <ExternalLink class="w-3.5 h-3.5" />
+              <span>🔗 Trang Nhận Tiền MoMo</span>
+            </button>
+            <button
+              type="button"
+              @click="selectedQrMode = 'napas_momo'"
+              class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+              :class="selectedQrMode === 'napas_momo' ? 'bg-[#D82D8B] text-white shadow-2xs' : 'bg-pink-50 text-[#A50064] hover:bg-pink-100'"
+            >
+              <Building2 class="w-3.5 h-3.5" />
+              <span>🏦 Quét Bằng App Ngân Hàng</span>
             </button>
           </div>
         </div>
@@ -270,7 +304,9 @@ onUnmounted(() => {
             </div>
             <span class="text-[11px] font-bold text-[#A50064] mt-2 flex items-center gap-1 text-center">
               <ShieldCheck class="w-3.5 h-3.5 text-[#D82D8B] shrink-0" />
-              <span>{{ selectedQrMode === 'napas_momo' ? 'Mã chuẩn Napas MoMo tự điền tiền' : 'Mã MoMo Transfer P2P' }}</span>
+              <span v-if="selectedQrMode === 'p2p_momo'">Mã chuyển tiền Ví-đến-Ví (Vào thẳng mục Ví MoMo)</span>
+              <span v-else-if="selectedQrMode === 'link_momo'">Link nhận tiền chính thức của Ví MoMo</span>
+              <span v-else>Mã VietQR Napas (Dùng khi quét bằng App Ngân Hàng)</span>
             </span>
           </div>
 
