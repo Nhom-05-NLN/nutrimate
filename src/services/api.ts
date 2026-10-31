@@ -5,7 +5,11 @@ const API_BASE = '/api';
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
   try {
+    const timeoutSignal = AbortSignal.timeout(12000);
+    const signal = options?.signal || timeoutSignal;
+
     const res = await fetch(url, {
+      signal,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -27,6 +31,9 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
 
     return (await res.json()) as T;
   } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      throw new Error('Yêu cầu máy chủ quá thời gian chờ (12s). Vui lòng kiểm tra lại kết nối!');
+    }
     const message = err instanceof Error ? err.message : 'Lỗi không xác định khi kết nối máy chủ';
     throw new Error(message);
   }

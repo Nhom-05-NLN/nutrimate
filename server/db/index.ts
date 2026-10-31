@@ -61,8 +61,20 @@ export function isDbConnected(): boolean {
 
 export async function queryPostgres<T extends QueryResultRow = QueryResultRow>(
   text: string,
-  params?: unknown[]
+  params?: unknown[],
+  timeoutMs = 5000
 ): Promise<QueryResult<T>> {
   const pool = getPool();
-  return pool.query<T>(text, params);
+  let timer: NodeJS.Timeout | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`PostgreSQL query timeout after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([pool.query<T>(text, params), timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }

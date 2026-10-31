@@ -1,5 +1,5 @@
 import { getPool } from './index.js';
-import { INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_ORDERS, INITIAL_CHAT_KNOWLEDGE } from './seedData.js';
+import { INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_ORDERS, INITIAL_CHAT_KNOWLEDGE, INITIAL_VOUCHERS } from './seedData.js';
 
 function slugify(text: string): string {
   return text
@@ -440,6 +440,37 @@ export async function seedDatabase(): Promise<void> {
         ON CONFLICT DO NOTHING;
         `,
         [item.intentTag, item.keywordPatterns, item.answerTemplate, item.recommendedCategory || null]
+      );
+    }
+
+    // 8. Seed Vouchers (M3 - Promotion & Vouchers)
+    console.log('[Seed] 8. Khởi tạo danh sách Voucher & Mã giảm giá (M3)...');
+    for (const v of INITIAL_VOUCHERS) {
+      await client.query(
+        `
+        INSERT INTO vouchers (
+          id, code, title, description, discount_type,
+          discount_value, min_order_amount, max_discount_amount,
+          target_type, usage_limit, used_count, end_date, is_active
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        ON CONFLICT (code) DO NOTHING;
+        `,
+        [
+          v.id,
+          v.code,
+          v.title,
+          v.description || null,
+          v.discountType,
+          v.discountValue,
+          v.minOrderAmount,
+          v.maxDiscountAmount || null,
+          v.targetType,
+          v.usageLimit,
+          v.usedCount,
+          v.endDate,
+          v.isActive,
+        ]
       );
     }
 

@@ -110,6 +110,10 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'admin' },
   },
   {
+    path: '/vouchers',
+    redirect: '/admin/vouchers',
+  },
+  {
     path: '/admin/knowledge-base',
     name: 'admin-knowledge-base',
     component: AdminKnowledgeBaseView,

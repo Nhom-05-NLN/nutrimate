@@ -78,9 +78,13 @@ const totalProtein = computed(() => {
   return Math.round(checkoutItems.value.reduce((sum, item) => sum + item.product.nutrition.protein * item.quantity, 0) * 10) / 10;
 });
 
+const isFreeShipping = computed(() => {
+  return subtotal.value >= 300000 || (appliedVoucher.value?.code?.toUpperCase().includes('FREESHIP') ?? false);
+});
+
 const baseShippingFee = computed(() => {
   if (shippingMethod.value === 'express_2h') return 35000;
-  return subtotal.value >= 300000 ? 0 : 25000;
+  return isFreeShipping.value ? 0 : 25000;
 });
 
 const voucherDiscount = computed(() => {
@@ -295,7 +299,7 @@ async function handleFinishOrder() {
               <div>
                 <div class="flex items-center gap-2.5">
                   <span class="text-sm font-bold text-[#242424]">Giao tiêu chuẩn (2-3 ngày)</span>
-                  <span v-if="subtotal >= 300000 || appliedVoucher.includes('FREESHIP')" class="px-2.5 py-0.5 rounded-full bg-[#EBF7E5] text-xs font-bold text-[#4D6A34]">FREESHIP</span>
+                  <span v-if="isFreeShipping" class="px-2.5 py-0.5 rounded-full bg-[#EBF7E5] text-xs font-bold text-[#4D6A34]">FREESHIP</span>
                 </div>
                 <p class="text-xs text-[#7A866E] mt-1 leading-relaxed">
                   Đóng thùng cách nhiệt sinh thái, bảo toàn trọn vẹn độ giòn của hạt và thanh dinh dưỡng.
@@ -303,9 +307,9 @@ async function handleFinishOrder() {
               </div>
             </div>
             <div class="text-right shrink-0">
-              <span v-if="subtotal >= 300000 || appliedVoucher.includes('FREESHIP')" class="text-sm font-bold text-[#4D6A34] block">Miễn phí</span>
+              <span v-if="isFreeShipping" class="text-sm font-bold text-[#4D6A34] block">Miễn phí</span>
               <span v-else class="text-sm font-bold text-[#242424] block">25.000đ</span>
-              <span v-if="subtotal >= 300000" class="text-xs text-[#8C9484] line-through">25.000đ</span>
+              <span v-if="isFreeShipping" class="text-xs text-[#8C9484] line-through">25.000đ</span>
             </div>
           </label>
 
@@ -606,7 +610,9 @@ async function handleFinishOrder() {
             <div class="flex justify-between">
               <span>Phí vận chuyển:</span>
               <div class="text-right">
-                <span v-if="shippingFee === 0" class="font-bold text-[#4D6A34]">MIỄN PHÍ (Đơn ≥ 300k)</span>
+                <span v-if="shippingFee === 0" class="font-bold text-[#4D6A34]">
+                  MIỄN PHÍ {{ subtotal >= 300000 ? '(Đơn ≥ 300k)' : '(Freeship)' }}
+                </span>
                 <span v-else class="font-bold text-[#242424]">{{ formatVnd(shippingFee) }}</span>
               </div>
             </div>
