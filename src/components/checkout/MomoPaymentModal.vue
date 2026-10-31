@@ -55,12 +55,12 @@ const momoMerchant = {
   momoPageUrl: 'https://nhantien.momo.vn/0333636045',
 };
 
-// 1. Mã QR MoMo Nội Bộ (P2P vào thẳng mục Ví Điện Tử MoMo, tự động điền SĐT & Tiền 100%)
+// 1. Mã QR MoMo Nội Bộ (P2P chuẩn không kèm ký tự có dấu hay memo lệch index để MoMo tự động điền SĐT & Tiền 100%)
 const momoP2pQrUrl = computed(() => {
   if (!props.order) return '';
   const amount = Math.round(props.order.totalAmount);
-  const memo = props.order.orderCode;
-  const data = `2|99|${momoMerchant.rawPhone}|${momoMerchant.accountName}||0|0|${amount}|${memo}|transfer_myqr`;
+  // Cấu trúc chuẩn MoMo P2P: để trống họ tên và email (|||) để MoMo tự động nạp SĐT chính chủ và Số tiền mà không bị lỗi parser
+  const data = `2|99|${momoMerchant.rawPhone}|||0|0|${amount}||transfer_myqr`;
   return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(data)}`;
 });
 
