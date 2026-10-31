@@ -1,41 +1,136 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, ref, watch } from 'vue';
+import { ActivityLevel, CaloriePlanResponse, CalorieProfileInput, NutritionGoal } from '../types';
+import { fetchCaloriePlan, saveCalorieProfile } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import {
   ChevronRight,
   Camera,
   Edit3,
-  Calendar,
-  CheckCircle2,
-  Sparkles,
   ArrowRight,
   Save,
   Bot,
   Activity,
 } from 'lucide-vue-next';
 
-const router = useRouter();
 const authStore = useAuthStore();
 const toastStore = useToastStore();
 
 const isEditing = ref(false);
 
 const profile = ref({
-  name: authStore.currentUser?.name || 'Nguyễn Minh Anh',
+  name: authStore.currentUser?.name || '',
   birthDate: authStore.currentUser?.birthDate || '1998-06-18',
   phone: authStore.currentUser?.phone || '0912 345 678',
   email: authStore.currentUser?.email || 'minhanh.fit@gmail.com',
   city: authStore.currentUser?.city || 'TP. Hồ Chí Minh',
-  heightCm: authStore.currentUser?.heightCm || 165,
-  weightKg: authStore.currentUser?.weightKg || 58.5,
-  age: authStore.currentUser?.age || 26,
-  gender: authStore.currentUser?.gender || 'female',
+  heightCm: null as number | null,
+  weightKg: null as number | null,
+  age: null as number | null,
+  gender: null as CalorieProfileInput['gender'] | null,
 });
 
-const selectedGoal = ref('Giảm mỡ tăng cơ');
+watch(
+  () => authStore.currentUser?.name,
+  (name) => {
+    if (name) profile.value.name = name;
+  },
+  { immediate: true },
+);
+
+const caloriePlanData = ref<CaloriePlanResponse | null>(null);
+const caloriePlan = computed(() => caloriePlanData.value?.plan ?? null);
+const planLoading = ref(true);
+const planSaving = ref(false);
+const planError = ref('');
+const selectedGoal = ref<NutritionGoal | null>(null);
+const activityLevel = ref<ActivityLevel | null>(null);
+const goalLabels: Record<NutritionGoal, string> = {
+  lose_weight: 'Giảm cân',
+  maintain_weight: 'Duy trì cân nặng',
+  gain_weight: 'Tăng cân lành mạnh',
+};
+const goalOptions: { value: NutritionGoal; label: string }[] = [
+  { value: 'lose_weight', label: 'Giảm cân' },
+  { value: 'maintain_weight', label: 'Duy trì cân nặng' },
+  { value: 'gain_weight', label: 'Tăng cân lành mạnh' },
+];
+const activityOptions: { value: ActivityLevel; label: string }[] = [
+  { value: 'sedentary', label: 'Ít vận động' },
+  { value: 'light', label: 'Vận động nhẹ' },
+  { value: 'moderate', label: 'Vận động vừa' },
+  { value: 'high', label: 'Vận động nhiều' },
+];
+const bmiCategory = computed(() => {
+  const bmi = caloriePlan.value?.bmi;
+  if (bmi === undefined) return 'Chưa đủ dữ liệu';
+  if (bmi < 18.5) return 'Thiếu cân';
+  if (bmi < 23) return 'Bình thường';
+  if (bmi < 25) return 'Thừa cân';
+  return 'Béo phì';
+});
 const dietPreferences = ref(['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt']);
+
+function formatNumber(value: number | null | undefined): string {
+  return value === null || value === undefined ? '—' : value.toLocaleString('vi-VN');
+}
+
+function applyCaloriePlan(data: CaloriePlanResponse) {
+  caloriePlanData.value = data;
+  profile.value.heightCm = data.profile.heightCm;
+  profile.value.weightKg = data.profile.weightKg;
+  profile.value.age = data.profile.age;
+  profile.value.gender = data.profile.gender;
+  selectedGoal.value = data.profile.nutritionGoal;
+  activityLevel.value = data.profile.activityLevel;
+}
+
+async function loadCaloriePlan() {
+  planLoading.value = true;
+  planError.value = '';
+  try {
+    applyCaloriePlan(await fetchCaloriePlan());
+  } catch (error: unknown) {
+    planError.value = error instanceof Error ? error.message : 'Không thể tải hồ sơ Calories.';
+  } finally {
+    planLoading.value = false;
+  }
+}
+
+async function saveCaloriePlan() {
+  if (
+    profile.value.heightCm === null || profile.value.weightKg === null ||
+    profile.value.age === null || profile.value.gender === null ||
+    activityLevel.value === null || selectedGoal.value === null
+  ) {
+    planError.value = 'Vui lòng nhập đầy đủ chỉ số cơ thể, mức độ hoạt động và mục tiêu.';
+    return;
+  }
+
+  const payload: CalorieProfileInput = {
+    heightCm: profile.value.heightCm,
+    weightKg: profile.value.weightKg,
+    age: profile.value.age,
+    gender: profile.value.gender,
+    activityLevel: activityLevel.value,
+    nutritionGoal: selectedGoal.value,
+  };
+
+  planSaving.value = true;
+  planError.value = '';
+  try {
+    applyCaloriePlan(await saveCalorieProfile(payload));
+    isEditing.value = false;
+    toastStore.show('Đã lưu hồ sơ và cập nhật lộ trình Calories.', 'success');
+  } catch (error: unknown) {
+    planError.value = error instanceof Error ? error.message : 'Không thể lưu lộ trình Calories.';
+  } finally {
+    planSaving.value = false;
+  }
+}
+
+onMounted(loadCaloriePlan);
 
 function togglePreference(pref: string) {
   if (dietPreferences.value.includes(pref)) {
@@ -91,7 +186,7 @@ function handleSave() {
           <!-- Thông tin tổng quan (To, rõ, dễ đọc) -->
           <div class="space-y-2">
             <h1 class="font-heading text-2xl sm:text-3xl lg:text-4xl font-black text-[#242424]">
-              {{ profile.name }}
+              {{ profile.name || 'Tài khoản' }}
             </h1>
 
             <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/95 border border-[#CCD7BC] text-xs font-bold text-[#E8A020]">
@@ -102,7 +197,7 @@ function handleSave() {
             <div class="flex flex-wrap items-center gap-4 text-sm text-[#576449] pt-1">
               <span>Chế độ ăn: <strong class="text-[#242424]">Eat Clean & Low-Carb</strong></span>
               <span>•</span>
-              <span>Mục tiêu: <strong class="text-[#242424]">Giảm 3kg mỡ và săn chắc cơ bắp</strong></span>
+              <span>Mục tiêu: <strong class="text-[#242424]">{{ selectedGoal ? goalLabels[selectedGoal] : 'Chưa thiết lập' }}</strong></span>
             </div>
           </div>
         </div>
@@ -137,20 +232,43 @@ function handleSave() {
           <div class="grid grid-cols-4 gap-2.5 text-center">
             <div class="p-3.5 rounded-2xl bg-[#FAF9F5] border border-[#ECEFE7]">
               <span class="text-xs text-[#7A866E] block font-medium">Chiều cao</span>
-              <span class="font-heading text-base sm:text-lg font-black text-[#242424] mt-0.5 block">165 <span class="text-xs font-normal">cm</span></span>
+              <span class="font-heading text-base sm:text-lg font-black text-[#242424] mt-0.5 block">{{ profile.heightCm ?? '—' }} <span class="text-xs font-normal">cm</span></span>
             </div>
             <div class="p-3.5 rounded-2xl bg-[#FAF9F5] border border-[#ECEFE7]">
               <span class="text-xs text-[#7A866E] block font-medium">Cân nặng</span>
-              <span class="font-heading text-base sm:text-lg font-black text-[#242424] mt-0.5 block">58.5 <span class="text-xs font-normal">kg</span></span>
+              <span class="font-heading text-base sm:text-lg font-black text-[#242424] mt-0.5 block">{{ profile.weightKg ?? '—' }} <span class="text-xs font-normal">kg</span></span>
             </div>
             <div class="p-3.5 rounded-2xl bg-[#FAF9F5] border border-[#ECEFE7]">
               <span class="text-xs text-[#7A866E] block font-medium">Tuổi</span>
-              <span class="font-heading text-base sm:text-lg font-black text-[#242424] mt-0.5 block">26</span>
+              <span class="font-heading text-base sm:text-lg font-black text-[#242424] mt-0.5 block">{{ profile.age ?? '—' }}</span>
             </div>
             <div class="p-3.5 rounded-2xl bg-[#FAF9F5] border border-[#ECEFE7]">
               <span class="text-xs text-[#7A866E] block font-medium">Giới tính</span>
-              <span class="font-heading text-base sm:text-lg font-black text-[#242424] mt-0.5 block">Nữ</span>
+              <span class="font-heading text-base sm:text-lg font-black text-[#242424] mt-0.5 block">{{ profile.gender === 'female' ? 'Nữ' : profile.gender === 'male' ? 'Nam' : profile.gender === 'other' ? 'Khác' : '—' }}</span>
             </div>
+          </div>
+
+          <div v-if="isEditing" class="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-2xl border border-[#CCD7BC] bg-[#FAF9F5] p-4">
+            <label class="text-xs font-bold text-[#576449]">Chiều cao (cm)
+              <input v-model.number="profile.heightCm" type="number" min="80" max="250" step="0.1" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm" />
+            </label>
+            <label class="text-xs font-bold text-[#576449]">Cân nặng (kg)
+              <input v-model.number="profile.weightKg" type="number" min="20" max="400" step="0.1" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm" />
+            </label>
+            <label class="text-xs font-bold text-[#576449]">Tuổi
+              <input v-model.number="profile.age" type="number" min="13" max="120" step="1" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm" />
+            </label>
+            <label class="text-xs font-bold text-[#576449]">Giới tính dùng cho công thức
+              <select v-model="profile.gender" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm">
+                <option :value="null" disabled>Chọn giới tính</option><option value="female">Nữ</option><option value="male">Nam</option><option value="other">Khác / hệ số trung bình</option>
+              </select>
+            </label>
+            <label class="text-xs font-bold text-[#576449] sm:col-span-2">Mức độ hoạt động
+              <select v-model="activityLevel" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm">
+                <option :value="null" disabled>Chọn mức độ hoạt động</option>
+                <option v-for="option in activityOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+              </select>
+            </label>
           </div>
 
           <!-- Card Chỉ Số Khối Cơ Thể BMI -->
@@ -158,13 +276,13 @@ function handleSave() {
             <div class="flex items-baseline justify-between">
               <div>
                 <span class="text-xs text-[#7A866E] uppercase font-bold block">Chỉ số khối cơ thể (BMI)</span>
-                <span class="font-heading text-4xl font-black text-[#242424]">21.5 <span class="text-sm font-normal text-[#7A866E]">kg/m²</span></span>
+                <span class="font-heading text-4xl font-black text-[#242424]">{{ caloriePlan?.bmi ?? '—' }} <span class="text-sm font-normal text-[#7A866E]">kg/m²</span></span>
               </div>
               <div class="text-right">
                 <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#4D6A34] text-white text-xs font-bold shadow-2xs">
-                  ✓ Bình thường
+                  {{ caloriePlan ? `✓ ${bmiCategory}` : bmiCategory }}
                 </span>
-                <span class="text-xs text-[#4D6A34] block font-semibold mt-1">Thể trạng Cân đối lý tưởng</span>
+                <span class="text-xs text-[#4D6A34] block font-semibold mt-1">{{ caloriePlan ? 'Chỉ số tham khảo theo BMI' : 'Bổ sung hồ sơ để xem phân tích' }}</span>
               </div>
             </div>
 
@@ -172,7 +290,7 @@ function handleSave() {
             <div class="space-y-2 pt-2">
               <div class="flex justify-between text-xs text-[#7A866E]">
                 <span>Thước đo phân vùng chuẩn WHO</span>
-                <span class="font-bold text-[#4D6A34]">Điểm rơi: 21.5</span>
+                <span class="font-bold text-[#4D6A34]">Điểm rơi: {{ caloriePlan?.bmi ?? '—' }}</span>
               </div>
 
               <!-- Thanh phân vùng -->
@@ -196,12 +314,12 @@ function handleSave() {
           <div class="grid grid-cols-2 gap-3.5">
             <div class="p-4 rounded-2xl bg-[#FAF9F5] border border-[#E3E8DC]">
               <span class="text-xs text-[#7A866E] font-medium block">⚡ Chỉ số BMR</span>
-              <span class="font-heading text-xl font-black text-[#242424] mt-0.5 block">1.340 <span class="text-xs font-normal">kcal</span></span>
+              <span class="font-heading text-xl font-black text-[#242424] mt-0.5 block">{{ formatNumber(caloriePlan?.bmrKcal) }} <span class="text-xs font-normal">kcal</span></span>
               <span class="text-xs text-[#7A866E] block mt-1">Tiêu hao cơ bản tĩnh</span>
             </div>
             <div class="p-4 rounded-2xl bg-[#FAF9F5] border border-[#E3E8DC]">
               <span class="text-xs text-[#7A866E] font-medium block">🏃 Chỉ số TDEE</span>
-              <span class="font-heading text-xl font-black text-[#4D6A34] mt-0.5 block">1.850 <span class="text-xs font-normal">kcal</span></span>
+              <span class="font-heading text-xl font-black text-[#4D6A34] mt-0.5 block">{{ formatNumber(caloriePlan?.tdeeKcal) }} <span class="text-xs font-normal">kcal</span></span>
               <span class="text-xs text-[#7A866E] block mt-1">Tiêu hao kèm vận động</span>
             </div>
           </div>
@@ -215,9 +333,11 @@ function handleSave() {
               </span>
               <span class="text-xs text-[#7A866E]">Cá nhân hoá</span>
             </div>
-            <p class="text-xs sm:text-sm text-[#4E5C3E] leading-relaxed">
-              "Với BMI 21.5 và thể trạng cân đối, để săn chắc cơ bắp, mức calo thâm hụt nhẹ an toàn là <strong>1.550 kcal/ngày</strong>. Ưu tiên nạp 75–85g Protein từ ức gà sấy và các loại hạt dinh dưỡng NutriMate."
+            <p v-if="caloriePlan" class="text-xs sm:text-sm text-[#4E5C3E] leading-relaxed">
+              Theo hồ sơ hiện tại, mục tiêu của bạn là <strong>{{ goalLabels[caloriePlan.nutritionGoal] }}</strong> với mức năng lượng tham khảo <strong>{{ formatNumber(caloriePlan.targetCalories) }} kcal/ngày</strong>.
+              Thông tin chỉ mang tính tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.
             </p>
+            <p v-else class="text-xs sm:text-sm text-[#4E5C3E] leading-relaxed">{{ planLoading ? 'Đang tải lộ trình Calories…' : 'Chưa có lộ trình. Hãy cập nhật số đo và mục tiêu ở mục bên phải.' }}</p>
           </div>
         </div>
 
@@ -327,20 +447,28 @@ function handleSave() {
             <span class="text-xs font-bold text-[#242424] block">Mục tiêu thể chất trọng tâm</span>
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               <button
-                v-for="goal in ['Giảm mỡ tăng cơ', 'Duy trì cân nặng', 'Tăng cân lành mạnh', 'Ăn sạch Eat Clean']"
-                :key="goal"
+                v-for="goal in goalOptions"
+                :key="goal.value"
                 type="button"
-                @click="selectedGoal = goal"
+                @click="selectedGoal = goal.value"
                 class="px-3.5 py-2.5 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer"
                 :class="
-                  selectedGoal === goal
+                  selectedGoal === goal.value
                     ? 'bg-[#4D6A34] text-white border-[#4D6A34] shadow-2xs'
                     : 'bg-[#FAF9F5] text-[#576449] border-[#DEE5D4] hover:bg-white'
                 "
               >
-                {{ goal }}
+                {{ goal.label }}
               </button>
             </div>
+          </div>
+
+          <div class="space-y-2.5 pt-3 border-t border-[#F0F3EC]">
+            <label class="text-xs font-bold text-[#242424] block" for="profile-activity-level">Mức độ hoạt động để tính Calories</label>
+            <select id="profile-activity-level" v-model="activityLevel" class="w-full sm:max-w-md px-4 py-3 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm text-[#242424]">
+              <option :value="null" disabled>Chọn mức độ hoạt động</option>
+              <option v-for="option in activityOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
           </div>
 
           <!-- Tiêu chí chế độ dinh dưỡng áp dụng -->
@@ -365,45 +493,34 @@ function handleSave() {
             </div>
           </div>
 
-          <!-- Tỷ lệ phân bổ Macros mục tiêu (1.550 kcal) -->
-          <div class="space-y-3.5 pt-3 border-t border-[#F0F3EC]">
-            <div class="flex items-center justify-between text-xs sm:text-sm">
-              <span class="font-bold text-[#242424]">Tỷ lệ phân bổ Macros mục tiêu (1.550 kcal)</span>
-              <span class="text-[#4D6A34] font-bold">100% Khớp mục tiêu</span>
+          <div class="space-y-4 pt-3 border-t border-[#F0F3EC]">
+            <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <span class="font-bold text-[#242424]">Mục tiêu Calories mỗi ngày</span>
+              <span v-if="caloriePlan" class="font-heading text-xl font-black text-[#4D6A34]">{{ formatNumber(caloriePlan.targetCalories) }} kcal/ngày</span>
+              <span v-else class="text-xs text-[#7A866E]">{{ planLoading ? 'Đang tải…' : 'Chưa có lộ trình' }}</span>
             </div>
 
-            <!-- Macro Progress Bar -->
-            <div class="h-4 w-full rounded-full bg-slate-200 overflow-hidden flex">
-              <div class="w-[25%] bg-[#4D6A34]" title="Protein 25%"></div>
-              <div class="w-[45%] bg-[#7F9C5B]" title="Carbs 45%"></div>
-              <div class="w-[30%] bg-[#D4A373]" title="Fat 30%"></div>
-            </div>
-
-            <div class="grid grid-cols-3 gap-3 text-center text-xs">
-              <div class="p-3.5 rounded-2xl bg-[#F6F8F3] border border-[#DEE5D4]">
-                <span class="text-xs text-[#7A866E] block font-medium">Protein (25%)</span>
-                <span class="font-heading text-base font-black text-[#4D6A34] mt-0.5 block">80g</span>
-                <span class="text-[11px] text-[#7A866E] block">320 kcal</span>
+            <div v-if="caloriePlan" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div class="rounded-2xl bg-[#F6F8F3] border border-[#DEE5D4] p-4">
+                <span class="text-xs text-[#7A866E] block">TDEE theo hoạt động</span>
+                <strong class="mt-1 block text-[#242424]">{{ formatNumber(caloriePlan.tdeeKcal) }} kcal/ngày</strong>
               </div>
-              <div class="p-3.5 rounded-2xl bg-[#F6F8F3] border border-[#DEE5D4]">
-                <span class="text-xs text-[#7A866E] block font-medium">Carbs (45%)</span>
-                <span class="font-heading text-base font-black text-[#242424] mt-0.5 block">150g</span>
-                <span class="text-[11px] text-[#7A866E] block">600 kcal</span>
-              </div>
-              <div class="p-3.5 rounded-2xl bg-[#F6F8F3] border border-[#DEE5D4]">
-                <span class="text-xs text-[#7A866E] block font-medium">Fat tốt (30%)</span>
-                <span class="font-heading text-base font-black text-[#D4A373] mt-0.5 block">45g</span>
-                <span class="text-[11px] text-[#7A866E] block">405 kcal</span>
+              <div class="rounded-2xl bg-[#F6F8F3] border border-[#DEE5D4] p-4">
+                <span class="text-xs text-[#7A866E] block">Điều chỉnh theo mục tiêu</span>
+                <strong class="mt-1 block text-[#242424]">{{ caloriePlan.adjustmentKcal > 0 ? '+' : '' }}{{ formatNumber(caloriePlan.adjustmentKcal) }} kcal/ngày</strong>
               </div>
             </div>
 
+            <p v-if="planError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800" role="alert">{{ planError }}</p>
+            <p class="text-xs leading-5 text-[#7A866E]">Ước tính dùng công thức Mifflin–St Jeor và hệ số hoạt động đã chọn; mục tiêu giảm/tăng dùng mức điều chỉnh 300 kcal/ngày. Đây là giả định tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.</p>
             <button
               type="button"
-              @click="router.push('/nutrition')"
-              class="w-full py-3.5 rounded-2xl bg-[#EBF7E5] hover:bg-[#DEE7D7] text-[#4D6A34] font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors mt-2 cursor-pointer"
+              :disabled="planSaving || planLoading"
+              @click="saveCaloriePlan"
+              class="w-full py-3.5 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] disabled:opacity-60 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors mt-2 cursor-pointer"
             >
-              <Sparkles class="w-4 h-4" />
-              <span>Để NutriBot tối ưu lại lộ trình calo</span>
+              <Save class="w-4 h-4" />
+              <span>{{ planSaving ? 'Đang lưu hồ sơ…' : 'Lưu hồ sơ và cập nhật lộ trình Calories' }}</span>
             </button>
           </div>
         </div>

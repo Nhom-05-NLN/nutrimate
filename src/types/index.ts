@@ -52,6 +52,8 @@ export interface Product {
   traceability?: string;
 }
 
+export type ChatSuggestedProduct = Omit<Product, 'nutrition'> & { nutrition?: NutritionFacts };
+
 export interface Category {
   id: string;
   name: string;
@@ -184,15 +186,52 @@ export interface CreateOrderPayload {
 }
 
 export interface ChatMessage {
+  requestId?: string;
+  failed?: boolean;
   id: string;
   sender: 'user' | 'bot';
   text: string;
   timestamp: string;
-  suggestedProducts?: Product[];
+  imagePreview?: string;
+  suggestedProducts?: ChatSuggestedProduct[];
   actionLink?: {
     text: string;
     action: string;
   };
+}
+
+export interface KnowledgeBaseEntry {
+  id: number;
+  question: string | null;
+  answer: string | null;
+  category: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface KnowledgeBaseEntryPayload {
+  question: string;
+  answer: string;
+  category?: string;
+}
+
+export interface KnowledgeImportResult {
+  imported: number;
+  skipped: number;
+  total: number;
+}
+
+export interface NutritionImagePrediction {
+  imageId: number;
+  imageUrl: string;
+  ocrText: string;
+  uploadDate: string;
+  status: 'completed' | 'unrecognized';
+  predictedCalories: number | null;
+  predictedProtein: number | null;
+  predictedCarbs: number | null;
+  predictedFat: number | null;
+  predictedSugar: number | null;
 }
 
 export interface ApiResponse<T> {
@@ -202,12 +241,47 @@ export interface ApiResponse<T> {
   total?: number;
 }
 
+export type NutritionGoal = 'lose_weight' | 'maintain_weight' | 'gain_weight';
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'high';
+
+export interface CalorieProfileInput {
+  heightCm: number;
+  weightKg: number;
+  age: number;
+  gender: 'male' | 'female' | 'other';
+  activityLevel: ActivityLevel;
+  nutritionGoal: NutritionGoal;
+}
+
+export interface CaloriePlanResult extends CalorieProfileInput {
+  bmi: number;
+  bmrKcal: number;
+  tdeeKcal: number;
+  targetCalories: number;
+  adjustmentKcal: number;
+}
+
+export interface CaloriePlanResponse {
+  profile: {
+    heightCm: number | null;
+    weightKg: number | null;
+    age: number | null;
+    gender: CalorieProfileInput['gender'] | null;
+    activityLevel: ActivityLevel | null;
+    nutritionGoal: NutritionGoal | null;
+  };
+  plan: CaloriePlanResult | null;
+}
+
 // User Profile & Body Metrics (Figma 07)
+export type UserRole = 'customer' | 'admin';
+
 export interface UserProfile {
   id: string;
   name: string;
   email: string;
   phone: string;
+  role?: UserRole;
   avatar: string;
   birthDate: string;
   city: string;

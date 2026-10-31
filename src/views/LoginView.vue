@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
+import { postLogin } from '../services/api';
 import {
   Leaf,
   Lock,
@@ -20,47 +21,22 @@ const router = useRouter();
 const authStore = useAuthStore();
 const toastStore = useToastStore();
 
-const email = ref('minhanh.fit@gmail.com');
-const password = ref('12345678');
+const email = ref('');
+const password = ref('');
 const showPassword = ref(false);
 const rememberMe = ref(true);
 
-function handleLogin() {
-  authStore.login({
-    id: 'user-01',
-    name: 'Nguyễn Minh Anh',
-    email: email.value || 'minhanh.fit@gmail.com',
-    phone: '0912 345 678',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-    birthDate: '1998-06-18',
-    city: 'TP. Hồ Chí Minh',
-    membershipTier: 'Gold',
-    nutriPoints: 490,
-    currentDiet: 'Eat Clean & Low-Carb',
-    fitnessGoal: 'Giảm 3kg mỡ và săn chắc cơ bắp',
-    heightCm: 165,
-    weightKg: 58.5,
-    age: 26,
-    gender: 'female',
-    bmi: 21.5,
-    bmiClassification: 'Bình thường (Thể trạng Cân đối lý tưởng)',
-    bmrKcal: 1340,
-    tdeeKcal: 1850,
-    targetDailyCalories: 1550,
-    targetMacros: {
-      proteinPercent: 25,
-      proteinGrams: 80,
-      proteinKcal: 320,
-      carbsPercent: 45,
-      carbsGrams: 150,
-      carbsKcal: 600,
-      fatPercent: 30,
-      fatGrams: 45,
-      fatKcal: 405,
-    },
-    dietPreferences: ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt'],
-  });
-  router.push('/profile');
+async function handleLogin() {
+  try {
+    const user = await postLogin({ identifier: email.value, password: password.value });
+    authStore.login(user, user.accessToken, rememberMe.value);
+    await router.push(user.role === 'admin' ? '/admin' : '/profile');
+  } catch (err: unknown) {
+    toastStore.show(
+      err instanceof Error ? err.message : 'Không thể đăng nhập. Vui lòng thử lại.',
+      'error'
+    );
+  }
 }
 </script>
 

@@ -11,6 +11,7 @@ export interface NutritionFacts {
   sodium?: number;
 }
 
+export type NutritionFact = NutritionFacts;
 export interface Product {
   id: string;
   code: string;
@@ -18,10 +19,14 @@ export interface Product {
   category: DietCategory;
   categoryName: string;
   price: number;
+  basePrice?: number;
   originalPrice?: number;
   image: string;
+  imageURL?: string;
   description: string;
   ingredients: string[];
+  usageInstruction?: string;
+  status?: boolean;
   nutrition: NutritionFacts;
   stock: number;
   rating: number;
@@ -29,6 +34,8 @@ export interface Product {
   badges: string[];
   isFeatured?: boolean;
   bestFor: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Category {
@@ -124,6 +131,19 @@ export interface ProductFilterQuery {
   search?: string;
   maxCalories?: number;
   minProtein?: number;
+  page?: number;
+  limit?: number;
+  sort?: 'price_asc' | 'price_desc' | 'calories_asc' | 'calories_desc' | 'rating_desc' | 'newest';
+}
+
+export interface PaginatedProductResponse {
+  success: boolean;
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  data: Product[];
+  message?: string;
 }
 
 export interface CreateOrderPayload {
@@ -133,6 +153,15 @@ export interface CreateOrderPayload {
   shippingMethod?: 'standard' | 'express_2h';
   voucherCode?: string;
   notes?: string;
+}
+
+export interface KnowledgeBaseEntry {
+  id: number;
+  question: string | null;
+  answer: string | null;
+  category: string | null;
+  createdAt: Date | string | null;
+  updatedAt: Date | string | null;
 }
 
 export interface ChatbotKnowledge {
@@ -154,4 +183,7 @@ export interface ApiResponse<T> {
   data?: T;
   message?: string;
   total?: number;
+  page?: number;
+  limit?: number;
+  totalPages?: number;
 }

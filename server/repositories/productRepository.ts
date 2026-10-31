@@ -1,9 +1,18 @@
 import { Product, ProductFilterQuery } from '../types/index.js';
+import type { ChatSuggestedProduct } from '../types/chat.js';
 import { INITIAL_PRODUCTS } from '../db/seedData.js';
 import { isDbConnected, queryPostgres } from '../db/index.js';
 
 // In-memory runtime cache when DB is in fallback mode
-let memoryProducts: Product[] = [...INITIAL_PRODUCTS];
+let memoryProducts: Product[] = INITIAL_PRODUCTS.map((p) => ({
+  ...p,
+  basePrice: p.price,
+  imageURL: p.image,
+  usageInstruction: 'Bảo quản nơi thoáng mát, dùng trực tiếp sau khi mở bao bì.',
+  status: true,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+}));
 
 interface ProductRow {
   id: string;
@@ -33,17 +42,22 @@ interface ProductRow {
 }
 
 function mapRowToProduct(row: ProductRow): Product {
+  const priceNum = parseFloat(row.price);
   return {
     id: String(row.id),
     code: row.code,
     name: row.name,
     category: row.category as Product['category'],
     categoryName: row.category_name,
-    price: parseFloat(row.price),
+    price: priceNum,
+    basePrice: priceNum,
     originalPrice: row.original_price ? parseFloat(row.original_price) : undefined,
     image: row.image_url || '',
+    imageURL: row.image_url || '',
     description: row.description || '',
     ingredients: row.ingredients || [],
+    usageInstruction: 'Bảo quản nơi thoáng mát, dùng trực tiếp sau khi mở bao bì.',
+    status: true,
     nutrition: {
       servingSize: row.serving_size || '1 khẩu phần',
       calories: parseFloat(row.calories),
@@ -60,11 +74,21 @@ function mapRowToProduct(row: ProductRow): Product {
     badges: row.badges || [],
     isFeatured: row.is_featured,
     bestFor: row.best_for || '',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 }
 
-export async function findProducts(filter: ProductFilterQuery): Promise<Product[]> {
-  if (isDbConnected()) {
+export async function findProducts(
+  filter: ProductFilterQuery,
+  requirePostgres = false,
+  executeQuery = queryPostgres,
+): Promise<{ products: Product[]; total: number }> {
+  const page = filter.page && filter.page > 0 ? Number(filter.page) : 1;
+  const limit = filter.limit && filter.limit > 0 ? Number(filter.limit) : 12;
+  const offset = (page - 1) * limit;
+
+  if (requirePostgres || isDbConnected()) {
     try {
       const conditions: string[] = ['is_active = TRUE'];
       const values: unknown[] = [];
@@ -96,6 +120,20 @@ export async function findProducts(filter: ProductFilterQuery): Promise<Product[
         paramIdx++;
       }
 
+      // Count query
+      const countSql = `SELECT COUNT(*) FROM products WHERE ${conditions.join(' AND ')}`;
+      const countResult = await executeQuery<{ count: string }>(countSql, values);
+      const total = parseInt(countResult.rows[0]?.count || '0', 10);
+
+      // Sorting
+      let orderBy = 'ORDER BY is_featured DESC, id ASC';
+      if (filter.sort === 'price_asc') orderBy = 'ORDER BY price ASC';
+      else if (filter.sort === 'price_desc') orderBy = 'ORDER BY price DESC';
+      else if (filter.sort === 'calories_asc') orderBy = 'ORDER BY calories ASC';
+      else if (filter.sort === 'calories_desc') orderBy = 'ORDER BY calories DESC';
+      else if (filter.sort === 'rating_desc') orderBy = 'ORDER BY rating DESC';
+      else if (filter.sort === 'newest') orderBy = 'ORDER BY id DESC';
+
       const sql = `
         SELECT id, code, name, category, category_name, price, original_price,
                image_url, description, ingredients, serving_size, calories,
@@ -103,21 +141,25 @@ export async function findProducts(filter: ProductFilterQuery): Promise<Product[
                rating, review_count, badges, is_featured, best_for
         FROM products
         WHERE ${conditions.join(' AND ')}
-        ORDER BY is_featured DESC, id ASC
+        ${orderBy}
+        LIMIT $${paramIdx++} OFFSET $${paramIdx++}
       `;
+      values.push(limit, offset);
 
-      const result = await queryPostgres<ProductRow>(sql, values);
-      if (result.rows.length > 0) {
-        return result.rows.map(mapRowToProduct);
-      }
+      const result = await executeQuery<ProductRow>(sql, values);
+      return {
+        products: result.rows.map(mapRowToProduct),
+        total,
+      };
     } catch (err: unknown) {
+      if (requirePostgres) throw err;
       const msg = err instanceof Error ? err.message : 'Product query error';
       console.warn('[ProductRepository Fallback]:', msg);
     }
   }
 
   // Fallback in-memory filter
-  let list = [...memoryProducts];
+  let list = [...memoryProducts].filter((p) => p.status !== false);
 
   if (filter.category && filter.category !== 'all') {
     list = list.filter((p) => p.category === filter.category);
@@ -140,7 +182,121 @@ export async function findProducts(filter: ProductFilterQuery): Promise<Product[
     list = list.filter((p) => p.nutrition.protein >= filter.minProtein!);
   }
 
-  return list;
+  // In-memory sorting
+  if (filter.sort === 'price_asc') list.sort((a, b) => a.price - b.price);
+  else if (filter.sort === 'price_desc') list.sort((a, b) => b.price - a.price);
+  else if (filter.sort === 'calories_asc') list.sort((a, b) => a.nutrition.calories - b.nutrition.calories);
+  else if (filter.sort === 'calories_desc') list.sort((a, b) => b.nutrition.calories - a.nutrition.calories);
+  else if (filter.sort === 'rating_desc') list.sort((a, b) => b.rating - a.rating);
+  else if (filter.sort === 'newest') list.sort((a, b) => b.id.localeCompare(a.id));
+
+  const total = list.length;
+  const paginatedList = list.slice(offset, offset + limit);
+
+  return {
+    products: paginatedList,
+    total,
+  };
+}
+
+export async function findChatProducts(filter: ProductFilterQuery, executeQuery = queryPostgres): Promise<ChatSuggestedProduct[]> {
+  const schema = await executeQuery<{ column_name: string }>(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = current_schema()
+       AND table_name = 'products'`,
+  );
+  const columns = new Set(schema.rows.map(row => row.column_name));
+
+  if (columns.has('id') && columns.has('calories') && columns.has('category')) {
+    const res = await findProducts(filter, true, executeQuery);
+    return res.products as ChatSuggestedProduct[];
+  }
+
+  if (!columns.has('product_id') || !columns.has('base_price') || !columns.has('status')) {
+    throw new Error('Schema PostgreSQL không có cấu trúc sản phẩm được NutriBot hỗ trợ.');
+  }
+
+  const conditions = ['p.status IS TRUE'];
+  const values: unknown[] = [];
+  if (filter.search?.trim()) {
+    values.push(`%${filter.search.trim()}%`);
+    conditions.push(`(p.name ILIKE $${values.length} OR p.description ILIKE $${values.length})`);
+  }
+  if (filter.maxCalories && filter.maxCalories > 0) {
+    values.push(filter.maxCalories);
+    conditions.push(`nf.calories <= $${values.length}`);
+  }
+  if (filter.minProtein && filter.minProtein > 0) {
+    values.push(filter.minProtein);
+    conditions.push(`nf.protein >= $${values.length}`);
+  }
+
+  const result = await executeQuery<{
+    id: number;
+    name: string;
+    category_name: string | null;
+    price: string;
+    description: string | null;
+    image_url: string | null;
+    serving_size: string | null;
+    calories: string | null;
+    protein: string | null;
+    carbs: string | null;
+    fat: string | null;
+    sugar: string | null;
+    stock: number;
+  }>(
+    `SELECT p.product_id AS id, p.name, p.base_price AS price,
+            NULL::text AS category_name,
+            p.description, p.image_url, nf.serving_size, nf.calories, nf.protein,
+            nf.carbs, nf.fat, nf.sugar, COALESCE(stock.quantity, 0)::int AS stock
+     FROM products p
+     LEFT JOIN LATERAL (
+       SELECT serving_size, calories, protein, carbs, fat, sugar
+       FROM nutrition_facts
+       WHERE product_id = p.product_id
+       ORDER BY nutrition_fact_id DESC
+       LIMIT 1
+     ) nf ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT SUM(i.quantity) AS quantity
+       FROM inventory i
+       WHERE i.product_id = p.product_id
+     ) stock ON TRUE
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY p.product_id
+     LIMIT 3`,
+    values,
+  );
+
+  return result.rows.map(row => ({
+    id: String(row.id),
+    code: '',
+    name: row.name,
+    category: 'all',
+    categoryName: row.category_name || 'Khác',
+    price: Number(row.price),
+    image: row.image_url || '',
+    description: row.description || '',
+    ingredients: [],
+    ...(row.serving_size !== null && row.calories !== null && row.protein !== null
+      && row.carbs !== null && row.fat !== null && row.sugar !== null
+      ? { nutrition: {
+        servingSize: row.serving_size,
+        calories: Number(row.calories),
+        protein: Number(row.protein),
+        carbs: Number(row.carbs),
+        fat: Number(row.fat),
+        sugar: Number(row.sugar),
+      } }
+      : {}),
+    stock: row.stock,
+    rating: 0,
+    reviewCount: 0,
+    badges: [],
+    bestFor: '',
+  }));
 }
 
 export async function findProductById(id: string): Promise<Product | null> {

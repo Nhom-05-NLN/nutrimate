@@ -11,6 +11,7 @@ import LoginView from '../views/LoginView.vue';
 import RegisterView from '../views/RegisterView.vue';
 import BlogsView from '../views/BlogsView.vue';
 import NotFoundView from '../views/NotFoundView.vue';
+import { useAuthStore } from '../stores/authStore';
 
 // Admin Views
 import AdminDashboardView from '../views/admin/AdminDashboardView.vue';
@@ -55,6 +56,7 @@ const routes: RouteRecordRaw[] = [
     path: '/profile',
     name: 'profile',
     component: ProfileView,
+    meta: { requiresCustomer: true },
   },
   {
     path: '/nutrition',
@@ -132,4 +134,30 @@ export const router = createRouter({
   scrollBehavior() {
     return { top: 0, behavior: 'smooth' };
   },
+});
+
+router.beforeEach(async (to) => {
+  if (!to.path.startsWith('/admin') && !to.meta.requiresCustomer) {
+    return true;
+  }
+
+  const authStore = useAuthStore();
+  try {
+    await authStore.restoreSession();
+  } catch (error: unknown) {
+    console.error('[Router] Không thể xác minh quyền truy cập quản trị:', error);
+    return { name: 'login' };
+  }
+
+  if (to.path.startsWith('/admin') && authStore.currentUser?.role === 'admin') {
+    return true;
+  }
+
+  if (to.meta.requiresCustomer && authStore.currentUser?.role === 'customer') return true;
+
+  if (!authStore.currentUser) {
+    return { name: 'login' };
+  }
+
+  return to.path.startsWith('/admin') ? { name: 'home' } : { name: 'login' };
 });
