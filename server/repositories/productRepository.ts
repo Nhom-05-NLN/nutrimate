@@ -79,12 +79,16 @@ function mapRowToProduct(row: ProductRow): Product {
   };
 }
 
-export async function findProducts(filter: ProductFilterQuery): Promise<{ products: Product[]; total: number }> {
+export async function findProducts(
+  filter: ProductFilterQuery,
+  requirePostgres = false,
+  executeQuery = queryPostgres,
+): Promise<{ products: Product[]; total: number }> {
   const page = filter.page && filter.page > 0 ? Number(filter.page) : 1;
   const limit = filter.limit && filter.limit > 0 ? Number(filter.limit) : 12;
   const offset = (page - 1) * limit;
 
-  if (isDbConnected()) {
+  if (requirePostgres || isDbConnected()) {
     try {
       const conditions: string[] = ['is_active = TRUE'];
       const values: unknown[] = [];
@@ -118,7 +122,7 @@ export async function findProducts(filter: ProductFilterQuery): Promise<{ produc
 
       // Count query
       const countSql = `SELECT COUNT(*) FROM products WHERE ${conditions.join(' AND ')}`;
-      const countResult = await queryPostgres<{ count: string }>(countSql, values);
+      const countResult = await executeQuery<{ count: string }>(countSql, values);
       const total = parseInt(countResult.rows[0]?.count || '0', 10);
 
       // Sorting
@@ -142,7 +146,7 @@ export async function findProducts(filter: ProductFilterQuery): Promise<{ produc
       `;
       values.push(limit, offset);
 
-      const result = await queryPostgres<ProductRow>(sql, values);
+      const result = await executeQuery<ProductRow>(sql, values);
       return {
         products: result.rows.map(mapRowToProduct),
         total,
@@ -205,7 +209,8 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
   const columns = new Set(schema.rows.map(row => row.column_name));
 
   if (columns.has('id') && columns.has('calories') && columns.has('category')) {
-    return findProducts(filter, true, executeQuery);
+    const res = await findProducts(filter, true, executeQuery);
+    return res.products as ChatSuggestedProduct[];
   }
 
   if (!columns.has('product_id') || !columns.has('base_price') || !columns.has('status')) {
