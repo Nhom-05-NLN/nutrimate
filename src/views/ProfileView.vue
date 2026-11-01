@@ -917,10 +917,11 @@ async function handleAvatarChange(event: Event) {
                 <strong class="mt-1 block text-[#242424]">{{ formatNumber(caloriePlan.tdeeKcal) }} kcal/ngày</strong>
               </div>
               <div class="rounded-2xl bg-[#F6F8F3] border border-[#DEE5D4] p-4">
-                <span class="text-xs text-[#7A866E] block">Điều chỉnh theo mục tiêu</span>
+                <span class="text-xs text-[#7A866E] block">Điều chỉnh so với TDEE</span>
                 <strong class="mt-1 block text-[#242424]">{{ caloriePlan.adjustmentKcal > 0 ? '+' : '' }}{{ formatNumber(caloriePlan.adjustmentKcal) }} kcal/ngày</strong>
               </div>
             </div>
+            <p v-if="caloriePlan?.minimumTargetApplied" class="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Đã áp dụng mức sàn 1.200 kcal/ngày.</p>
 
             <p v-if="planError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800" role="alert">{{ planError }}</p>
             <p class="text-xs leading-5 text-[#7A866E]">Ước tính dùng công thức Mifflin–St Jeor và hệ số hoạt động đã chọn; mục tiêu giảm/tăng dùng mức điều chỉnh 300 kcal/ngày. Đây là giả định tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.</p>

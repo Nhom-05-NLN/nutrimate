@@ -224,6 +224,7 @@ export interface CaloriePlanResult extends CalorieProfileInput {
   tdeeKcal: number;
   targetCalories: number;
   adjustmentKcal: number;
+  minimumTargetApplied: boolean;
 }
 
 export interface CaloriePlanResponse {
