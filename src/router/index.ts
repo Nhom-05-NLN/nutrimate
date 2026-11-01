@@ -61,6 +61,7 @@ const routes: RouteRecordRaw[] = [
     path: '/nutrition',
     name: 'nutrition',
     component: NutritionDashboardView,
+    meta: { requiresCustomer: true },
   },
   {
     path: '/login',
