@@ -119,7 +119,19 @@ const bmiCategory = computed(() => {
   if (bmi < 25) return 'Thừa cân';
   return 'Béo phì';
 });
-const dietPreferences = ref(['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt']);
+const availableDietPreferences = ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt', 'Keto chuẩn'];
+const dietPreferences = ref<string[]>([
+  ...(authStore.currentUser?.dietPreferences ?? ['Low-Carb', 'Giàu Protein']),
+]);
+const currentDietLabel = computed(() => dietPreferences.value.join(' & ') || 'Chưa chọn');
+const suggestedFoodPackage = computed(() => ({
+  title: dietPreferences.value.length
+    ? `Gợi ý theo chế độ ${dietPreferences.value.slice(0, 2).join(' & ')}`
+    : 'Chưa có tiêu chí dinh dưỡng',
+  description: dietPreferences.value.length
+    ? `${dietPreferences.value.join(', ')}${caloriePlan.value ? ` • ${formatNumber(caloriePlan.value.targetCalories)} kcal/ngày` : ''}`
+    : 'Chọn tiêu chí dinh dưỡng để cá nhân hóa gợi ý.',
+}));
 
 function formatNumber(value: number | null | undefined): string {
   return value === null || value === undefined ? '—' : value.toLocaleString('vi-VN');
@@ -185,11 +197,11 @@ onMounted(() => {
 });
 
 function togglePreference(pref: string) {
-  if (dietPreferences.value.includes(pref)) {
-    dietPreferences.value = dietPreferences.value.filter((p) => p !== pref);
-  } else {
-    dietPreferences.value.push(pref);
-  }
+  const updatedPreferences = dietPreferences.value.includes(pref)
+    ? dietPreferences.value.filter((preference) => preference !== pref)
+    : [...dietPreferences.value, pref];
+  dietPreferences.value = updatedPreferences;
+  authStore.updateDietPreferences(updatedPreferences);
 }
 
 async function handleSave() {
@@ -430,7 +442,7 @@ async function handleAvatarChange(event: Event) {
             </h1>
 
             <div class="flex flex-wrap items-center gap-4 text-sm text-[#576449] pt-1">
-              <span>Chế độ ăn: <strong class="text-[#242424]">Eat Clean & Low-Carb</strong></span>
+              <span>Chế độ ăn: <strong class="text-[#242424]">{{ currentDietLabel }}</strong></span>
               <span>•</span>
               <span>Mục tiêu: <strong class="text-[#242424]">{{ selectedGoal ? goalLabels[selectedGoal] : 'Chưa thiết lập' }}</strong></span>
             </div>
@@ -586,8 +598,8 @@ async function handleAvatarChange(event: Event) {
             />
             <div>
               <span class="text-xs font-bold text-[#7A866E] uppercase block">Gói thực phẩm gợi ý</span>
-              <h4 class="font-heading text-sm font-bold text-[#242424]">Combo Eat Clean Săn Cơ</h4>
-              <span class="text-xs text-[#4D6A34] font-semibold">Giàu Protein, chuẩn 1.550 kcal</span>
+              <h4 class="font-heading text-sm font-bold text-[#242424]">{{ suggestedFoodPackage.title }}</h4>
+              <span class="text-xs text-[#4D6A34] font-semibold">{{ suggestedFoodPackage.description }}</span>
             </div>
           </div>
           <RouterLink
@@ -887,7 +899,7 @@ async function handleAvatarChange(event: Event) {
             <span class="text-xs font-bold text-[#242424] block">Tiêu chí chế độ dinh dưỡng áp dụng</span>
             <div class="flex flex-wrap gap-2.5">
               <button
-                v-for="pref in ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt', 'Keto chuẩn']"
+                v-for="pref in availableDietPreferences"
                 :key="pref"
                 type="button"
                 @click="togglePreference(pref)"
