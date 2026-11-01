@@ -12,6 +12,8 @@ import {
   ProductFilterQuery,
   CaloriePlanResponse,
   CalorieProfileInput,
+  CreateNutritionDiaryMeal,
+  NutritionDiaryDay,
 } from '../types';
 
 const API_BASE = '/api';
@@ -168,6 +170,24 @@ export async function postLogout(): Promise<void> {
   await fetchJson<ApiResponse<never>>('/auth/logout', {
     method: 'POST',
   });
+}
+
+export async function fetchNutritionDiary(date: string): Promise<NutritionDiaryDay> {
+  const response = await fetchJson<ApiResponse<NutritionDiaryDay>>(`/nutrition-diary?date=${encodeURIComponent(date)}`);
+  if (!response.data) throw new Error(response.message || 'Không thể tải nhật ký dinh dưỡng.');
+  return response.data;
+}
+
+export async function postNutritionMeal(payload: CreateNutritionDiaryMeal): Promise<NutritionDiaryDay> {
+  const response = await fetchJson<ApiResponse<NutritionDiaryDay>>('/nutrition-diary/meals', { method: 'POST', body: JSON.stringify(payload) });
+  if (!response.data) throw new Error(response.message || 'Không thể lưu món ăn.');
+  return response.data;
+}
+
+export async function postNutritionWater(date: string, amountMl: number): Promise<NutritionDiaryDay> {
+  const response = await fetchJson<ApiResponse<NutritionDiaryDay>>('/nutrition-diary/water', { method: 'POST', body: JSON.stringify({ date, amountMl }) });
+  if (!response.data) throw new Error(response.message || 'Không thể lưu lượng nước.');
+  return response.data;
 }
 
 export interface ChatbotResponse {

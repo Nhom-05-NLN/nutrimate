@@ -238,6 +238,30 @@ export interface CaloriePlanResponse {
   plan: CaloriePlanResult | null;
 }
 
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+export interface NutritionDiaryMeal {
+  id: number;
+  mealType: MealType;
+  foodName: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  sugar: number;
+  createdAt: string;
+}
+export interface NutritionDiaryWaterLog { id: number; amountMl: number; loggedAt: string }
+export interface NutritionDiaryDay {
+  date: string;
+  meals: NutritionDiaryMeal[];
+  waterLogs: NutritionDiaryWaterLog[];
+  totals: { calories: number; protein: number; carbs: number; fat: number; sugar: number; waterMl: number };
+}
+export interface CreateNutritionDiaryMeal {
+  date: string; mealType: MealType; foodName: string;
+  calories: number; protein: number; carbs: number; fat: number; sugar: number;
+}
+
 // User Profile & Body Metrics (Figma 07)
 export type UserRole = 'customer' | 'admin';
 
