@@ -257,15 +257,19 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
               <div
                 v-for="prod in msg.suggestedProducts"
                 :key="prod.id"
-                class="flex items-center gap-2.5 p-2 bg-white rounded-2xl border border-[#E3E8DC] shadow-2xs hover:border-[#4D6A34] transition-all"
+                class="flex cursor-pointer items-center gap-2.5 rounded-2xl border border-[#E3E8DC] bg-white p-2 shadow-2xs transition-all hover:border-[#4D6A34] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8EA675]"
+                role="button"
+                tabindex="0"
+                @click="openSuggestedProduct(prod)"
+                @keydown.enter="openSuggestedProduct(prod)"
+                @keydown.space.prevent="openSuggestedProduct(prod)"
               >
                 <img
                   :src="prod.image"
                   :alt="prod.name"
                   class="w-12 h-12 rounded-xl object-cover shrink-0 cursor-pointer"
-                  @click="openSuggestedProduct(prod)"
                 />
-                <div class="flex-1 min-w-0" :class="hasNutritionFacts(prod) ? 'cursor-pointer' : ''" @click="openSuggestedProduct(prod)">
+                <div class="flex-1 min-w-0">
                   <h4 class="font-heading text-xs font-bold text-[#2D3B1E] truncate">
                     {{ prod.name }}
                   </h4>
@@ -284,7 +288,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
                 <button
                   v-if="hasNutritionFacts(prod)"
                   type="button"
-                  @click="handleAddToCartFromChat(prod)"
+                  @click.stop="handleAddToCartFromChat(prod)"
                   class="px-2.5 py-1.5 rounded-xl bg-[#EBF1E6] hover:bg-[#4D6A34] text-[#4D6A34] hover:text-white shrink-0 transition-colors text-xs font-bold flex items-center gap-1"
                   title="Thêm vào giỏ"
                   aria-label="Thêm món này vào giỏ hàng"
