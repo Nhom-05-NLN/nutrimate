@@ -2,7 +2,13 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { UserProfile } from '../types';
 import { useToastStore } from './toastStore';
-import { fetchCurrentUser, postLogout, RegisteredUser } from '../services/api';
+import {
+  fetchCurrentUser,
+  postLogout,
+  RegisteredUser,
+  updateCurrentUser,
+  updateCurrentUserAvatar,
+} from '../services/api';
 
 export const useAuthStore = defineStore('auth', () => {
   const profileDefaults: Omit<UserProfile, 'id' | 'name' | 'email' | 'phone'> = {
@@ -116,14 +122,16 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function toProfile(
-    user: Pick<RegisteredUser, 'id' | 'name' | 'email' | 'phone' | 'role'>,
+    user: Pick<RegisteredUser, 'id' | 'name' | 'email' | 'phone' | 'role' | 'defaultAddress' | 'avatarUrl'>,
     cachedProfile?: UserProfile,
   ): UserProfile {
     return {
       ...profileDefaults,
       ...cachedProfile,
       ...user,
+      avatar: user.avatarUrl || cachedProfile?.avatar || profileDefaults.avatar,
       role: user.role,
+      defaultAddress: user.defaultAddress ?? cachedProfile?.defaultAddress ?? null,
     };
   }
 
@@ -169,8 +177,34 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function updateAvatar(avatar: string): Promise<void> {
+    if (!currentUser.value) {
+      throw new Error("Vui lòng đăng nhập để đổi ảnh đại diện.");
+    }
+
+    const avatarUrl = await updateCurrentUserAvatar(avatar);
+    const updatedUser = { ...currentUser.value, avatar: avatarUrl };
+    currentUser.value = updatedUser;
+    toast.show("Đã cập nhật ảnh đại diện.", "success");
+  }
+
+  async function updateAccountProfile(
+    updated: Pick<RegisteredUser, "name" | "email" | "phone">,
+  ): Promise<Awaited<ReturnType<typeof updateCurrentUser>>> {
+    const savedUser = await updateCurrentUser(updated);
+    if (!currentUser.value || currentUser.value.id !== savedUser.id) {
+      throw new Error("Không thể cập nhật tài khoản hiện tại. Vui lòng tải lại trang.");
+    }
+
+    currentUser.value = { ...currentUser.value, ...savedUser };
+    activeStorage?.setItem(authStorageKey, JSON.stringify(currentUser.value));
+    toast.show("Đã cập nhật thông tin cá nhân thành công!", "success");
+    return savedUser;
+  }
+
   function login(
-    profile: Pick<UserProfile, "id" | "name" | "email" | "phone"> | UserProfile,
+    profile: Pick<UserProfile, "id" | "name" | "email" | "phone"> &
+      Partial<Pick<RegisteredUser, "avatarUrl">> | UserProfile,
     token?: string,
     remember = true
   ) {
@@ -188,6 +222,7 @@ export const useAuthStore = defineStore('auth', () => {
       email: profile.email,
       phone: profile.phone,
       role: 'role' in profile && profile.role === 'admin' ? 'admin' : 'customer',
+      avatarUrl: 'avatarUrl' in profile ? profile.avatarUrl : null,
     });
     storage.setItem(authStorageKey, JSON.stringify(user));
     storage.setItem(authTokenKey, token);
@@ -232,6 +267,8 @@ export const useAuthStore = defineStore('auth', () => {
     openAuthModal,
     closeAuthModal,
     updateProfile,
+    updateAvatar,
+    updateAccountProfile,
     login,
     logout,
   };

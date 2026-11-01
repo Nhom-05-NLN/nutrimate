@@ -19,12 +19,35 @@ export interface LoginUserInput {
   rememberMe?: unknown;
 }
 
+export interface UpdateProfileInput {
+  name: unknown;
+  email: unknown;
+  phone: unknown;
+}
+
+export interface UserAddressInput {
+  receiverName: unknown;
+  receiverPhone: unknown;
+  houseNumber: unknown;
+  street: unknown;
+  hamlet?: unknown;
+  ward: unknown;
+  province: unknown;
+}
+
+export interface UpdateAvatarInput {
+  avatarUrl: unknown;
+}
+
 export interface RegisteredUser {
   id: string;
   name: string;
   email: string;
   phone: string;
   role: "customer" | "admin";
+  avatarUrl?: string | null;
+  defaultAddress?: authRepository.UserAddressRecord | null;
+  addresses?: authRepository.UserAddressRecord[];
 }
 
 export interface AuthenticatedUser extends RegisteredUser {
@@ -198,6 +221,7 @@ export async function login(input: LoginUserInput): Promise<AuthenticatedUser> {
     phone: user.phone,
     accessToken: createAccessToken(user.id),
     role: user.role,
+    avatarUrl: user.avatarUrl,
   };
 }
 
@@ -211,11 +235,180 @@ export async function getAuthenticatedUser(id: string): Promise<RegisteredUser |
     return null;
   }
 
+  const addresses = await authRepository.findUserAddresses(id);
   return {
     id: String(user.id),
     name: user.name,
     email: user.email,
     phone: user.phone,
     role: user.role,
+    avatarUrl: user.avatarUrl,
+    defaultAddress: addresses.find((address) => address.isDefault) ?? addresses[0] ?? null,
+    addresses,
   };
+}
+
+export async function updateAuthenticatedUserAvatar(
+  id: string,
+  input: UpdateAvatarInput,
+): Promise<string | null> {
+  if (!isDbConnected()) {
+    throw new AuthServiceError("Máy chủ cơ sở dữ liệu hiện không khả dụng.", 503);
+  }
+  if (typeof input.avatarUrl !== "string") {
+    throw new AuthServiceError("Ảnh đại diện không hợp lệ.", 400);
+  }
+
+  const avatarUrl = input.avatarUrl.trim();
+  const match = /^data:image\/webp;base64,([A-Za-z0-9+/]+={0,2})$/.exec(avatarUrl);
+  if (!match?.[1] || avatarUrl.length > 1_100_000) {
+    throw new AuthServiceError("Ảnh đại diện không hợp lệ hoặc vượt quá dung lượng cho phép.", 400);
+  }
+
+  const image = Buffer.from(match[1], "base64");
+  if (
+    image.length === 0 ||
+    image.length > 750_000 ||
+    image.toString("ascii", 0, 4) !== "RIFF" ||
+    image.toString("ascii", 8, 12) !== "WEBP"
+  ) {
+    throw new AuthServiceError("Ảnh đại diện WebP không hợp lệ.", 400);
+  }
+
+  const savedAvatarUrl = await authRepository.updateUserAvatar(id, avatarUrl);
+  return savedAvatarUrl ?? null;
+}
+
+export async function updateAuthenticatedUser(
+  id: string,
+  input: UpdateProfileInput,
+): Promise<RegisteredUser | null> {
+  if (!isDbConnected()) {
+    throw new AuthServiceError("Máy chủ cơ sở dữ liệu hiện không khả dụng.", 503);
+  }
+
+  const existingUser = await authRepository.findUserById(id);
+  if (!existingUser) {
+    return null;
+  }
+
+  const name = requireString(input.name, "họ và tên");
+  const email = requireString(input.email, "email").toLowerCase();
+  const phone = requireString(input.phone, "số điện thoại");
+
+  if (name.length > 150) {
+    throw new AuthServiceError("Họ và tên không được vượt quá 150 ký tự.", 400);
+  }
+  if (phone.length > 20) {
+    throw new AuthServiceError("Số điện thoại không được vượt quá 20 ký tự.", 400);
+  }
+  if (email.length > 255 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new AuthServiceError("Email không hợp lệ.", 400);
+  }
+  try {
+    const user = await authRepository.updateUserProfile(id, {
+      fullName: name,
+      email,
+      phone,
+    });
+    if (!user) {
+      return null;
+    }
+
+    const addresses = await authRepository.findUserAddresses(id);
+    return {
+      id: String(user.id),
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: existingUser.role,
+      defaultAddress: addresses.find((address) => address.isDefault) ?? addresses[0] ?? null,
+      addresses,
+    };
+  } catch (err: unknown) {
+    if (err instanceof DuplicateEmailError) {
+      throw new AuthServiceError("Email này đã được đăng ký.", 409);
+    }
+    throw err;
+  }
+}
+
+function validateUserAddress(input: UserAddressInput): authRepository.UserAddressInput {
+  const receiverName = requireString(input.receiverName, "tên người nhận");
+  const receiverPhone = requireString(input.receiverPhone, "số điện thoại nhận hàng");
+  const houseNumber = requireString(input.houseNumber, "số nhà");
+  const street = requireString(input.street, "đường");
+  const hamlet = typeof input.hamlet === "string" ? input.hamlet.trim() : "";
+  const ward = requireString(input.ward, "phường/xã");
+  const province = requireString(input.province, "tỉnh/thành phố");
+
+  if (receiverName.length > 100) {
+    throw new AuthServiceError("Tên người nhận không được vượt quá 100 ký tự.", 400);
+  }
+  if (receiverPhone.length > 20) {
+    throw new AuthServiceError("Số điện thoại không được vượt quá 20 ký tự.", 400);
+  }
+  if (houseNumber.length > 100 || street.length > 255 || hamlet.length > 150 || ward.length > 150 || province.length > 150) {
+    throw new AuthServiceError("Một trong các thành phần địa chỉ vượt quá độ dài cho phép.", 400);
+  }
+
+  return { receiverName, receiverPhone, houseNumber, street, hamlet, ward, province };
+}
+
+function requireAddressId(value: string): number {
+  const addressId = Number(value);
+  if (!Number.isSafeInteger(addressId) || addressId < 1) {
+    throw new AuthServiceError("Mã địa chỉ không hợp lệ.", 400);
+  }
+  return addressId;
+}
+
+export async function getUserAddresses(userId: string): Promise<authRepository.UserAddressRecord[]> {
+  if (!isDbConnected()) {
+    throw new AuthServiceError("Máy chủ cơ sở dữ liệu hiện không khả dụng.", 503);
+  }
+  return authRepository.findUserAddresses(userId);
+}
+
+export async function createUserAddress(
+  userId: string,
+  input: UserAddressInput,
+): Promise<authRepository.UserAddressRecord> {
+  if (!isDbConnected()) {
+    throw new AuthServiceError("Máy chủ cơ sở dữ liệu hiện không khả dụng.", 503);
+  }
+  return authRepository.createUserAddress(userId, validateUserAddress(input));
+}
+
+export async function editUserAddress(
+  userId: string,
+  rawAddressId: string,
+  input: UserAddressInput,
+): Promise<authRepository.UserAddressRecord> {
+  if (!isDbConnected()) {
+    throw new AuthServiceError("Máy chủ cơ sở dữ liệu hiện không khả dụng.", 503);
+  }
+  const address = await authRepository.updateUserAddress(
+    userId,
+    requireAddressId(rawAddressId),
+    validateUserAddress(input),
+  );
+  if (!address) throw new AuthServiceError("Không tìm thấy địa chỉ nhận hàng.", 404);
+  return address;
+}
+
+export async function makeDefaultUserAddress(userId: string, rawAddressId: string): Promise<void> {
+  if (!isDbConnected()) {
+    throw new AuthServiceError("Máy chủ cơ sở dữ liệu hiện không khả dụng.", 503);
+  }
+  const updated = await authRepository.setDefaultUserAddress(userId, requireAddressId(rawAddressId));
+  if (!updated) throw new AuthServiceError("Không tìm thấy địa chỉ nhận hàng.", 404);
+}
+
+export async function removeUserAddress(userId: string, rawAddressId: string): Promise<void> {
+  if (!isDbConnected()) {
+    throw new AuthServiceError("Máy chủ cơ sở dữ liệu hiện không khả dụng.", 503);
+  }
+  const deleted = await authRepository.deleteUserAddress(userId, requireAddressId(rawAddressId));
+  if (!deleted) throw new AuthServiceError("Không tìm thấy địa chỉ nhận hàng.", 404);
 }
