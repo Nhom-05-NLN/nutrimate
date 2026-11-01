@@ -312,6 +312,7 @@ export interface ChatHistoryMessage {
   createdAt: string;
   requestId: string;
   suggestedProducts: ChatSuggestedProduct[];
+  imageUrl?: string | null;
 }
 function chatHeaders(token?: string | null): Record<string, string> {
   return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
@@ -429,14 +430,20 @@ async function prepareNutritionImage(image: File): Promise<File> {
   }
 }
 
-export async function postNutritionImage(image: File, token: string): Promise<NutritionImagePrediction> {
+export async function postNutritionImage(image: File, token: string, conversationId: string, requestId: string, question = ''): Promise<NutritionImagePrediction> {
   const preparedImage = await prepareNutritionImage(image);
+  const questionBytes = new TextEncoder().encode(question.trim());
+  let questionBinary = '';
+  for (const byte of questionBytes) questionBinary += String.fromCharCode(byte);
   const response = await fetch(`${API_BASE}/chat/nutrition-images`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: {
       'Content-Type': preparedImage.type || 'application/octet-stream',
       Authorization: `Bearer ${token}`,
+      'X-Chat-Conversation-Id': conversationId,
+      'X-Chat-Request-Id': requestId,
+      'X-Chat-Question': btoa(questionBinary),
     },
     body: preparedImage,
   });
@@ -450,6 +457,18 @@ export async function postNutritionImage(image: File, token: string): Promise<Nu
   if (!response.ok) throw new ApiError(response.status, result.message || `Lỗi mạng HTTP ${response.status}`);
   if (!result.data) throw new Error('Không nhận được kết quả phân tích ảnh.');
   return result.data;
+}
+
+export async function fetchNutritionChatImage(imageUrl: string, token: string): Promise<Blob> {
+  if (!/^\/api\/chat\/nutrition-images\/[0-9a-f-]{36}\.(?:jpg|png|webp)$/i.test(imageUrl)) {
+    throw new Error('Đường dẫn ảnh trong lịch sử không hợp lệ.');
+  }
+  const response = await fetch(imageUrl, {
+    credentials: 'same-origin',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new ApiError(response.status, 'Không thể tải ảnh trong lịch sử chat.');
+  return response.blob();
 }
 
 export async function fetchHealth(): Promise<{ status: string; service: string }> {

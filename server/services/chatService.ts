@@ -35,7 +35,15 @@ async function liveGrounding(question: string, client: PoolClient): Promise<{ pr
     }))
     .sort((left, right) => right.score - left.score)
     .find(candidate => candidate.score > 0)?.item;
-  const products = await productRepo.findChatProducts(matched?.recommendedCategory ? { category: matched.recommendedCategory } : {}, executeQuery);
+  const productFilter: import('../types/index.js').ProductFilterQuery = matched?.recommendedCategory ? { category: matched.recommendedCategory } : {};
+  if (/protein|giàu đạm|nhiều đạm/i.test(question)) productFilter.sort = 'protein_desc';
+  else if (/low.?carb|ít carb|ít tinh bột/i.test(question)) productFilter.sort = 'carbs_asc';
+  else if (/ít đường|giảm đường|hạn chế đường/i.test(question)) productFilter.sort = 'sugar_asc';
+  else if (/giảm cân|ít calo|ít calories|ít năng lượng/i.test(question)) productFilter.sort = 'calories_asc';
+  else if (/tăng cân|nhiều calo|nhiều năng lượng/i.test(question)) productFilter.sort = 'calories_desc';
+  const requestedCalories = question.match(/(?:dưới|tối đa|không quá)\s*(\d{2,4})\s*(?:kcal|calo)?/i);
+  if (requestedCalories?.[1]) productFilter.maxCalories = Number(requestedCalories[1]);
+  const products = await productRepo.findChatProducts(productFilter, executeQuery);
   return { products: products.slice(0, 3), knowledge: matched?.answerTemplate.slice(0, 3000) || '' };
 }
 export function createChatService(repository = new ChatConversationRepository(), generate = generateChatReply, grounding = liveGrounding) {
@@ -66,7 +74,15 @@ export function createChatService(repository = new ChatConversationRepository(),
             price: product.price, stock: product.stock, nutrition: product.nutrition ?? 'Chưa có dữ liệu',
           })) }),
         ].join('\n');
-        const text = await generate([{ role: 'system', content: system }, ...boundedContext(history, question)]);
+        const generatedText = await generate([{ role: 'system', content: system }, ...boundedContext(history, question)]);
+        const disclaimerPattern = CHAT_DISCLAIMER
+          .split(/\s+/)
+          .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+          .join('\\s+');
+        const text = generatedText
+          .replace(/\*\*/g, '')
+          .replace(new RegExp(disclaimerPattern, 'giu'), '')
+          .trim();
         const reply = `${text}\n\n${CHAT_DISCLAIMER}`;
         const messages = await repository.save(client, conversationId, requestId, question, reply, context.products);
         return { conversationId, reply, suggestedProducts: context.products, messages };

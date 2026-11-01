@@ -158,6 +158,7 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   imagePreview?: string;
+  imageUrl?: string;
   suggestedProducts?: ChatSuggestedProduct[];
   actionLink?: {
     text: string;

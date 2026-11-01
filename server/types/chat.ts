@@ -11,6 +11,7 @@ export interface StoredChatMessage {
   createdAt: string;
   requestId: string;
   suggestedProducts: ChatSuggestedProduct[];
+  imageUrl?: string | null;
 }
 export interface ChatTurn {
   conversationId: string;
