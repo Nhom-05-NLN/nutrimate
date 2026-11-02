@@ -216,11 +216,16 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
 
 export const useProductStore = defineStore('product', () => {
   const products = ref<Product[]>(FIGMA_SEED_PRODUCTS);
+  const totalProducts = ref<number>(FIGMA_SEED_PRODUCTS.length);
+  const currentPage = ref<number>(1);
+  const pageSize = ref<number>(9);
+  const totalPages = ref<number>(Math.ceil(FIGMA_SEED_PRODUCTS.length / 9));
+
   const categories = ref<Category[]>([
-    { id: 'low-carb', name: 'Low-Carb & KETO', slug: 'low-carb', description: 'Ít tinh bột, giàu chất xơ', dietType: 'low-carb', count: 18 },
-    { id: 'high-protein', name: 'High-Protein', slug: 'high-protein', description: 'Giàu đạm siết cơ', dietType: 'high-protein', count: 22 },
-    { id: 'sugar-free', name: 'Sugar-Free', slug: 'sugar-free', description: '0g đường tinh luyện', dietType: 'sugar-free', count: 15 },
-    { id: 'snacks-nuts', name: 'Hạt dinh dưỡng', slug: 'snacks-nuts', description: 'Hạt nướng mộc & Granola', dietType: 'snacks-nuts', count: 14 },
+    { id: 'low-carb', name: 'Low-Carb & KETO', slug: 'low-carb', description: '�t tinh b?t, gi�u ch?t xo', dietType: 'low-carb', count: 18 },
+    { id: 'high-protein', name: 'High-Protein', slug: 'high-protein', description: 'Gi�u d?m si?t co', dietType: 'high-protein', count: 22 },
+    { id: 'sugar-free', name: 'Sugar-Free', slug: 'sugar-free', description: '0g du?ng tinh luy?n', dietType: 'sugar-free', count: 15 },
+    { id: 'snacks-nuts', name: 'H?t dinh du?ng', slug: 'snacks-nuts', description: 'H?t nu?ng m?c & Granola', dietType: 'snacks-nuts', count: 14 },
   ]);
   const selectedProduct = ref<Product | null>(null);
   const isLoading = ref<boolean>(false);
@@ -231,6 +236,9 @@ export const useProductStore = defineStore('product', () => {
     search: '',
     maxCalories: undefined,
     minProtein: undefined,
+    page: 1,
+    limit: 9,
+    sort: 'newest',
   });
 
   async function loadCategories() {
@@ -244,40 +252,80 @@ export const useProductStore = defineStore('product', () => {
     }
   }
 
-  async function loadProducts() {
+  async function loadProducts(page?: number) {
+    if (page !== undefined && page > 0) {
+      currentPage.value = page;
+    }
+    filter.value.page = currentPage.value;
+    filter.value.limit = pageSize.value;
+
     isLoading.value = true;
     error.value = null;
     try {
-      const data = await fetchProducts(filter.value);
-      if (data && data.length > 0) {
-        products.value = data;
+      const result = await fetchProducts(filter.value);
+      if (result && result.products.length > 0) {
+        products.value = result.products;
+        totalProducts.value = result.total;
+        totalPages.value = result.totalPages;
+        currentPage.value = result.page;
       }
     } catch {
       // Fallback to local FIGMA_SEED_PRODUCTS
-      products.value = FIGMA_SEED_PRODUCTS;
+      const offset = (currentPage.value - 1) * pageSize.value;
+      products.value = FIGMA_SEED_PRODUCTS.slice(offset, offset + pageSize.value);
+      totalProducts.value = FIGMA_SEED_PRODUCTS.length;
+      totalPages.value = Math.ceil(FIGMA_SEED_PRODUCTS.length / pageSize.value);
     } finally {
       isLoading.value = false;
     }
   }
 
+  function setPage(page: number) {
+    if (page >= 1 && page <= totalPages.value && page !== currentPage.value) {
+      loadProducts(page);
+    }
+  }
+
+  function nextPage() {
+    if (currentPage.value < totalPages.value) {
+      setPage(currentPage.value + 1);
+    }
+  }
+
+  function prevPage() {
+    if (currentPage.value > 1) {
+      setPage(currentPage.value - 1);
+    }
+  }
+
+  function setSort(sortOption: string) {
+    filter.value.sort = sortOption;
+    currentPage.value = 1;
+    loadProducts(1);
+  }
+
   function setCategory(cat: string) {
     filter.value.category = cat;
-    loadProducts();
+    currentPage.value = 1;
+    loadProducts(1);
   }
 
   function setSearch(query: string) {
     filter.value.search = query;
-    loadProducts();
+    currentPage.value = 1;
+    loadProducts(1);
   }
 
   function setCalorieFilter(max?: number) {
     filter.value.maxCalories = max;
-    loadProducts();
+    currentPage.value = 1;
+    loadProducts(1);
   }
 
   function setProteinFilter(min?: number) {
     filter.value.minProtein = min;
-    loadProducts();
+    currentPage.value = 1;
+    loadProducts(1);
   }
 
   function resetFilter() {
@@ -286,8 +334,12 @@ export const useProductStore = defineStore('product', () => {
       search: '',
       maxCalories: undefined,
       minProtein: undefined,
+      page: 1,
+      limit: pageSize.value,
+      sort: 'newest',
     };
-    loadProducts();
+    currentPage.value = 1;
+    loadProducts(1);
   }
 
   function selectProduct(p: Product | null) {
@@ -300,6 +352,10 @@ export const useProductStore = defineStore('product', () => {
 
   return {
     products,
+    totalProducts,
+    currentPage,
+    pageSize,
+    totalPages,
     categories,
     selectedProduct,
     isLoading,
@@ -307,6 +363,10 @@ export const useProductStore = defineStore('product', () => {
     filter,
     loadCategories,
     loadProducts,
+    setPage,
+    nextPage,
+    prevPage,
+    setSort,
     setCategory,
     setSearch,
     setCalorieFilter,
