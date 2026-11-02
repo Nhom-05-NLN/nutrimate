@@ -55,11 +55,13 @@ const routes: RouteRecordRaw[] = [
     path: '/profile',
     name: 'profile',
     component: ProfileView,
+    meta: { requiresCustomer: true },
   },
   {
     path: '/nutrition',
     name: 'nutrition',
     component: NutritionDashboardView,
+    meta: { requiresCustomer: true },
   },
   {
     path: '/login',
@@ -125,7 +127,7 @@ export const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
-  if (!to.path.startsWith('/admin')) {
+  if (!to.path.startsWith('/admin') && !to.meta.requiresCustomer) {
     return true;
   }
 
@@ -137,13 +139,15 @@ router.beforeEach(async (to) => {
     return { name: 'login' };
   }
 
-  if (authStore.currentUser?.role === 'admin') {
+  if (to.path.startsWith('/admin') && authStore.currentUser?.role === 'admin') {
     return true;
   }
+
+  if (to.meta.requiresCustomer && authStore.currentUser?.role === 'customer') return true;
 
   if (!authStore.currentUser) {
     return { name: 'login' };
   }
 
-  return { name: 'home' };
+  return to.path.startsWith('/admin') ? { name: 'home' } : { name: 'login' };
 });
