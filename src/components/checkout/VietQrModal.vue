@@ -72,7 +72,7 @@ const bankInfo = {
   bankCode: 'TCB',
   bankName: 'Techcombank (Ngân hàng TMCP Kỹ Thương)',
   accountNo: '1403123456',
-  accountName: 'CONG TY NUTRIMATE VN',
+  accountName: 'NUTRIMATE STORE',
 };
 
 const vietQrImageUrl = computed(() => {
@@ -234,7 +234,7 @@ onUnmounted(() => {
       <!-- MAIN PAYMENT VIEW -->
       <div v-else class="p-6 sm:p-8 space-y-6">
         <!-- Header -->
-        <div class="space-y-1.5 border-b border-[#F0F3EC] pb-4">
+        <div class="space-y-1.5 border-b border-[#F0F3EC] pb-4 pr-12">
           <div class="flex items-center gap-2">
             <span class="px-3 py-1 rounded-full bg-[#4D6A34] text-white text-xs font-black tracking-wide uppercase">
               VietQR Napas 24/7

@@ -68,7 +68,7 @@ function handleRefreshQr() {
 // Thông tin tài khoản MoMo chính thức từ mã QR của TRAN TUONG VY
 const momoMerchant = {
   accountName: 'TRAN TUONG VY', // Token định danh tài khoản MoMo trong payload QR
-  displayName: 'CONG TY NUTRIMATE VN', // Tên hiển thị thương hiệu trên giao diện NutriMate
+  displayName: 'NUTRIMATE STORE', // Tên hiển thị thương hiệu trên giao diện NutriMate
   accountNo: 'PSP2630419900000115',
   maskedAccountNo: '*******115',
   accountPhone: '0333 636 045',
@@ -302,21 +302,18 @@ onUnmounted(() => {
       <!-- MAIN PAYMENT VIEW -->
       <div v-else class="p-6 sm:p-8 space-y-6">
         <!-- Header MoMo -->
-        <div class="space-y-2 border-b border-pink-100 pb-4">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
-              <span class="px-3 py-1 rounded-full bg-[#D82D8B] text-white text-xs font-black tracking-wider uppercase flex items-center gap-1.5 shadow-2xs">
-                <span class="w-2 h-2 rounded-full bg-white animate-ping"></span>
-                Ví MoMo Pay
-              </span>
-              <span class="text-xs font-bold text-pink-700 bg-pink-50 px-2.5 py-0.5 rounded-full border border-pink-200 flex items-center gap-1">
-                <Sparkles class="w-3.5 h-3.5 text-[#D82D8B]" />
-                Đã Tự Điền Tiền
-              </span>
-            </div>
-
+        <div class="space-y-2 border-b border-pink-100 pb-4 pr-12">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="px-3 py-1 rounded-full bg-[#D82D8B] text-white text-xs font-black tracking-wider uppercase flex items-center gap-1.5 shadow-2xs">
+              <span class="w-2 h-2 rounded-full bg-white animate-ping"></span>
+              Ví MoMo Pay
+            </span>
+            <span class="text-xs font-bold text-pink-700 bg-pink-50 px-2.5 py-0.5 rounded-full border border-pink-200 flex items-center gap-1">
+              <Sparkles class="w-3.5 h-3.5 text-[#D82D8B]" />
+              Đã Tự Điền Tiền
+            </span>
             <span class="text-xs font-bold text-[#7A866E] flex items-center gap-1">
-              <Clock class="w-3.5 h-3.5 text-amber-500" /> Còn lại: <span class="font-mono text-[#D82D8B] font-bold">{{ formattedCountdown }}</span>
+              <Clock class="w-3.5 h-3.5 text-amber-500" /> Hết hạn sau: <span class="font-mono text-[#242424] font-bold">{{ formattedCountdown }}</span>
             </span>
           </div>
 
