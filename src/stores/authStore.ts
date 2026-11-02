@@ -40,7 +40,7 @@ export const useAuthStore = defineStore('auth', () => {
       fatGrams: 45,
       fatKcal: 405,
     },
-    dietPreferences: ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt'],
+    dietPreferences: ['Low-Carb', 'Giàu Protein'],
   };
 
   const authStorageKey = "nutrimate-auth-user";
@@ -177,6 +177,16 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function updateDietPreferences(dietPreferences: string[]) {
+    if (!currentUser.value) return;
+    currentUser.value = {
+      ...currentUser.value,
+      dietPreferences: [...dietPreferences],
+      currentDiet: dietPreferences.join(' & ') || 'Chưa chọn',
+    };
+    activeStorage?.setItem(authStorageKey, JSON.stringify(currentUser.value));
+  }
+
   async function updateAvatar(avatar: string): Promise<void> {
     if (!currentUser.value) {
       throw new Error("Vui lòng đăng nhập để đổi ảnh đại diện.");
@@ -267,6 +277,7 @@ export const useAuthStore = defineStore('auth', () => {
     openAuthModal,
     closeAuthModal,
     updateProfile,
+    updateDietPreferences,
     updateAvatar,
     updateAccountProfile,
     login,
