@@ -21,7 +21,7 @@ const goalAdjustments: Record<NutritionGoal, number> = {
   gain_weight: 300,
 };
 
-function buildPlan(profile: CalorieProfile): CaloriePlan | null {
+export function calculateCaloriePlan(profile: CalorieProfile): CaloriePlan | null {
   const { heightCm, weightKg, age, gender, activityLevel, nutritionGoal } = profile;
   if (heightCm === null || weightKg === null || age === null || gender === null || activityLevel === null || nutritionGoal === null) {
     return null;
@@ -30,14 +30,16 @@ function buildPlan(profile: CalorieProfile): CaloriePlan | null {
   const sexOffset = gender === 'male' ? 5 : gender === 'female' ? -161 : -78;
   const bmrKcal = Math.round(10 * weightKg + 6.25 * heightCm - 5 * age + sexOffset);
   const tdeeKcal = Math.round(bmrKcal * activityFactors[activityLevel]);
-  const adjustmentKcal = goalAdjustments[nutritionGoal];
+  const requestedTargetCalories = tdeeKcal + goalAdjustments[nutritionGoal];
+  const targetCalories = Math.max(1200, requestedTargetCalories);
   return {
     ...profile,
     bmi: Math.round((weightKg / ((heightCm / 100) ** 2)) * 10) / 10,
     bmrKcal,
     tdeeKcal,
-    adjustmentKcal,
-    targetCalories: Math.max(1200, tdeeKcal + adjustmentKcal),
+    adjustmentKcal: targetCalories - tdeeKcal,
+    targetCalories,
+    minimumTargetApplied: requestedTargetCalories < 1200,
   };
 }
 
@@ -78,16 +80,16 @@ function validateProfile(input: unknown): CalorieProfile {
 export async function getPlan(userId: string): Promise<{ profile: CalorieProfile; plan: CaloriePlan | null }> {
   const profile = await caloriePlanRepository.getCalorieProfile(userId);
   if (!profile) throw new CaloriePlanError('Không tìm thấy hồ sơ khách hàng.', 404);
-  return { profile, plan: buildPlan(profile) };
+  return { profile, plan: calculateCaloriePlan(profile) };
 }
 
 export async function updateProfile(userId: string, input: unknown): Promise<{ profile: CalorieProfile; plan: CaloriePlan }> {
   const profile = validateProfile(input);
-  const plan = buildPlan(profile);
+  const plan = calculateCaloriePlan(profile);
   if (!plan) throw new CaloriePlanError('Hồ sơ chưa đủ để tính lộ trình.', 400);
   const savedProfile = await caloriePlanRepository.saveCalorieProfile(userId, profile, plan.targetCalories);
   if (!savedProfile) throw new CaloriePlanError('Không tìm thấy hồ sơ khách hàng.', 404);
-  const savedPlan = buildPlan(savedProfile);
+  const savedPlan = calculateCaloriePlan(savedProfile);
   if (!savedPlan) throw new CaloriePlanError('Không thể tạo lộ trình từ hồ sơ đã lưu.', 500);
   return { profile: savedProfile, plan: savedPlan };
 }
