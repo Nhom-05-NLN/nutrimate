@@ -8,15 +8,25 @@ let isConnected = false;
 
 export function getPool(): pg.Pool {
   if (!poolInstance) {
-    poolInstance = new Pool({
-      host: config.db.host,
-      port: config.db.port,
-      user: config.db.user,
-      password: config.db.password,
-      database: config.db.database,
-      max: config.db.max,
-      connectionTimeoutMillis: config.db.connectionTimeoutMillis,
-    });
+    const poolConfig: pg.PoolConfig = config.db.connectionString
+      ? {
+          connectionString: config.db.connectionString,
+          ssl: config.db.ssl,
+          max: config.db.max,
+          connectionTimeoutMillis: config.db.connectionTimeoutMillis,
+        }
+      : {
+          host: config.db.host,
+          port: config.db.port,
+          user: config.db.user,
+          password: config.db.password,
+          database: config.db.database,
+          ssl: config.db.ssl,
+          max: config.db.max,
+          connectionTimeoutMillis: config.db.connectionTimeoutMillis,
+        };
+
+    poolInstance = new Pool(poolConfig);
 
     poolInstance.on('error', (err) => {
       console.warn('[PostgreSQL Pool Warning]:', err.message);
@@ -51,8 +61,20 @@ export function isDbConnected(): boolean {
 
 export async function queryPostgres<T extends QueryResultRow = QueryResultRow>(
   text: string,
-  params?: unknown[]
+  params?: unknown[],
+  timeoutMs = 5000
 ): Promise<QueryResult<T>> {
   const pool = getPool();
-  return pool.query<T>(text, params);
+  let timer: NodeJS.Timeout | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`PostgreSQL query timeout after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([pool.query<T>(text, params), timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }

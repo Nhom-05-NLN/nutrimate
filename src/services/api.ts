@@ -3,17 +3,21 @@ import {
   Category,
   ChatSuggestedProduct,
   CreateOrderPayload,
+  CreateVoucherPayload,
   KnowledgeBaseEntry,
   KnowledgeBaseEntryPayload,
   KnowledgeImportResult,
   NutritionImagePrediction,
   Order,
+  OrderStatus,
+  PaymentStatus,
   Product,
   ProductFilterQuery,
   CaloriePlanResponse,
   CalorieProfileInput,
   CreateNutritionDiaryMeal,
   NutritionDiaryDay,
+  Voucher,
 } from '../types';
 
 const API_BASE = '/api';
@@ -25,7 +29,11 @@ export class ApiError extends Error {
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
   try {
+    const timeoutSignal = AbortSignal.timeout(12000);
+    const signal = options?.signal || timeoutSignal;
+
     const res = await fetch(url, {
+      signal,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -49,6 +57,9 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
     return (await res.json()) as T;
   } catch (err: unknown) {
     if (err instanceof ApiError) throw err;
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      throw new Error('Yêu cầu máy chủ quá thời gian chờ (12s). Vui lòng kiểm tra lại kết nối!');
+    }
     const message = err instanceof Error ? err.message : 'Lỗi không xác định khi kết nối máy chủ';
     throw new Error(message);
   }
@@ -98,6 +109,56 @@ export async function postOrder(payload: CreateOrderPayload): Promise<Order> {
   });
   if (!res.data) {
     throw new Error(res.message || 'Không thể hoàn tất đơn hàng');
+  }
+  return res.data;
+}
+
+export async function fetchOrders(): Promise<Order[]> {
+  const res = await fetchJson<ApiResponse<Order[]>>('/orders');
+  return res.data || [];
+}
+
+export async function fetchOrderById(id: string): Promise<Order> {
+  const res = await fetchJson<ApiResponse<Order>>(`/orders/${id}`);
+  if (!res.data) {
+    throw new Error('Không tìm thấy thông tin đơn hàng');
+  }
+  return res.data;
+}
+
+export async function patchOrderPaymentStatus(
+  orderId: string,
+  paymentStatus: PaymentStatus,
+  status?: OrderStatus
+): Promise<Order> {
+  const res = await fetchJson<ApiResponse<Order>>(`/orders/${orderId}/payment`, {
+    method: 'PATCH',
+    body: JSON.stringify({ paymentStatus, status }),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể cập nhật trạng thái thanh toán');
+  }
+  return res.data;
+}
+
+export async function patchOrderStatus(orderId: string, status: OrderStatus): Promise<Order> {
+  const res = await fetchJson<ApiResponse<Order>>(`/orders/${orderId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể cập nhật trạng thái đơn hàng');
+  }
+  return res.data;
+}
+
+export async function cancelOrderApi(orderId: string, reason?: string): Promise<Order> {
+  const res = await fetchJson<ApiResponse<Order>>(`/orders/${orderId}/cancel`, {
+    method: 'PATCH',
+    body: JSON.stringify({ reason }),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể hủy đơn hàng');
   }
   return res.data;
 }
@@ -454,6 +515,59 @@ export async function postNutritionImage(image: File, token: string): Promise<Nu
 
 export async function fetchHealth(): Promise<{ status: string; service: string }> {
   return fetchJson<{ status: string; service: string }>('/health');
+}
+
+export async function fetchVouchers(): Promise<Voucher[]> {
+  const res = await fetchJson<ApiResponse<Voucher[]>>('/vouchers');
+  return res.data || [];
+}
+
+export async function validateVoucherApi(
+  code: string,
+  itemsTotal: number,
+  customerPhone?: string,
+  customerEmail?: string
+): Promise<{ discountAmount: number; voucher: Voucher; message: string }> {
+  const res = await fetchJson<ApiResponse<{ discountAmount: number; voucher: Voucher }>>('/vouchers/validate', {
+    method: 'POST',
+    body: JSON.stringify({ code, itemsTotal, customerPhone, customerEmail }),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Mã voucher không hợp lệ');
+  }
+  return {
+    discountAmount: res.data.discountAmount,
+    voucher: res.data.voucher,
+    message: res.message || 'Áp dụng mã thành công',
+  };
+}
+
+export async function createVoucherApi(payload: CreateVoucherPayload): Promise<Voucher> {
+  const res = await fetchJson<ApiResponse<Voucher>>('/vouchers', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể tạo voucher');
+  }
+  return res.data;
+}
+
+export async function toggleVoucherApi(id: string): Promise<Voucher> {
+  const res = await fetchJson<ApiResponse<Voucher>>(`/vouchers/${id}/toggle`, {
+    method: 'PATCH',
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể cập nhật trạng thái voucher');
+  }
+  return res.data;
+}
+
+export async function deleteVoucherApi(id: string): Promise<boolean> {
+  const res = await fetchJson<ApiResponse<null>>(`/vouchers/${id}`, {
+    method: 'DELETE',
+  });
+  return res.success;
 }
 
 export async function fetchCaloriePlan(): Promise<CaloriePlanResponse> {
