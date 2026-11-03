@@ -173,7 +173,10 @@ export async function register(input: RegisterUserInput): Promise<AuthenticatedU
   }
 }
 
-export async function login(input: LoginUserInput): Promise<AuthenticatedUser> {
+export async function login(
+  input: LoginUserInput,
+  expectedRole: "customer" | "admin",
+): Promise<AuthenticatedUser> {
   if (config.chat.jwtSecret.length < 32) {
     throw new AuthServiceError('Máy chủ chưa được cấu hình xác thực an toàn.', 503);
   }
@@ -195,7 +198,7 @@ export async function login(input: LoginUserInput): Promise<AuthenticatedUser> {
     throw new AuthServiceError('Máy chủ cơ sở dữ liệu hiện không khả dụng.', 503);
   }
 
-  const user = await authRepository.findUserForLogin(identifier);
+  const user = await authRepository.findUserForLogin(identifier, expectedRole);
   if (!user?.passwordHash || !(await verifyPassword(input.password, user.passwordHash))) {
     throw new AuthServiceError('Email, số điện thoại hoặc mật khẩu không chính xác.', 401);
   }

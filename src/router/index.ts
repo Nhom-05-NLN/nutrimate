@@ -70,6 +70,12 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'blank' },
   },
   {
+    path: '/admin/login',
+    name: 'admin-login',
+    component: LoginView,
+    meta: { layout: 'blank' },
+  },
+  {
     path: '/register',
     name: 'register',
     component: RegisterView,
@@ -127,6 +133,10 @@ export const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
+  if (to.path === '/admin/login') {
+    return true;
+  }
+
   if (!to.path.startsWith('/admin') && !to.meta.requiresCustomer) {
     return true;
   }
@@ -136,7 +146,7 @@ router.beforeEach(async (to) => {
     await authStore.restoreSession();
   } catch (error: unknown) {
     console.error('[Router] Không thể xác minh quyền truy cập quản trị:', error);
-    return { name: 'login' };
+    return { name: to.path.startsWith('/admin') ? 'admin-login' : 'login' };
   }
 
   if (to.path.startsWith('/admin') && authStore.currentUser?.role === 'admin') {
@@ -146,7 +156,7 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresCustomer && authStore.currentUser?.role === 'customer') return true;
 
   if (!authStore.currentUser) {
-    return { name: 'login' };
+    return { name: to.path.startsWith('/admin') ? 'admin-login' : 'login' };
   }
 
   return to.path.startsWith('/admin') ? { name: 'home' } : { name: 'login' };
