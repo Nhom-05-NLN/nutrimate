@@ -272,15 +272,6 @@ async function addWater(amount: number) {
         <div class="flex justify-end gap-3"><button type="button" class="rounded-full border px-4 py-2" @click="isMealModalOpen = false">Hủy</button><button :disabled="isSavingDiary" class="rounded-full bg-[#536124] px-5 py-2 font-bold text-white disabled:opacity-50">{{ isSavingDiary ? 'Đang lưu...' : 'Lưu món ăn' }}</button></div>
       </form>
     </div>
-    <!-- Breadcrumb (Figma 08) -->
-    <nav class="flex items-center gap-1.5 text-xs text-[#7A866E]">
-      <RouterLink to="/" class="hover:text-[#242424]">Trang chủ</RouterLink>
-      <span>›</span>
-      <RouterLink to="/profile" class="hover:text-[#242424]">Thành viên NutriMate</RouterLink>
-      <span>›</span>
-      <span class="text-[#242424] font-bold">Nhật ký & Bảng điều khiển Dinh dưỡng</span>
-    </nav>
-
     <!-- Header Actions Bar (Figma 08 Layout Exact) -->
     <div class="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
       <div class="space-y-1">
