@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import { Bot, CheckCircle2, FilePlus2, FileText, Pencil, Save, Trash2, X } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
+import { Bot, CheckCircle2, ChevronLeft, ChevronRight, FilePlus2, FileText, Pencil, RotateCcw, Save, Search, Trash2, X } from 'lucide-vue-next';
 import {
   createKnowledgeEntry,
   deleteKnowledgeEntry,
@@ -19,8 +19,13 @@ interface KnowledgeForm {
 
 const MAX_IMPORT_FILE_SIZE = 1024 * 1024;
 const MAX_IMPORT_ENTRIES = 500;
+const PAGE_SIZE = 10;
 const toastStore = useToastStore();
 const records = ref<KnowledgeBaseEntry[]>([]);
+const searchQuery = ref('');
+const selectedCategory = ref('all');
+const categoryScope = ref<'all' | 'categorized' | 'uncategorized'>('all');
+const currentPage = ref(1);
 const importFileInput = ref<HTMLInputElement | null>(null);
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -36,6 +41,49 @@ const emptyForm: KnowledgeForm = {
 };
 
 const form = ref<KnowledgeForm>({ ...emptyForm });
+
+const categories = computed(() => [...new Set(
+  records.value.map((record) => record.category?.trim()).filter((category): category is string => Boolean(category)),
+)].sort((a, b) => a.localeCompare(b, 'vi')));
+const uncategorizedCount = computed(() => records.value.filter((record) => !record.category?.trim()).length);
+const categoryTabs = computed(() => [
+  { id: 'all' as const, label: `Tất cả (${records.value.length})` },
+  { id: 'categorized' as const, label: `Đã phân loại (${records.value.length - uncategorizedCount.value})` },
+  { id: 'uncategorized' as const, label: `Chưa phân loại (${uncategorizedCount.value})` },
+]);
+const filteredRecords = computed(() => {
+  const query = searchQuery.value.trim().toLocaleLowerCase('vi');
+  return records.value.filter((record) => {
+    const matchesQuery = !query || [record.question, record.answer, record.category ?? '']
+      .some((value) => value.toLocaleLowerCase('vi').includes(query));
+    const matchesCategory = selectedCategory.value === 'all'
+      || (selectedCategory.value === 'uncategorized' ? !record.category?.trim() : record.category?.trim() === selectedCategory.value);
+    const matchesScope = categoryScope.value === 'all'
+      || (categoryScope.value === 'categorized' ? Boolean(record.category?.trim()) : !record.category?.trim());
+    return matchesQuery && matchesCategory && matchesScope;
+  });
+});
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredRecords.value.length / PAGE_SIZE)));
+const paginatedRecords = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE;
+  return filteredRecords.value.slice(start, start + PAGE_SIZE);
+});
+const firstVisibleRecord = computed(() => filteredRecords.value.length ? (currentPage.value - 1) * PAGE_SIZE + 1 : 0);
+const lastVisibleRecord = computed(() => Math.min(currentPage.value * PAGE_SIZE, filteredRecords.value.length));
+
+watch([searchQuery, selectedCategory, categoryScope], () => {
+  currentPage.value = 1;
+});
+
+watch(totalPages, (pageCount) => {
+  if (currentPage.value > pageCount) currentPage.value = pageCount;
+});
+
+function resetFilters() {
+  searchQuery.value = '';
+  selectedCategory.value = 'all';
+  categoryScope.value = 'all';
+}
 
 function resetForm() {
   form.value = { ...emptyForm };
@@ -219,11 +267,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <header class="flex flex-col gap-4 rounded-3xl border border-[#E3E8DC] bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+  <div class="space-y-8">
+    <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <p class="text-[10px] font-bold uppercase tracking-[0.24em] text-[#6B7B5E]">Admin panel</p>
-        <h1 class="mt-2 text-2xl font-black text-[#2D3B1E] sm:text-3xl">Quản lý dữ liệu tri thức NutriBot</h1>
+        <h1 class="font-heading text-2xl font-black text-[#2D3B1E] sm:text-3xl">Quản lý dữ liệu tri thức NutriBot</h1>
       </div>
       <div>
         <input
@@ -238,7 +285,7 @@ onMounted(() => {
           type="button"
           :disabled="isImporting"
           @click="importFileInput?.click()"
-          class="inline-flex items-center gap-2 rounded-2xl border border-[#D7E0CE] bg-white px-4 py-2.5 text-sm font-bold text-[#2D3B1E] transition hover:border-[#C2CFB5] disabled:cursor-not-allowed disabled:opacity-60"
+          class="inline-flex items-center gap-2 rounded-2xl border border-[#CCD7BC] bg-white px-4 py-2.5 text-xs font-bold text-[#576449] shadow-2xs transition hover:bg-[#FAF9F5] disabled:cursor-not-allowed disabled:opacity-60"
         >
           <FilePlus2 class="h-4 w-4" />
           {{ isImporting ? 'Đang nhập file...' : 'Nhập tri thức JSON' }}
@@ -259,15 +306,59 @@ onMounted(() => {
     </header>
 
     <div class="grid gap-6 xl:grid-cols-[1.45fr_0.75fr]">
-      <section class="rounded-3xl border border-[#E3E8DC] bg-white p-5 shadow-sm">
-        <div class="mb-4 flex items-center justify-between gap-3">
+      <section class="space-y-6 rounded-3xl border border-[#E3E8DC] bg-white p-6 shadow-2xs">
+        <div class="flex items-center justify-between gap-3">
           <div class="flex items-center gap-2 text-[#2D3B1E]">
             <FileText class="h-4 w-4 text-[#4D6A34]" />
             <h2 class="text-lg font-bold">Danh sách tri thức</h2>
           </div>
           <span class="rounded-full bg-[#EEF5E7] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#4D6A34]">
-            {{ records.length }} mục
+            {{ filteredRecords.length }} / {{ records.length }} mục
           </span>
+        </div>
+
+        <nav class="flex items-center gap-2 overflow-x-auto border-b border-[#F0F3EC] pb-3" aria-label="Lọc tri thức theo trạng thái danh mục">
+          <button
+            v-for="tab in categoryTabs"
+            :key="tab.id"
+            type="button"
+            @click="categoryScope = tab.id"
+            class="shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all"
+            :class="categoryScope === tab.id ? 'bg-[#4D6A34] text-white' : 'text-[#7A866E] hover:text-[#2D3B1E]'"
+          >
+            {{ tab.label }}
+          </button>
+        </nav>
+
+        <div class="flex flex-wrap items-center gap-3 border-b border-[#F0F3EC] pb-5">
+          <div class="relative min-w-56 flex-1">
+            <Search class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7A866E]" />
+            <input
+              v-model="searchQuery"
+              type="search"
+              placeholder="Tìm câu hỏi, câu trả lời, danh mục..."
+              aria-label="Tìm tri thức"
+              class="w-full rounded-2xl border border-[#DEE5D4] bg-[#FAF9F5] py-2.5 pl-10 pr-3.5 text-xs text-[#2D3B1E] outline-none transition-colors placeholder:text-[#8C9882] focus:border-[#536124] focus:bg-white"
+            />
+          </div>
+          <select
+            v-model="selectedCategory"
+            aria-label="Lọc theo danh mục"
+            class="rounded-2xl border border-[#DEE5D4] bg-[#FAF9F5] px-3 py-2.5 text-xs text-[#2D3B1E] outline-none focus:border-[#536124]"
+          >
+            <option value="all">Tất cả danh mục</option>
+            <option v-for="category in categories" :key="category" :value="category">{{ category }}</option>
+            <option value="uncategorized">Chưa phân loại</option>
+          </select>
+          <button
+            type="button"
+            aria-label="Xóa bộ lọc"
+            title="Xóa bộ lọc"
+            @click="resetFilters"
+            class="rounded-xl border border-[#DEE5D4] p-2.5 text-[#7A866E] transition hover:bg-[#FAF9F5] hover:text-[#2D3B1E]"
+          >
+            <RotateCcw class="h-4 w-4" />
+          </button>
         </div>
 
         <div v-if="isLoading" class="rounded-2xl border border-dashed border-[#CDD8C7] bg-[#F8FBF5] p-8 text-center text-sm text-[#6B7B5E]">
@@ -278,8 +369,12 @@ onMounted(() => {
           Chưa có mẫu tri thức nào. Thêm mục mới để NutriBot phản hồi chính xác hơn.
         </div>
 
+        <div v-else-if="filteredRecords.length === 0" class="rounded-2xl border border-dashed border-[#CDD8C7] bg-[#F8FBF5] p-8 text-center text-sm text-[#6B7B5E]">
+          Không tìm thấy tri thức phù hợp. Thử đổi từ khóa hoặc bộ lọc danh mục.
+        </div>
+
         <div v-else class="space-y-3">
-          <article v-for="item in records" :key="item.id" class="rounded-2xl border border-[#E8ECDF] bg-[#FAFBF8] p-4">
+          <article v-for="item in paginatedRecords" :key="item.id" class="rounded-2xl border border-[#E3E8DC] bg-white p-4 transition hover:bg-[#FAF9F5]">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div class="min-w-0">
                 <div class="flex items-center gap-2">
@@ -321,11 +416,40 @@ onMounted(() => {
               Tạo: {{ formatDate(item.createdAt) }} · Cập nhật: {{ formatDate(item.updatedAt) }}
             </p>
           </article>
+
+          <div class="flex flex-col gap-3 border-t border-[#F0F3EC] pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p class="text-xs text-[#7A866E]">
+              Hiển thị {{ firstVisibleRecord }}–{{ lastVisibleRecord }} trong {{ filteredRecords.length }} tri thức
+            </p>
+            <div class="flex items-center gap-2 self-end sm:self-auto">
+              <button
+                type="button"
+                :disabled="currentPage === 1"
+                aria-label="Trang trước"
+                @click="currentPage -= 1"
+                class="inline-flex items-center gap-1 rounded-xl border border-[#DEE5D4] px-3 py-2 text-xs font-bold text-[#576449] transition hover:bg-[#FAF9F5] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft class="h-4 w-4" />
+                Trước
+              </button>
+              <span class="min-w-20 text-center text-xs font-bold text-[#2D3B1E]">{{ currentPage }} / {{ totalPages }}</span>
+              <button
+                type="button"
+                :disabled="currentPage === totalPages"
+                aria-label="Trang sau"
+                @click="currentPage += 1"
+                class="inline-flex items-center gap-1 rounded-xl border border-[#DEE5D4] px-3 py-2 text-xs font-bold text-[#576449] transition hover:bg-[#FAF9F5] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Sau
+                <ChevronRight class="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
-      <aside class="rounded-3xl border border-[#E3E8DC] bg-white p-5 shadow-sm">
-        <div class="mb-4 flex items-center gap-2">
+      <aside class="h-fit rounded-3xl border border-[#E3E8DC] bg-white p-5 shadow-sm">
+        <div class="mb-4 flex items-center justify-between gap-3">
           <Bot class="h-4 w-4 text-[#4D6A34]" />
           <h2 class="text-lg font-bold text-[#2D3B1E]">
             {{ isEditing ? 'Cập nhật tri thức' : 'Thêm tri thức mới' }}
