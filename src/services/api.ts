@@ -223,12 +223,23 @@ export interface LoginPayload {
 }
 
 export async function postLogin(payload: LoginPayload): Promise<RegisteredUser> {
-  const res = await fetchJson<ApiResponse<RegisteredUser>>('/auth/login', {
+  const res = await fetchJson<ApiResponse<RegisteredUser>>('/auth/customer/login', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
   if (!res.data) {
     throw new Error(res.message || 'Không thể đăng nhập');
+  }
+  return res.data;
+}
+
+export async function postAdminLogin(payload: LoginPayload): Promise<RegisteredUser> {
+  const res = await fetchJson<ApiResponse<RegisteredUser>>('/auth/admin/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể đăng nhập quản trị viên');
   }
   return res.data;
 }

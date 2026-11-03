@@ -85,7 +85,10 @@ export class DuplicateEmailError extends Error {
   }
 }
 
-export async function findUserForLogin(identifier: string): Promise<LoginUserRecord | null> {
+export async function findUserForLogin(
+  identifier: string,
+  expectedRole: "customer" | "admin",
+): Promise<LoginUserRecord | null> {
   if (!isDbConnected()) {
     throw new Error("PostgreSQL chưa sẵn sàng.");
   }
@@ -97,9 +100,19 @@ export async function findUserForLogin(identifier: string): Promise<LoginUserRec
             ) THEN 'admin' ELSE 'customer' END AS role,
             users.password_hash
      FROM users
-     WHERE LOWER(users.email) = $1 OR users.phone = $2
+     WHERE (LOWER(users.email) = $1 OR users.phone = $2)
+       AND (
+         ($3 = 'admin' AND EXISTS (
+           SELECT 1 FROM admins WHERE admins.user_id = users.id
+         ))
+         OR ($3 = 'customer' AND EXISTS (
+           SELECT 1 FROM customers WHERE customers.user_id = users.id
+         ) AND NOT EXISTS (
+           SELECT 1 FROM admins WHERE admins.user_id = users.id
+         ))
+       )
      LIMIT 2`,
-    [identifier.toLowerCase(), identifier],
+    [identifier.toLowerCase(), identifier, expectedRole],
   );
 
   if (result.rows.length !== 1) {

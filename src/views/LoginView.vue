@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
-import { postLogin } from '../services/api';
+import { postAdminLogin, postLogin } from '../services/api';
 import {
   Leaf,
   Lock,
@@ -18,8 +18,10 @@ import {
 } from 'lucide-vue-next';
 
 const router = useRouter();
+const route = useRoute();
 const authStore = useAuthStore();
 const toastStore = useToastStore();
+const isAdminLogin = computed(() => route.path === '/admin/login');
 
 const email = ref('');
 const password = ref('');
@@ -28,9 +30,19 @@ const rememberMe = ref(true);
 
 async function handleLogin() {
   try {
-    const user = await postLogin({ identifier: email.value, password: password.value });
+    const payload = {
+      identifier: email.value,
+      password: password.value,
+      rememberMe: rememberMe.value,
+    };
+    const user = isAdminLogin.value
+      ? await postAdminLogin(payload)
+      : await postLogin(payload);
+    if ((isAdminLogin.value && user.role !== 'admin') || (!isAdminLogin.value && user.role !== 'customer')) {
+      throw new Error('Vai trò tài khoản không phù hợp với trang đăng nhập này.');
+    }
     authStore.login(user, user.accessToken, rememberMe.value);
-    await router.push(user.role === 'admin' ? '/admin' : '/profile');
+    await router.push(isAdminLogin.value ? '/admin' : '/profile');
   } catch (err: unknown) {
     toastStore.show(
       err instanceof Error ? err.message : 'Không thể đăng nhập. Vui lòng thử lại.',
@@ -126,21 +138,24 @@ async function handleLogin() {
       <div class="max-w-[460px] w-full mx-auto my-auto space-y-7">
         <div class="space-y-2">
           <h2 class="font-heading text-3xl sm:text-4xl font-black text-[#242424]">
-            Chào mừng trở lại! 👋
+            {{ isAdminLogin ? 'Đăng nhập quản trị viên' : 'Chào mừng trở lại! 👋' }}
           </h2>
+          <p v-if="isAdminLogin" class="text-sm text-[#7A866E]">
+            Sử dụng tài khoản được cấp quyền quản trị để tiếp tục.
+          </p>
         </div>
 
         <form @submit.prevent="handleLogin" class="space-y-5">
           <!-- Email Field -->
           <div class="space-y-1.5">
-            <label class="text-xs sm:text-sm font-bold text-[#242424] block">Email</label>
+            <label class="text-xs sm:text-sm font-bold text-[#242424] block">Email hoặc số điện thoại</label>
             <div class="flex items-center px-4 py-3.5 rounded-2xl border border-[#CCD7BC] bg-white focus-within:border-[#536124] focus-within:ring-2 focus-within:ring-[#536124]/20 transition-all shadow-2xs">
               <AtSign class="w-4.5 h-4.5 text-[#7A866E] mr-3 shrink-0" />
               <input
                 type="text"
                 v-model="email"
                 required
-                placeholder="ví dụ: minhanh.fit@gmail.com hoặc 0912 345 678"
+                :placeholder="isAdminLogin ? 'Email hoặc số điện thoại quản trị' : 'ví dụ: minhanh.fit@gmail.com hoặc 0912 345 678'"
                 class="w-full bg-transparent text-sm text-[#242424] placeholder-[#8C9882] outline-none"
               />
             </div>
@@ -173,7 +188,7 @@ async function handleLogin() {
           <div class="flex items-center justify-between text-xs pt-1">
             <label class="flex items-center gap-2 text-[#576449] cursor-pointer">
               <input type="checkbox" v-model="rememberMe" class="accent-[#536124] w-4 h-4 rounded" />
-              <span>Ghi nhớ tài khoản trên thiết bị này</span>
+              <span>{{ isAdminLogin ? 'Ghi nhớ đăng nhập quản trị' : 'Ghi nhớ tài khoản trên thiết bị này' }}</span>
             </label>
             <a href="#" class="font-bold text-[#242424] hover:underline">Quên mật khẩu?</a>
           </div>
@@ -183,16 +198,26 @@ async function handleLogin() {
             type="submit"
             class="w-full py-4 rounded-2xl bg-[#6B7A3A] hover:bg-[#536124] active:bg-[#434F1D] text-white font-bold text-base shadow-md flex items-center justify-center gap-2 transition-all min-h-[48px] cursor-pointer"
           >
-            <span>Đăng Nhập Ngay</span>
+            <span>{{ isAdminLogin ? 'Đăng nhập Admin' : 'Đăng Nhập Ngay' }}</span>
             <ArrowRight class="w-4.5 h-4.5" />
           </button>
         </form>
 
         <!-- Chuyển sang Đăng ký -->
-        <div class="text-center text-sm text-[#576449]">
+        <div v-if="!isAdminLogin" class="text-center text-sm text-[#576449]">
           Chưa có tài khoản NutriMate?
           <RouterLink to="/register" class="font-bold text-[#242424] hover:underline ml-1">
             Đăng ký ngay
+          </RouterLink>
+          <div class="mt-3">
+            <RouterLink to="/admin/login" class="text-xs font-semibold text-[#7A866E] hover:text-[#536124] hover:underline">
+              Đăng nhập quản trị viên
+            </RouterLink>
+          </div>
+        </div>
+        <div v-else class="text-center text-sm text-[#576449]">
+          <RouterLink to="/login" class="font-bold text-[#242424] hover:underline">
+            Đăng nhập bằng tài khoản khách hàng
           </RouterLink>
         </div>
       </div>
