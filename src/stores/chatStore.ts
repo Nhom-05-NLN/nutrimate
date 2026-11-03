@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
 import type { ChatMessage } from '../types';
-import { ApiError, ensureChatSession, createChatConversation, fetchChatConversations, fetchChatHistory, postChatMessage, postNutritionImage, type ChatConversation, type ChatHistoryMessage } from '../services/api';
+import { ApiError, ensureChatSession, createChatConversation, fetchChatConversations, fetchChatHistory, fetchNutritionChatImage, postChatMessage, postNutritionImage, type ChatConversation, type ChatHistoryMessage } from '../services/api';
 import { useAuthStore } from './authStore';
 
 export const useChatStore = defineStore('chat', () => {
@@ -23,8 +23,37 @@ export const useChatStore = defineStore('chat', () => {
   let sessionReady = false;
 
   function display(message: ChatHistoryMessage): ChatMessage {
+    const content = message.role === 'assistant'
+      ? message.content
+        .split('\n')
+        .filter(line => !/^\s*(?:nội dung đọc được|ocr(?:_text)?):/i.test(line.trim()))
+        .join('\n')
+        .replace(/\*\*/g, '')
+        .replace(/(^|\n)\s*\*\s+/g, '$1• ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+      : message.content;
+    const uniqueParagraphs = message.role === 'assistant'
+      ? [...new Set(content.split(/\n\s*\n/).map(paragraph => paragraph.trim()).filter(Boolean))].join('\n\n')
+      : content;
     return { id: message.id, requestId: message.requestId, sender: message.role === 'user' ? 'user' : 'bot',
-      text: message.content, timestamp: new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), suggestedProducts: message.suggestedProducts };
+      text: uniqueParagraphs, timestamp: new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), suggestedProducts: message.suggestedProducts, imageUrl: message.imageUrl ?? undefined };
+  }
+  function restoreImagePreviews(history: ChatHistoryMessage[], rendered: ChatMessage[], active: number) {
+    const token = auth.accessToken;
+    if (!token) return;
+    for (let index = 0; index < history.length; index++) {
+      const imageUrl = history[index]?.imageUrl;
+      const message = rendered[index];
+      if (!imageUrl || !message) continue;
+      void fetchNutritionChatImage(imageUrl, token).then(blob => {
+        if (active !== epoch) return;
+        const currentMessage = messages.value.find(item => item.id === message.id);
+        if (currentMessage) currentMessage.imagePreview = URL.createObjectURL(blob);
+      }).catch(() => {
+        // Keep the history text visible if the image cannot be retrieved.
+      });
+    }
   }
   function disposeImagePreviews() {
     for (const message of messages.value) {
@@ -93,7 +122,9 @@ export const useChatStore = defineStore('chat', () => {
       conversations.value = list.length ? list : [conversation];
       conversationId.value = conversation.id;
       disposeImagePreviews();
-      messages.value = [...(history.length ? history.map(display) : [welcome()]), ...unsent];
+      const restored = history.map(display);
+      messages.value = [...(restored.length ? restored : [welcome()]), ...unsent];
+      restoreImagePreviews(history, restored, active);
       hasEarlier.value = history.length === 50;
     } catch (reason) { if (active === epoch) reportError(reason, 'Không tải được hội thoại.'); }
     finally { if (active === epoch) isThinking.value = false; }
@@ -108,7 +139,9 @@ export const useChatStore = defineStore('chat', () => {
       if (active !== epoch) return;
       disposeImagePreviews();
       conversationId.value = id;
-      messages.value = history.length ? history.map(display) : [welcome()];
+      const restored = history.map(display);
+      messages.value = restored.length ? restored : [welcome()];
+      restoreImagePreviews(history, restored, active);
       hasEarlier.value = history.length === 50;
     } catch (reason) { if (active === epoch) reportError(reason, 'Không tải được hội thoại.'); }
     finally { if (active === epoch) isThinking.value = false; }
@@ -139,7 +172,9 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const history = await fetchChatHistory(conversationId.value, auth.accessToken, first.id);
       if (active !== epoch) return;
-      messages.value.unshift(...history.map(display));
+      const restored = history.map(display);
+      messages.value.unshift(...restored);
+      restoreImagePreviews(history, restored, active);
       hasEarlier.value = history.length === 50;
     } catch (reason) { if (active === epoch) reportError(reason, 'Không tải được lịch sử.'); }
     finally { if (active === epoch) isThinking.value = false; }
@@ -174,39 +209,64 @@ export const useChatStore = defineStore('chat', () => {
     } finally { if (active === epoch) isThinking.value = false; }
   }
   function retryMessage(message: ChatMessage) { if (message.failed && message.requestId) void sendMessage(message.text, message.requestId); }
-  async function analyzeImage(file: File) {
+  async function analyzeImage(file: File, question = '') {
     if (isThinking.value || requiresAuthentication.value || guestSessionExpired.value) return;
-    if (!auth.accessToken) {
+    const token = auth.accessToken;
+    if (!token) {
       requiresImageAuthentication.value = true;
       error.value = 'Đăng nhập Customer để phân tích ảnh thực phẩm.';
       return;
     }
 
     const active = epoch;
-    messages.value.push({
-      id: `image-${crypto.randomUUID()}`,
-      sender: 'user',
-      text: 'Phân tích ảnh thực phẩm',
-      imagePreview: URL.createObjectURL(file),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    });
+    const requestId = crypto.randomUUID();
     isThinking.value = true;
     error.value = '';
     requiresImageAuthentication.value = false;
     try {
-      const result = await postNutritionImage(file, auth.accessToken);
+      if (!sessionReady && !await prepareSession(token, active)) {
+        if (active === epoch) isThinking.value = false;
+        return;
+      }
       if (active !== epoch) return;
+      if (!conversationId.value) {
+        const conversation = await createChatConversation(token);
+        if (active !== epoch) return;
+        conversationId.value = conversation.id;
+        conversations.value.unshift(conversation);
+      }
+    } catch (reason) {
+      if (active === epoch) {
+        reportError(reason, 'Không thể chuẩn bị hội thoại để lưu ảnh.');
+        isThinking.value = false;
+      }
+      return;
+    }
+
+    messages.value.push({
+      id: requestId,
+      requestId,
+      sender: 'user',
+      text: question.trim() || 'Phân tích ảnh thực phẩm',
+      imagePreview: URL.createObjectURL(file),
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    });
+    try {
+      const result = await postNutritionImage(file, token, conversationId.value!, requestId, question.trim());
+      if (active !== epoch) return;
+      const userMessage = messages.value.find(message => message.requestId === requestId);
+      if (userMessage) userMessage.imageUrl = result.imageUrl;
       const disclaimer = 'Thông tin chỉ mang tính tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.';
       const text = result.status === 'unrecognized'
-        ? `Mình chưa nhận diện được thực phẩm trong ảnh.${result.ocrText ? `\nNội dung đọc được: ${result.ocrText}` : ''}\n\n${disclaimer}`
+        ? `Mình chưa nhận diện được thực phẩm trong ảnh.\n\n${disclaimer}`
         : [
-            'Ước tính dinh dưỡng cho khẩu phần nhận diện được:',
-            `Calories: ${result.predictedCalories ?? '—'} kcal`,
-            `Protein: ${result.predictedProtein ?? '—'} g`,
-            `Carbs: ${result.predictedCarbs ?? '—'} g`,
-            `Fat: ${result.predictedFat ?? '—'} g`,
-            `Sugar: ${result.predictedSugar ?? '—'} g`,
-            result.ocrText ? `Nội dung đọc được: ${result.ocrText}` : '',
+            'Ước tính dinh dưỡng cho khẩu phần trong ảnh',
+            '',
+            `• Năng lượng: ${result.predictedCalories ?? '—'} kcal`,
+            `• Protein: ${result.predictedProtein ?? '—'} g`,
+            `• Carbs: ${result.predictedCarbs ?? '—'} g`,
+            `• Chất béo: ${result.predictedFat ?? '—'} g`,
+            `• Đường: ${result.predictedSugar ?? '—'} g`,
             '',
             disclaimer,
           ].filter(Boolean).join('\n');

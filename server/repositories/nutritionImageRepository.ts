@@ -68,3 +68,10 @@ export async function getNutritionImageForCustomer(imageUrl: string, userId: num
   );
   return result.rows[0] ?? null;
 }
+
+export async function deleteNutritionImage(imageId: number, userId: number): Promise<void> {
+  await queryPostgres(
+    'DELETE FROM nutrition_images WHERE image_id = $1 AND customer_id = $2',
+    [imageId, userId],
+  );
+}

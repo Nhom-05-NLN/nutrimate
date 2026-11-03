@@ -3,9 +3,10 @@ import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
 import * as repository from '../repositories/nutritionImageRepository.js';
+import { ChatConversationRepository } from '../repositories/chatConversationRepository.js';
 import { ChatError } from '../types/chat.js';
 import type { NutritionImagePrediction, NutritionImageRow } from '../types/nutritionImage.js';
-import { analyzeNutritionImage, assertNutritionImageAiConfigured, type ImageNutritionEstimate } from './nutritionImageLlmService.js';
+import { analyzeNutritionImage, type ImageNutritionEstimate } from './nutritionImageLlmService.js';
 
 type SupportedImageMime = 'image/jpeg' | 'image/png' | 'image/webp';
 const imageTypes: Record<SupportedImageMime, string> = {
@@ -68,16 +69,15 @@ function storedFilename(row: NutritionImageRow): string {
 
 export function createNutritionImageService(
   imageRepository = repository,
-  predict: (image: Buffer, mime: SupportedImageMime) => Promise<ImageNutritionEstimate> = analyzeNutritionImage,
+  predict: (image: Buffer, mime: SupportedImageMime, question: string) => Promise<ImageNutritionEstimate> = (image, mime, question) => analyzeNutritionImage(image, mime, fetch, question),
   storageDir = config.nutritionImage.storageDir,
+  conversations = new ChatConversationRepository(),
 ) {
   return {
-    async analyze(userId: number, image: unknown, declaredType: string): Promise<NutritionImagePrediction> {
+    async analyze(userId: number, conversationId: string, requestId: string, image: unknown, declaredType: string, question = ''): Promise<NutritionImagePrediction> {
       if (!Buffer.isBuffer(image) || image.length === 0) throw new ChatError(400, 'Chưa nhận được ảnh cần phân tích.');
       if (image.length > config.nutritionImage.maxUploadBytes) throw new ChatError(413, 'Ảnh vượt quá dung lượng tối đa 5 MB.');
       const mimeType = imageMimeType(image, declaredType);
-      assertNutritionImageAiConfigured();
-
       const filename = `${randomUUID()}${imageTypes[mimeType]}`;
       const imageUrl = `/api/chat/nutrition-images/${filename}`;
       await mkdir(storageDir, { recursive: true });
@@ -96,9 +96,10 @@ export function createNutritionImageService(
         throw error;
       }
 
+      let completed: NutritionImageRow;
       try {
-        const estimate = await predict(image, mimeType);
-        const completed = await imageRepository.finishNutritionImage(record.image_id, userId, {
+        const estimate = await predict(image, mimeType, question);
+        completed = await imageRepository.finishNutritionImage(record.image_id, userId, {
           ocrText: estimate.ocrText,
           calories: estimate.calories,
           protein: estimate.protein,
@@ -107,13 +108,42 @@ export function createNutritionImageService(
           sugar: estimate.sugar,
           status: estimate.recognized ? 'completed' : 'unrecognized',
         });
-        return toPrediction(completed);
       } catch (error) {
         await imageRepository.failNutritionImage(record.image_id, userId).catch(() => {
           console.error('[NutritionImage] Could not mark an unsuccessful analysis.');
         });
+        await conversations.saveImageAnalysis(
+          conversationId,
+          userId,
+          requestId,
+          record.image_id,
+          '\u004b\u0068\u00f4\u006e\u0067 \u0074\u0068\u1ec3 \u0070\u0068\u00e2\u006e \u0074\u00ed\u0063\u0068 \u1ea3\u006e\u0068 \u006c\u00fa\u0063 \u006e\u00e0\u0079. \u0056\u0075\u0069 \u006c\u00f2\u006e\u0067 \u0074\u0068\u1eed \u006c\u1ea1\u0069.',
+          question,
+        ).catch(() => {
+          console.error('[NutritionImage] Could not save a failed analysis to chat history.');
+        });
         throw error;
       }
+
+      const prediction = toPrediction(completed);
+      const disclaimer = '\u0054\u0068\u00f4\u006e\u0067 \u0074\u0069\u006e \u0063\u0068\u1ec9 \u006d\u0061\u006e\u0067 \u0074\u00ed\u006e\u0068 \u0074\u0068\u0061\u006d \u006b\u0068\u1ea3\u006f, \u006b\u0068\u00f4\u006e\u0067 \u0074\u0068\u0061\u0079 \u0074\u0068\u1ebf \u0074\u01b0 \u0076\u1ea5\u006e \u0063\u1ee7\u0061 \u0062\u00e1\u0063 \u0073\u0129 \u0068\u006f\u1eb7\u0063 \u0063\u0068\u0075\u0079\u00ea\u006e \u0067\u0069\u0061 \u0064\u0069\u006e\u0068 \u0064\u01b0\u1ee1\u006e\u0067.';
+      const reply = prediction.status === 'unrecognized'
+        ? `\u004d\u00ec\u006e\u0068 \u0063\u0068\u01b0\u0061 \u006e\u0068\u1ead\u006e \u0064\u0069\u1ec7\u006e \u0111\u01b0\u1ee3\u0063 \u0074\u0068\u1ef1\u0063 \u0070\u0068\u1ea9\u006d \u0074\u0072\u006f\u006e\u0067 \u1ea3\u006e\u0068.\n\n${disclaimer}`
+        : `Ước tính dinh dưỡng cho khẩu phần trong ảnh\n\n• Năng lượng: ${prediction.predictedCalories ?? '—'} kcal\n• Protein: ${prediction.predictedProtein ?? '—'} g\n• Carbs: ${prediction.predictedCarbs ?? '—'} g\n• Chất béo: ${prediction.predictedFat ?? '—'} g\n• Đường: ${prediction.predictedSugar ?? '—'} g\n\n${disclaimer}`;
+
+      try {
+        await conversations.saveImageAnalysis(conversationId, userId, requestId, completed.image_id, reply, question);
+      } catch (error) {
+        await imageRepository.deleteNutritionImage(completed.image_id, userId).catch(() => {
+          console.error('[NutritionImage] Could not remove an upload after chat history save failure.');
+        });
+        await unlink(filePath).catch(() => {
+          console.error('[NutritionImage] Could not remove an upload after chat history save failure.');
+        });
+        throw error;
+      }
+
+      return prediction;
     },
 
     async getImage(userId: number, filename: string): Promise<{ image: Buffer; mimeType: SupportedImageMime }> {

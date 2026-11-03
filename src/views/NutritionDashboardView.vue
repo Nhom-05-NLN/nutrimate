@@ -12,6 +12,7 @@ import {
   Plus,
   Upload,
   Scan,
+  ShoppingBag,
   Flame,
   PieChart,
   Bell,
@@ -33,6 +34,11 @@ const caloriePlan = ref<CaloriePlanResponse | null>(null);
 const caloriePlanError = ref('');
 const isCaloriePlanLoading = ref(true);
 const isScanLoading = ref(false);
+const isProductPickerOpen = ref(false);
+const isProductPickerLoading = ref(false);
+const productPickerSearch = ref('');
+const productPickerError = ref('');
+const mealProductOptions = ref<Product[]>([]);
 const scanError = ref('');
 const scanResult = ref<NutritionImagePrediction | null>(null);
 const scanInput = ref<HTMLInputElement | null>(null);
@@ -223,6 +229,43 @@ function addScanResultToDiary() {
   isMealModalOpen.value = true;
 }
 
+async function openMealProductPicker() {
+  isProductPickerOpen.value = true;
+  productPickerSearch.value = '';
+  productPickerError.value = '';
+  await loadMealProducts();
+}
+
+async function loadMealProducts() {
+  isProductPickerLoading.value = true;
+  productPickerError.value = '';
+  try {
+    const products = await fetchProducts(productPickerSearch.value.trim() ? { search: productPickerSearch.value.trim() } : {});
+    mealProductOptions.value = products.filter(product => product.stock > 0 && product.nutrition
+      && [product.nutrition.calories, product.nutrition.protein, product.nutrition.carbs, product.nutrition.fat, product.nutrition.sugar].every(Number.isFinite));
+  } catch (error: unknown) {
+    mealProductOptions.value = [];
+    productPickerError.value = error instanceof Error ? error.message : 'Không tải được danh sách sản phẩm.';
+  } finally {
+    isProductPickerLoading.value = false;
+  }
+}
+
+function chooseMealProduct(product: Product) {
+  mealForm.value = {
+    date: selectedDate.value,
+    mealType: 'breakfast',
+    foodName: product.name,
+    calories: product.nutrition.calories,
+    protein: product.nutrition.protein,
+    carbs: product.nutrition.carbs,
+    fat: product.nutrition.fat,
+    sugar: product.nutrition.sugar,
+  };
+  isProductPickerOpen.value = false;
+  isMealModalOpen.value = true;
+}
+
 function addRecommendedProduct(product: Product) {
   cartStore.addItem(product, 1, product.nutrition.servingSize || 'Mặc định');
 }
@@ -260,7 +303,37 @@ async function addWater(amount: number) {
         <div v-else class="space-y-2"><article v-for="day in weekDays" :key="day.date" class="flex justify-between rounded-xl bg-[#FAF9F5] p-3 text-sm"><span>{{ new Date(`${day.date}T12:00:00`).toLocaleDateString('vi-VN') }}</span><span>{{ Math.round(day.totals.calories) }} kcal · {{ Math.round(day.totals.protein) }}g protein · {{ day.totals.waterMl }}ml nước</span></article></div>
       </section>
     </div>
-    <div v-if="isMealModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4" @click.self="isMealModalOpen = false">
+    <div v-if="isProductPickerOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4" @click.self="isProductPickerOpen = false">
+      <section class="w-full max-w-2xl space-y-4 rounded-3xl bg-white p-5 shadow-xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="meal-product-picker-title">
+        <header class="flex items-start justify-between gap-4">
+          <div>
+            <h2 id="meal-product-picker-title" class="font-heading text-xl font-bold">Chọn sản phẩm NutriMate</h2>
+            <p class="mt-1 text-sm text-[#68725F]">Chọn sản phẩm để điền sẵn tên và Nutrition Facts vào bữa ăn.</p>
+          </div>
+          <button type="button" aria-label="Đóng" class="rounded-lg px-3 py-1 text-lg hover:bg-[#F3F6EE]" @click="isProductPickerOpen = false">×</button>
+        </header>
+        <form class="flex gap-2" @submit.prevent="loadMealProducts">
+          <input v-model="productPickerSearch" type="search" placeholder="Tìm sản phẩm theo tên..." class="min-w-0 flex-1 rounded-xl border border-[#D5DFC8] px-3 py-2.5 text-sm focus:border-[#536124] focus:outline-none" />
+          <button type="submit" :disabled="isProductPickerLoading" class="rounded-xl bg-[#536124] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Tìm</button>
+        </form>
+        <p v-if="productPickerError" role="alert" class="text-sm text-red-700">{{ productPickerError }}</p>
+        <p v-else-if="isProductPickerLoading" class="py-8 text-center text-sm text-[#68725F]" aria-live="polite">Đang tải sản phẩm...</p>
+        <p v-else-if="mealProductOptions.length === 0" class="py-8 text-center text-sm text-[#68725F]">Không tìm thấy sản phẩm còn hàng có đủ thông tin dinh dưỡng.</p>
+        <ul v-else class="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+          <li v-for="product in mealProductOptions" :key="product.id">
+            <button type="button" class="flex w-full items-center gap-3 rounded-2xl border border-[#E3E8DC] p-3 text-left transition hover:border-[#8EA675] hover:bg-[#F7FAF3]" @click="chooseMealProduct(product)">
+              <img :src="product.image" :alt="product.name" class="h-14 w-14 shrink-0 rounded-xl object-cover" />
+              <span class="min-w-0 flex-1">
+                <strong class="block truncate text-sm text-[#2D3B1E]">{{ product.name }}</strong>
+                <span class="mt-1 block text-xs text-[#68725F]">{{ product.nutrition.calories }} kcal · {{ product.nutrition.protein }}g protein · {{ product.nutrition.carbs }}g carbs</span>
+              </span>
+              <span class="shrink-0 rounded-xl bg-[#536124] px-3 py-2 text-xs font-bold text-white">Chọn</span>
+            </button>
+          </li>
+        </ul>
+      </section>
+    </div>
+    <div v-if="isMealModalOpen" class="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4" @click.self="isMealModalOpen = false">
       <form class="w-full max-w-lg space-y-4 rounded-3xl bg-white p-6 shadow-xl" @submit.prevent="saveMeal">
         <div class="flex items-center justify-between"><h2 class="font-heading text-xl font-bold">Ghi món ăn</h2><button type="button" aria-label="Đóng" @click="isMealModalOpen = false">×</button></div>
         <label class="block text-sm">Tên món ăn<input v-model="mealForm.foodName" required maxlength="200" class="mt-1 w-full rounded-xl border p-3" /></label>
@@ -612,11 +685,11 @@ async function addWater(amount: number) {
           <div class="flex flex-wrap items-center gap-3.5 pt-2">
             <button
               type="button"
-              @click="scanInput?.click()"
+              @click="openMealProductPicker"
               class="px-6 py-3.5 rounded-2xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
             >
-              <Camera class="w-4.5 h-4.5" />
-              <span>Mở máy quét ngay</span>
+              <ShoppingBag class="w-4.5 h-4.5" />
+              <span>Chọn sản phẩm NutriMate</span>
             </button>
             <button
               type="button"

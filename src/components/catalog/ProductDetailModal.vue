@@ -20,6 +20,21 @@ const cartStore = useCartStore();
 
 const quantity = ref(1);
 
+function normalizeTextList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+  } catch {
+    // Older product rows may store a plain comma-separated string.
+  }
+  return value.split(',').map(item => item.trim()).filter(Boolean);
+}
+
+const productBadges = () => normalizeTextList(productStore.selectedProduct?.badges);
+const productIngredients = () => normalizeTextList(productStore.selectedProduct?.ingredients);
+
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
@@ -54,7 +69,7 @@ onUnmounted(() => {
 <template>
   <div
     v-if="productStore.selectedProduct"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200"
+    class="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-slate-950/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200"
     @click.self="closeModal"
   >
     <div
@@ -86,7 +101,7 @@ onUnmounted(() => {
           <!-- Badges & Highlights -->
           <div class="mt-4 flex flex-wrap gap-1.5">
             <span
-              v-for="b in productStore.selectedProduct.badges"
+              v-for="b in productBadges()"
               :key="b"
               class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-900"
             >
@@ -197,10 +212,10 @@ onUnmounted(() => {
           </div>
 
           <!-- Ingredients List -->
-          <div v-if="productStore.selectedProduct.ingredients && productStore.selectedProduct.ingredients.length" class="mb-6 text-xs text-slate-600">
+          <div v-if="productIngredients().length" class="mb-6 text-xs text-slate-600">
             <strong class="text-slate-900 block mb-1.5 font-semibold">Thành phần tự nhiên:</strong>
             <p class="leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200/80">
-              {{ productStore.selectedProduct.ingredients.join(', ') }}
+              {{ productIngredients().join(', ') }}
             </p>
           </div>
 
