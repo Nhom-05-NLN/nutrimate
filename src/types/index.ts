@@ -139,6 +139,17 @@ export interface ProductFilterQuery {
   minPrice?: number;
   maxPrice?: number;
   specialDiet?: string[];
+  page?: number;
+  limit?: number;
+  sort?: string;
+}
+
+export interface PaginatedProductResult {
+  products: Product[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export interface CreateOrderPayload {
@@ -158,6 +169,7 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   imagePreview?: string;
+  imageUrl?: string;
   suggestedProducts?: ChatSuggestedProduct[];
   actionLink?: {
     text: string;
@@ -204,6 +216,9 @@ export interface ApiResponse<T> {
   data?: T;
   message?: string;
   total?: number;
+  page?: number;
+  limit?: number;
+  totalPages?: number;
 }
 
 export type NutritionGoal = 'lose_weight' | 'maintain_weight' | 'gain_weight';
@@ -237,6 +252,30 @@ export interface CaloriePlanResponse {
     nutritionGoal: NutritionGoal | null;
   };
   plan: CaloriePlanResult | null;
+}
+
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+export interface NutritionDiaryMeal {
+  id: number;
+  mealType: MealType;
+  foodName: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  sugar: number;
+  createdAt: string;
+}
+export interface NutritionDiaryWaterLog { id: number; amountMl: number; loggedAt: string }
+export interface NutritionDiaryDay {
+  date: string;
+  meals: NutritionDiaryMeal[];
+  waterLogs: NutritionDiaryWaterLog[];
+  totals: { calories: number; protein: number; carbs: number; fat: number; sugar: number; waterMl: number };
+}
+export interface CreateNutritionDiaryMeal {
+  date: string; mealType: MealType; foodName: string;
+  calories: number; protein: number; carbs: number; fat: number; sugar: number;
 }
 
 // User Profile & Body Metrics (Figma 07)

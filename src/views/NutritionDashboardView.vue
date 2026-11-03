@@ -1,20 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useCartStore } from '../stores/cartStore';
 import { useChatStore } from '../stores/chatStore';
 import { useToastStore } from '../stores/toastStore';
+import { fetchCaloriePlan, fetchNutritionDiary, fetchProducts, postNutritionImage, postNutritionMeal, postNutritionWater } from '../services/api';
+import type { CaloriePlanResponse, CreateNutritionDiaryMeal, MealType, NutritionDiaryDay, NutritionImagePrediction, Product } from '../types';
+import { useAuthStore } from '../stores/authStore';
 import {
-  ChevronRight,
   Calendar,
   Camera,
   Plus,
-  Bot,
-  Sparkles,
-  CheckCircle2,
   Upload,
-  ShoppingBag,
-  FileText,
   Scan,
+  ShoppingBag,
   Flame,
   PieChart,
   Bell,
@@ -24,81 +22,329 @@ import {
 const cartStore = useCartStore();
 const chatStore = useChatStore();
 const toastStore = useToastStore();
+const authStore = useAuthStore();
 
-const waterCurrentMl = ref(1650);
+const today = new Date().toLocaleDateString('en-CA');
+const selectedDate = ref(today);
+const diary = ref<NutritionDiaryDay | null>(null);
+const isLoadingDiary = ref(true);
+const isSavingDiary = ref(false);
+const diaryError = ref('');
+const caloriePlan = ref<CaloriePlanResponse | null>(null);
+const caloriePlanError = ref('');
+const isCaloriePlanLoading = ref(true);
+const isScanLoading = ref(false);
+const isProductPickerOpen = ref(false);
+const isProductPickerLoading = ref(false);
+const productPickerSearch = ref('');
+const productPickerError = ref('');
+const mealProductOptions = ref<Product[]>([]);
+const scanError = ref('');
+const scanResult = ref<NutritionImagePrediction | null>(null);
+const scanInput = ref<HTMLInputElement | null>(null);
+const weekReportOpen = ref(false);
+const weekReportLoading = ref(false);
+const weekReportError = ref('');
+const weekDays = ref<NutritionDiaryDay[]>([]);
+const recommendedProducts = ref<Product[]>([]);
+const recommendationError = ref('');
+const failedProductImages = ref<string[]>([]);
+const waterCurrentMl = computed(() => diary.value?.totals.waterMl ?? 0);
 const waterTargetMl = 2200;
-// 8 glasses: 6 drank (250ml each), 2 remaining (250ml, 200ml)
-const waterGlasses = ref([
-  { ml: '250ml', drank: true },
-  { ml: '250ml', drank: true },
-  { ml: '250ml', drank: true },
-  { ml: '250ml', drank: true },
-  { ml: '250ml', drank: true },
-  { ml: '250ml', drank: true },
-  { ml: '250ml', drank: false },
-  { ml: '200ml', drank: false },
-]);
+const reminderTime = computed(() => {
+  if (selectedDate.value !== today || waterCurrentMl.value >= waterTargetMl) return null;
+  const now = new Date();
+  const deadline = new Date(now);
+  deadline.setHours(16, 0, 0, 0);
+  if (now >= deadline) return null;
 
-function addWater(amount: number) {
-  waterCurrentMl.value = Math.min(waterTargetMl, waterCurrentMl.value + amount);
-  // Cập nhật trạng thái các ly
-  if (waterCurrentMl.value >= 1900) {
-    waterGlasses.value[6].drank = true;
+  const remainingMl = waterTargetMl - waterCurrentMl.value;
+  const glasses = Math.ceil(remainingMl / 250);
+  const glassLabel = glasses === 1 ? '1 ly' : `${glasses} ly`;
+  return { text: `Còn ${remainingMl.toLocaleString('vi-VN')} ml (${glassLabel}) để đạt mục tiêu hôm nay.`, deadline: '16:00' };
+});
+const waterGlasses = computed(() => Array.from({ length: 8 }, (_, index) => ({
+  ml: index === 7 ? '200ml' : '250ml',
+  drank: waterCurrentMl.value >= (index === 7 ? 1950 : (index + 1) * 250),
+})));
+
+const mealOptions: { id: MealType; title: string; emoji: string }[] = [
+  { id: 'breakfast', title: 'Bữa Sáng', emoji: '🥣' },
+  { id: 'lunch', title: 'Bữa Trưa', emoji: '☀️' },
+  { id: 'snack', title: 'Bữa Xế / Snack', emoji: '🕒' },
+  { id: 'dinner', title: 'Bữa Tối', emoji: '🌙' },
+];
+const mealsByType = computed(() => mealOptions.map((meal) => {
+  const items = (diary.value?.meals ?? []).filter((item) => item.mealType === meal.id);
+  return { ...meal, items, calories: items.reduce((sum, item) => sum + item.calories, 0), protein: items.reduce((sum, item) => sum + item.protein, 0) };
+}));
+
+async function loadDiary() {
+  isLoadingDiary.value = true;
+  diaryError.value = '';
+  diary.value = null;
+  try { diary.value = await fetchNutritionDiary(selectedDate.value); }
+  catch (error: unknown) { diaryError.value = error instanceof Error ? error.message : 'Không thể tải nhật ký.'; }
+  finally { isLoadingDiary.value = false; }
+}
+onMounted(loadDiary);
+onMounted(async () => {
+  try { caloriePlan.value = await fetchCaloriePlan(); }
+  catch (error: unknown) { caloriePlanError.value = error instanceof Error ? error.message : 'Không thể tải mục tiêu Calories.'; }
+  finally { isCaloriePlanLoading.value = false; }
+  try {
+    const result = await fetchProducts();
+    recommendedProducts.value = result.products.filter((product) => product.stock > 0 &&
+      (product.nutrition.protein > 0 || product.nutrition.carbs > 0 || product.nutrition.fat > 0));
+  } catch (error: unknown) {
+    recommendedProducts.value = [];
+    recommendationError.value = error instanceof Error ? error.message : 'Không thể tải sản phẩm gợi ý.';
   }
-  if (waterCurrentMl.value >= 2100) {
-    waterGlasses.value[7].drank = true;
+});
+
+const calorieTarget = computed(() => caloriePlan.value?.plan?.targetCalories ?? null);
+const mealTotals = computed(() => (diary.value?.meals ?? []).reduce((totals, meal) => ({
+  calories: totals.calories + meal.calories,
+  protein: totals.protein + meal.protein,
+  carbs: totals.carbs + meal.carbs,
+  fat: totals.fat + meal.fat,
+  sugar: totals.sugar + meal.sugar,
+}), { calories: 0, protein: 0, carbs: 0, fat: 0, sugar: 0 }));
+const remainingCalories = computed(() => calorieTarget.value === null ? null : Math.max(0, calorieTarget.value - mealTotals.value.calories));
+const nutritionGoal = computed(() => caloriePlan.value?.plan?.nutritionGoal ?? null);
+const goalLabel = computed(() => ({
+  lose_weight: 'Giảm cân',
+  maintain_weight: 'Duy trì cân nặng',
+  gain_weight: 'Tăng cân',
+}[nutritionGoal.value ?? ''] ?? 'Chưa thiết lập mục tiêu'));
+const goalSubtitle = computed(() => ({
+  lose_weight: 'Thâm hụt năng lượng có kiểm soát',
+  maintain_weight: 'Duy trì cân nặng theo hồ sơ',
+  gain_weight: 'Thặng dư năng lượng có kiểm soát',
+}[nutritionGoal.value ?? ''] ?? 'Hoàn thiện hồ sơ để cá nhân hóa mục tiêu'));
+const macroTargets = computed(() => {
+  const plan = caloriePlan.value?.plan;
+  if (!plan) return null;
+  // Adult RDA baseline: 0.8 g protein/kg/day. Distribute remaining energy
+  // using 55% carbohydrate and 30% fat, within adult AMDR ranges.
+  const proteinGrams = Math.round(plan.weightKg * 0.8);
+  const proteinCalories = proteinGrams * 4;
+  const remainingCaloriesForCarbsAndFat = Math.max(0, plan.targetCalories - proteinCalories);
+  return {
+    protein: proteinGrams,
+    carbs: Math.round(remainingCaloriesForCarbsAndFat * 0.55 / 4),
+    fat: Math.round(remainingCaloriesForCarbsAndFat * 0.30 / 9),
+  };
+});
+const proteinTarget = computed(() => macroTargets.value?.protein ?? null);
+const carbsTarget = computed(() => macroTargets.value?.carbs ?? null);
+const fatTarget = computed(() => macroTargets.value?.fat ?? null);
+const macroDeficits = computed(() => {
+  if (!macroTargets.value) return [];
+  return [
+    { key: 'protein', label: 'Protein', current: mealTotals.value.protein, target: macroTargets.value.protein },
+    { key: 'carbs', label: 'Carbs', current: mealTotals.value.carbs, target: macroTargets.value.carbs },
+    { key: 'fat', label: 'Fat', current: mealTotals.value.fat, target: macroTargets.value.fat },
+  ].map((macro) => ({ ...macro, remaining: Math.max(0, macro.target - macro.current) }))
+    .filter((macro) => macro.remaining > 0);
+});
+const rankedRecommendedProducts = computed(() => {
+  const deficits = macroDeficits.value;
+  if (!deficits.length) return recommendedProducts.value.slice(0, 2);
+  const macroFields = { protein: 'protein', carbs: 'carbs', fat: 'fat' } as const;
+  return [...recommendedProducts.value].sort((a, b) => {
+    const score = (product: Product) => deficits.reduce((total, deficit) => {
+      const amount = product.nutrition[macroFields[deficit.key as keyof typeof macroFields]];
+      return total + Math.min(amount, deficit.remaining) / deficit.remaining;
+    }, 0);
+    return score(b) - score(a);
+  }).slice(0, 2);
+});
+const sugarMax = 25;
+const hasDiaryData = computed(() => (diary.value?.meals.length ?? 0) > 0);
+const dailySugarExceeded = computed(() => hasDiaryData.value && mealTotals.value.sugar > sugarMax);
+const proteinRemaining = computed(() => proteinTarget.value === null ? null : Math.max(0, proteinTarget.value - mealTotals.value.protein));
+const proteinOverTarget = computed(() => proteinTarget.value === null ? 0 : Math.max(0, mealTotals.value.protein - proteinTarget.value));
+const proteinSuggestionMessage = computed(() => {
+  if (!macroTargets.value) return 'Hoàn thiện hồ sơ sức khỏe để cá nhân hóa mục tiêu dinh dưỡng.';
+  if (selectedDate.value !== today) return 'Đang gợi ý sản phẩm theo các chất còn thiếu trong ngày đã chọn.';
+  if (!macroDeficits.value.length) return 'Bạn đã đạt các mục tiêu Protein, Carbs và Fat hôm nay. Khám phá các sản phẩm phù hợp.';
+  const deficitText = macroDeficits.value.map((macro) => `thiếu ${macro.remaining.toFixed(1)}g ${macro.label}`).join(', ');
+  return `Hôm nay bạn ${deficitText}. Gợi ý sản phẩm dựa trên các chất còn thiếu.`;
+});
+function markProductImageFailed(productId: string) {
+  if (!failedProductImages.value.includes(productId)) failedProductImages.value.push(productId);
+}
+const carbsPercent = computed(() => carbsTarget.value ? mealTotals.value.carbs / carbsTarget.value * 100 : 0);
+const fatPercent = computed(() => fatTarget.value ? mealTotals.value.fat / fatTarget.value * 100 : 0);
+const sugarPercent = computed(() => sugarMax ? mealTotals.value.sugar / sugarMax * 100 : 0);
+
+function shiftSelectedDate(days: number) {
+  const date = new Date(`${selectedDate.value}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  selectedDate.value = date.toLocaleDateString('en-CA');
+  loadDiary();
+}
+
+async function loadWeekReport() {
+  weekReportOpen.value = true;
+  weekReportLoading.value = true;
+  weekReportError.value = '';
+  try {
+    const date = new Date(`${selectedDate.value}T12:00:00`);
+    const dayOfWeek = (date.getDay() + 6) % 7;
+    date.setDate(date.getDate() - dayOfWeek);
+    const dates = Array.from({ length: 7 }, (_, index) => {
+      const day = new Date(date);
+      day.setDate(date.getDate() + index);
+      return day.toLocaleDateString('en-CA');
+    });
+    weekDays.value = await Promise.all(dates.map(fetchNutritionDiary));
+  } catch (error: unknown) { weekReportError.value = error instanceof Error ? error.message : 'Không thể tải báo cáo tuần.'; }
+  finally { weekReportLoading.value = false; }
+}
+
+async function analyzeSelectedImage() {
+  const image = scanInput.value?.files?.[0];
+  if (!image) { scanError.value = 'Vui lòng chọn ảnh thực phẩm.'; return; }
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(image.type)) { scanError.value = 'Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.'; return; }
+  if (image.size > 5 * 1024 * 1024) { scanError.value = 'Ảnh không được vượt quá 5 MB.'; return; }
+  if (!authStore.accessToken) { scanError.value = 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.'; return; }
+  isScanLoading.value = true;
+  scanError.value = '';
+  scanResult.value = null;
+  try { scanResult.value = await postNutritionImage(image, authStore.accessToken); }
+  catch (error: unknown) { scanError.value = error instanceof Error ? error.message : 'Không thể phân tích ảnh.'; }
+  finally { isScanLoading.value = false; if (scanInput.value) scanInput.value.value = ''; }
+}
+
+function addScanResultToDiary() {
+  if (!scanResult.value || scanResult.value.status !== 'completed' || scanResult.value.predictedCalories === null || scanResult.value.predictedProtein === null || scanResult.value.predictedCarbs === null || scanResult.value.predictedFat === null) return;
+  mealForm.value = {
+    date: selectedDate.value, mealType: 'snack', foodName: 'Món ăn từ ảnh (ước lượng AI)',
+    calories: scanResult.value.predictedCalories, protein: scanResult.value.predictedProtein,
+    carbs: scanResult.value.predictedCarbs, fat: scanResult.value.predictedFat,
+    sugar: scanResult.value.predictedSugar ?? 0,
+  };
+  isMealModalOpen.value = true;
+}
+
+async function openMealProductPicker() {
+  isProductPickerOpen.value = true;
+  productPickerSearch.value = '';
+  productPickerError.value = '';
+  await loadMealProducts();
+}
+
+async function loadMealProducts() {
+  isProductPickerLoading.value = true;
+  productPickerError.value = '';
+  try {
+    const result = await fetchProducts(productPickerSearch.value.trim() ? { search: productPickerSearch.value.trim() } : {});
+    mealProductOptions.value = result.products.filter(product => product.stock > 0 && product.nutrition
+      && [product.nutrition.calories, product.nutrition.protein, product.nutrition.carbs, product.nutrition.fat, product.nutrition.sugar].every(Number.isFinite));
+  } catch (error: unknown) {
+    mealProductOptions.value = [];
+    productPickerError.value = error instanceof Error ? error.message : 'Không tải được danh sách sản phẩm.';
+  } finally {
+    isProductPickerLoading.value = false;
   }
-  toastStore.show(`Đã ghi nhận +${amount}ml nước`, 'success', `Tổng lượng nước hôm nay: ${waterCurrentMl.value}ml / ${waterTargetMl}ml`);
 }
 
-function toggleGlass(index: number) {
-  waterGlasses.value[index].drank = !waterGlasses.value[index].drank;
-  const count = waterGlasses.value.filter((g) => g.drank).length;
-  waterCurrentMl.value = Math.min(waterTargetMl, count * 275);
+function chooseMealProduct(product: Product) {
+  mealForm.value = {
+    date: selectedDate.value,
+    mealType: 'breakfast',
+    foodName: product.name,
+    calories: product.nutrition.calories,
+    protein: product.nutrition.protein,
+    carbs: product.nutrition.carbs,
+    fat: product.nutrition.fat,
+    sugar: product.nutrition.sugar,
+  };
+  isProductPickerOpen.value = false;
+  isMealModalOpen.value = true;
 }
 
-const isScanningModalOpen = ref(false);
-
-function handleScanSimulate() {
-  isScanningModalOpen.value = true;
-  setTimeout(() => {
-    toastStore.show('NutriVision AI đã trích xuất thành công!', 'success', '190 kcal • 16.5g Protein • 3.2g Fat • 22.0g Carbs');
-  }, 600);
+function addRecommendedProduct(product: Product) {
+  cartStore.addItem(product, 1, product.nutrition.servingSize || 'Mặc định');
 }
 
-function handleAddDeficitProduct(name: string, price: number, protein: number, image: string) {
-  cartStore.addItem(
-    {
-      id: `deficit-${Date.now()}`,
-      code: 'NM-DEFICIT',
-      name,
-      category: 'high-protein',
-      categoryName: 'Bổ sung thiếu hụt',
-      price,
-      image,
-      description: 'Sản phẩm bổ sung lượng đạm thiếu hụt trong ngày theo khuyến nghị của NutriBot AI.',
-      ingredients: ['Thành phần dinh dưỡng tự nhiên'],
-      nutrition: {
-        servingSize: '1 khẩu phần',
-        calories: 130,
-        protein,
-        carbs: 2,
-        fat: 1,
-        sugar: 0,
-      },
-      stock: 50,
-      rating: 5.0,
-      reviewCount: 48,
-      badges: [`+${protein}g Protein`],
-      bestFor: 'Bổ sung thiếu hụt macro',
-    },
-    1
-  );
+const isMealModalOpen = ref(false);
+const mealForm = ref<CreateNutritionDiaryMeal>({ date: selectedDate.value, mealType: 'breakfast', foodName: '', calories: 0, protein: 0, carbs: 0, fat: 0, sugar: 0 });
+function openMealForm(type: MealType = 'breakfast') {
+  mealForm.value = { date: selectedDate.value, mealType: type, foodName: '', calories: 0, protein: 0, carbs: 0, fat: 0, sugar: 0 };
+  isMealModalOpen.value = true;
 }
+async function saveMeal() {
+  if (!mealForm.value.foodName.trim()) { toastStore.show('Vui lòng nhập tên món ăn.', 'error'); return; }
+  isSavingDiary.value = true;
+  try { diary.value = await postNutritionMeal({ ...mealForm.value }); isMealModalOpen.value = false; toastStore.show('Đã lưu món ăn vào nhật ký.', 'success'); }
+  catch (error: unknown) { toastStore.show(error instanceof Error ? error.message : 'Không thể lưu món ăn.', 'error'); }
+  finally { isSavingDiary.value = false; }
+}
+
+async function addWater(amount: number) {
+  isSavingDiary.value = true;
+  try { diary.value = await postNutritionWater(selectedDate.value, amount); toastStore.show(`Đã ghi nhận +${amount}ml nước`, 'success', `Tổng lượng nước: ${waterCurrentMl.value}ml / ${waterTargetMl}ml`); }
+  catch (error: unknown) { toastStore.show(error instanceof Error ? error.message : 'Không thể lưu lượng nước.', 'error'); }
+  finally { isSavingDiary.value = false; }
+}
+
 </script>
 
 <template>
   <div class="max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-10">
+    <div v-if="weekReportOpen" class="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4" @click.self="weekReportOpen = false">
+      <section class="max-h-[85vh] w-full max-w-2xl space-y-4 overflow-auto rounded-3xl bg-white p-6 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="week-report-title">
+        <header class="flex items-center justify-between"><h2 id="week-report-title" class="font-heading text-xl font-bold">Báo cáo dinh dưỡng tuần</h2><button type="button" aria-label="Đóng" @click="weekReportOpen = false">×</button></header>
+        <p v-if="weekReportLoading" aria-live="polite">Đang tải báo cáo...</p>
+        <p v-else-if="weekReportError" class="text-red-700" role="alert">{{ weekReportError }} <button type="button" class="underline" @click="loadWeekReport">Thử lại</button></p>
+        <div v-else class="space-y-2"><article v-for="day in weekDays" :key="day.date" class="flex justify-between rounded-xl bg-[#FAF9F5] p-3 text-sm"><span>{{ new Date(`${day.date}T12:00:00`).toLocaleDateString('vi-VN') }}</span><span>{{ Math.round(day.totals.calories) }} kcal · {{ Math.round(day.totals.protein) }}g protein · {{ day.totals.waterMl }}ml nước</span></article></div>
+      </section>
+    </div>
+    <div v-if="isProductPickerOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4" @click.self="isProductPickerOpen = false">
+      <section class="w-full max-w-2xl space-y-4 rounded-3xl bg-white p-5 shadow-xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="meal-product-picker-title">
+        <header class="flex items-start justify-between gap-4">
+          <div>
+            <h2 id="meal-product-picker-title" class="font-heading text-xl font-bold">Chọn sản phẩm NutriMate</h2>
+            <p class="mt-1 text-sm text-[#68725F]">Chọn sản phẩm để điền sẵn tên và Nutrition Facts vào bữa ăn.</p>
+          </div>
+          <button type="button" aria-label="Đóng" class="rounded-lg px-3 py-1 text-lg hover:bg-[#F3F6EE]" @click="isProductPickerOpen = false">×</button>
+        </header>
+        <form class="flex gap-2" @submit.prevent="loadMealProducts">
+          <input v-model="productPickerSearch" type="search" placeholder="Tìm sản phẩm theo tên..." class="min-w-0 flex-1 rounded-xl border border-[#D5DFC8] px-3 py-2.5 text-sm focus:border-[#536124] focus:outline-none" />
+          <button type="submit" :disabled="isProductPickerLoading" class="rounded-xl bg-[#536124] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Tìm</button>
+        </form>
+        <p v-if="productPickerError" role="alert" class="text-sm text-red-700">{{ productPickerError }}</p>
+        <p v-else-if="isProductPickerLoading" class="py-8 text-center text-sm text-[#68725F]" aria-live="polite">Đang tải sản phẩm...</p>
+        <p v-else-if="mealProductOptions.length === 0" class="py-8 text-center text-sm text-[#68725F]">Không tìm thấy sản phẩm còn hàng có đủ thông tin dinh dưỡng.</p>
+        <ul v-else class="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+          <li v-for="product in mealProductOptions" :key="product.id">
+            <button type="button" class="flex w-full items-center gap-3 rounded-2xl border border-[#E3E8DC] p-3 text-left transition hover:border-[#8EA675] hover:bg-[#F7FAF3]" @click="chooseMealProduct(product)">
+              <img :src="product.image" :alt="product.name" class="h-14 w-14 shrink-0 rounded-xl object-cover" />
+              <span class="min-w-0 flex-1">
+                <strong class="block truncate text-sm text-[#2D3B1E]">{{ product.name }}</strong>
+                <span class="mt-1 block text-xs text-[#68725F]">{{ product.nutrition.calories }} kcal · {{ product.nutrition.protein }}g protein · {{ product.nutrition.carbs }}g carbs</span>
+              </span>
+              <span class="shrink-0 rounded-xl bg-[#536124] px-3 py-2 text-xs font-bold text-white">Chọn</span>
+            </button>
+          </li>
+        </ul>
+      </section>
+    </div>
+    <div v-if="isMealModalOpen" class="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4" @click.self="isMealModalOpen = false">
+      <form class="w-full max-w-lg space-y-4 rounded-3xl bg-white p-6 shadow-xl" @submit.prevent="saveMeal">
+        <div class="flex items-center justify-between"><h2 class="font-heading text-xl font-bold">Ghi món ăn</h2><button type="button" aria-label="Đóng" @click="isMealModalOpen = false">×</button></div>
+        <label class="block text-sm">Tên món ăn<input v-model="mealForm.foodName" required maxlength="200" class="mt-1 w-full rounded-xl border p-3" /></label>
+        <label class="block text-sm">Bữa ăn<select v-model="mealForm.mealType" class="mt-1 w-full rounded-xl border p-3"><option v-for="meal in mealOptions" :key="meal.id" :value="meal.id">{{ meal.title }}</option></select></label>
+        <div class="grid grid-cols-2 gap-3">
+          <label v-for="field in (['calories','protein','carbs','fat','sugar'] as const)" :key="field" class="block text-sm">{{ field === 'calories' ? 'Calories (kcal)' : `${field} (g)` }}<input v-model.number="mealForm[field]" type="number" min="0" :max="field === 'calories' ? 10000 : 1000" step="0.1" required class="mt-1 w-full rounded-xl border p-3" /></label>
+        </div>
+        <p class="text-xs text-[#68725F]">Nhập số liệu từ nhãn thực phẩm hoặc khẩu phần bạn đã xác nhận.</p>
+        <div class="flex justify-end gap-3"><button type="button" class="rounded-full border px-4 py-2" @click="isMealModalOpen = false">Hủy</button><button :disabled="isSavingDiary" class="rounded-full bg-[#536124] px-5 py-2 font-bold text-white disabled:opacity-50">{{ isSavingDiary ? 'Đang lưu...' : 'Lưu món ăn' }}</button></div>
+      </form>
+    </div>
     <!-- Breadcrumb (Figma 08) -->
     <nav class="flex items-center gap-1.5 text-xs text-[#7A866E]">
       <RouterLink to="/" class="hover:text-[#242424]">Trang chủ</RouterLink>
@@ -123,18 +369,16 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
       <div class="flex flex-col items-start lg:items-end gap-2.5 shrink-0">
         <!-- Hàng 1: Nút chọn ngày & Nút Thêm món ăn -->
         <div class="flex items-center gap-2.5">
-          <button
-            type="button"
-            class="px-4 py-2 rounded-full bg-white border border-[#D5DFC8] text-xs font-bold text-[#242424] flex items-center gap-2 shadow-2xs hover:bg-[#FAF9F5] cursor-pointer"
-          >
-            <span>‹</span>
+          <div class="px-4 py-2 rounded-full bg-white border border-[#D5DFC8] text-xs font-bold text-[#242424] flex items-center gap-2 shadow-2xs">
+            <button type="button" aria-label="Ngày trước" @click="shiftSelectedDate(-1)">‹</button>
             <Calendar class="w-3.5 h-3.5 text-[#536124]" />
-            <span>Hôm nay, 24 Tháng 10, 2024</span>
-            <span>›</span>
-          </button>
+            <input aria-label="Ngày nhật ký" type="date" v-model="selectedDate" @change="loadDiary" class="bg-transparent text-xs font-bold" />
+            <button type="button" aria-label="Ngày sau" @click="shiftSelectedDate(1)">›</button>
+          </div>
 
           <button
             type="button"
+            @click="openMealForm()"
             class="px-4 py-2 rounded-full bg-[#CCD7BC] hover:bg-[#BFCBB0] text-[#2D3B1E] text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
           >
             <Plus class="w-3.5 h-3.5 stroke-[2.5]" />
@@ -145,7 +389,7 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
         <!-- Hàng 2: Nút Quét nhãn dinh dưỡng (Scan AI) -->
         <button
           type="button"
-          @click="handleScanSimulate"
+          @click="scanInput?.click()"
           class="px-5 py-2.5 rounded-full bg-[#536124] hover:bg-[#434F1D] active:bg-[#353E17] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
         >
           <Scan class="w-4 h-4" />
@@ -166,11 +410,11 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
               </div>
               <div>
                 <h3 class="font-heading text-sm font-bold text-[#242424]">Mục tiêu Calo Hôm Nay</h3>
-                <span class="text-[11px] text-[#7A866E]">Kế hoạch giảm mỡ khoa học</span>
+                <span class="text-[11px] text-[#7A866E]">{{ goalSubtitle }}</span>
               </div>
             </div>
             <span class="px-3 py-1 rounded-full bg-white border border-[#D5DFC8] text-[11px] font-bold text-[#536124]">
-              Thâm hụt an toàn
+              {{ goalLabel }}
             </span>
           </div>
 
@@ -189,7 +433,7 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
                 <!-- Vòng tiến độ -->
                 <path
                   class="text-[#536124]"
-                  stroke-dasharray="72, 100"
+                  :stroke-dasharray="`${calorieTarget === null ? 0 : Math.min(100, (diary?.totals.calories ?? 0) / calorieTarget * 100)}, 100`"
                   stroke-width="3.8"
                   stroke-linecap="round"
                   stroke="currentColor"
@@ -199,7 +443,7 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
               </svg>
               <div class="absolute flex flex-col items-center justify-center text-center">
                 <span class="text-[11px] text-[#7A866E] font-medium leading-none">Còn lại</span>
-                <span class="font-heading text-2xl font-black text-[#242424] leading-tight mt-0.5">710</span>
+                <span class="font-heading text-2xl font-black text-[#242424] leading-tight mt-0.5">{{ remainingCalories ?? '—' }}</span>
                 <span class="text-[10px] text-[#7A866E] font-bold leading-none">kcal</span>
               </div>
             </div>
@@ -209,17 +453,12 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
               <div class="flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-[#7A866E]"></span>
                 <span class="text-[#7A866E]">Mục tiêu ngày:</span>
-                <span class="font-bold text-[#242424]">1.550 kcal</span>
+                <span class="font-bold text-[#242424]">{{ calorieTarget === null ? 'Chưa thiết lập' : `${calorieTarget.toLocaleString('vi-VN')} kcal` }}</span>
               </div>
               <div class="flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-[#536124]"></span>
                 <span class="text-[#7A866E]">Đã nạp vào:</span>
-                <span class="font-bold text-[#242424]">1.120 kcal</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-[#C5281C]"></span>
-                <span class="text-[#7A866E]">Đốt cháy vận động:</span>
-                <span class="font-bold text-[#C5281C]">-280 kcal</span>
+                <span class="font-bold text-[#242424]">{{ diary?.totals.calories ?? 0 }} kcal</span>
               </div>
             </div>
           </div>
@@ -228,7 +467,7 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
         <!-- Hộp Đánh giá nhanh dưới đáy -->
         <div class="p-3.5 rounded-2xl bg-[#EBF7E5] border border-[#CCD7BC] text-xs text-[#2D3B1E] flex items-center gap-2">
           <span class="text-sm">🍃</span>
-          <span><strong>Đánh giá nhanh:</strong> Đang duy trì thâm hụt calo hoàn hảo cho mục tiêu Giảm Mỡ Tăng Cơ!</span>
+          <span><strong>Đánh giá nhanh:</strong> {{ calorieTarget === null ? 'Hãy hoàn thiện hồ sơ để thiết lập mục tiêu Calories.' : `Đã ghi ${diary?.totals.calories ?? 0} / ${calorieTarget} kcal.` }}</span>
         </div>
       </div>
 
@@ -242,7 +481,7 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
               </div>
               <h3 class="font-heading text-sm font-bold text-[#242424]">Phân bổ Macros</h3>
             </div>
-            <span class="text-xs text-[#7A866E]">Đã nạp 3 bữa</span>
+            <span class="text-xs text-[#7A866E]">Đã ghi {{ diary?.meals.length ?? 0 }} món</span>
           </div>
 
           <p class="text-xs text-[#68725F] pt-3 leading-relaxed">
@@ -255,43 +494,43 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
             <div>
               <div class="flex justify-between text-xs mb-1.5 font-bold">
                 <span class="text-[#242424]">■ Đạm (Protein)</span>
-                <span class="text-[#242424]">68g <span class="text-[#7A866E] font-normal">/ 80g (85%)</span></span>
+                <span class="text-[#242424]">{{ mealTotals.protein.toFixed(1) }}g <span class="text-[#7A866E] font-normal">/ {{ proteinTarget === null ? '—' : `${proteinTarget}g` }}</span></span>
               </div>
               <div class="h-2.5 w-full rounded-full bg-[#F0F4EA] overflow-hidden">
-                <div class="h-full bg-[#536124] rounded-full" style="width: 85%"></div>
+                <div class="h-full bg-[#536124] rounded-full" :style="{ width: `${proteinTarget ? Math.min(100, mealTotals.protein / proteinTarget * 100) : 0}%` }"></div>
               </div>
             </div>
 
             <!-- Carbs -->
             <div>
               <div class="flex justify-between text-xs mb-1.5 font-bold">
-                <span class="text-[#242424]">■ Tinh bột tốt (Carbs)</span>
-                <span class="text-[#242424]">105g <span class="text-[#7A866E] font-normal">/ 150g (70%)</span></span>
+                <span class="text-[#242424]">■ Carbohydrate (Carbs)</span>
+                <span class="text-[#242424]">{{ mealTotals.carbs.toFixed(1) }}g <span class="text-[#7A866E] font-normal">/ {{ carbsTarget === null ? '—' : `${carbsTarget}g` }}</span></span>
               </div>
               <div class="h-2.5 w-full rounded-full bg-[#F0F4EA] overflow-hidden">
-                <div class="h-full bg-[#A38038] rounded-full" style="width: 70%"></div>
+                <div class="h-full bg-[#A38038] rounded-full" :style="{ width: `${Math.min(100, carbsPercent)}%` }"></div>
               </div>
             </div>
 
             <!-- Fat -->
             <div>
               <div class="flex justify-between text-xs mb-1.5 font-bold">
-                <span class="text-[#242424]">■ Chất béo tốt (Fat)</span>
-                <span class="text-[#242424]">32g <span class="text-[#7A866E] font-normal">/ 45g (71%)</span></span>
+                <span class="text-[#242424]">■ Chất béo (Fat)</span>
+                <span class="text-[#242424]">{{ mealTotals.fat.toFixed(1) }}g <span class="text-[#7A866E] font-normal">/ {{ fatTarget === null ? '—' : `${fatTarget}g` }}</span></span>
               </div>
               <div class="h-2.5 w-full rounded-full bg-[#F0F4EA] overflow-hidden">
-                <div class="h-full bg-[#C2672B] rounded-full" style="width: 71%"></div>
+                <div class="h-full bg-[#C2672B] rounded-full" :style="{ width: `${Math.min(100, fatPercent)}%` }"></div>
               </div>
             </div>
 
             <!-- Sugar -->
             <div>
               <div class="flex justify-between text-xs mb-1.5 font-bold">
-                <span class="text-[#242424]">■ Lượng đường nạp (Sugar)</span>
-                <span class="text-[#242424]">14g <span class="text-[#7A866E] font-normal">/ tối đa 25g (56%)</span></span>
+                <span class="text-[#242424]">■ Đường (Sugar)</span>
+                <span class="text-[#242424]">{{ mealTotals.sugar.toFixed(1) }}g <span class="text-[#7A866E] font-normal">/ tối đa {{ sugarMax }}g</span></span>
               </div>
               <div class="h-2.5 w-full rounded-full bg-[#F0F4EA] overflow-hidden">
-                <div class="h-full bg-[#4A729A] rounded-full" style="width: 56%"></div>
+                <div class="h-full bg-[#4A729A] rounded-full" :style="{ width: `${Math.min(100, sugarPercent)}%` }"></div>
               </div>
             </div>
           </div>
@@ -299,9 +538,12 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
 
         <div class="flex justify-between text-xs pt-3 border-t border-[#F0F3EC]">
           <span class="text-[#536124] font-bold flex items-center gap-1">
-            <Check class="w-3.5 h-3.5 stroke-[2.5]" /> Đạt chuẩn ít đường
+            <Check v-if="hasDiaryData && !dailySugarExceeded" class="w-3.5 h-3.5 stroke-[2.5]" />
+            <span :class="dailySugarExceeded ? 'text-[#C5281C]' : ''">{{ !hasDiaryData ? 'Chưa có dữ liệu bữa ăn' : dailySugarExceeded ? `Vượt giới hạn đường ${ (mealTotals.sugar - sugarMax).toFixed(1) }g` : 'Trong giới hạn đường' }}</span>
           </span>
-          <span class="text-[#68725F]">Thiếu: <strong>12g Đạm</strong></span>
+          <span class="text-[#68725F]" :class="proteinOverTarget > 0 ? 'text-[#C5281C]' : ''">
+            {{ proteinRemaining === null ? 'Hoàn thiện hồ sơ để đặt mục tiêu macro' : proteinOverTarget > 0 ? `Vượt ${proteinOverTarget.toFixed(1)}g Đạm` : `Thiếu: ${proteinRemaining.toFixed(1)}g Đạm` }}
+          </span>
         </div>
       </div>
 
@@ -315,7 +557,7 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
               </div>
               <h3 class="font-heading text-sm font-bold text-[#242424]">Theo dõi Nước</h3>
             </div>
-            <span class="text-xs font-bold text-[#242424]">75%</span>
+            <span class="text-xs font-bold text-[#242424]">{{ Math.min(100, Math.round(waterCurrentMl / waterTargetMl * 100)) }}%</span>
           </div>
 
           <div class="pt-3">
@@ -330,7 +572,7 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
               v-for="(glass, idx) in waterGlasses"
               :key="idx"
               type="button"
-              @click="toggleGlass(idx)"
+              @click="addWater(idx === 7 ? 200 : 250)"
               class="p-2.5 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1 cursor-pointer"
               :class="
                 glass.drank
@@ -375,7 +617,10 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
 
           <div class="p-3 rounded-2xl bg-[#EBF7E5] text-xs text-[#2D3B1E] flex items-center gap-2">
             <Bell class="w-4 h-4 text-[#536124] shrink-0" />
-            <span>Nhắc nhở: Uống thêm 1 ly trước 16h00!</span>
+            <span v-if="reminderTime">Nhắc nhở: {{ reminderTime.text }} Uống trước {{ reminderTime.deadline }}.</span>
+            <span v-else-if="selectedDate !== today">Nhắc nhở chỉ áp dụng cho ngày hôm nay.</span>
+            <span v-else-if="waterCurrentMl >= waterTargetMl">Bạn đã đạt mục tiêu uống nước hôm nay.</span>
+            <span v-else>Không còn nhắc uống trước 16:00 hôm nay. Hãy tiếp tục uống nước đều đặn.</span>
           </div>
         </div>
       </div>
@@ -392,210 +637,30 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
             Chi tiết thành phần, chỉ số calo và đạm cho từng món ăn nạp vào hôm nay.
           </p>
         </div>
-        <button type="button" class="text-xs sm:text-sm font-bold text-[#536124] hover:underline flex items-center gap-1 cursor-pointer">
-          <span>Xem báo cáo tuần</span>
-          <span>→</span>
-        </button>
+        <button type="button" @click="loadWeekReport" class="text-xs sm:text-sm font-bold text-[#536124] hover:underline">Xem báo cáo tuần →</button>
       </div>
 
       <!-- 4 Cards Bữa Ăn (3 thẻ trắng, Thẻ thứ 4 có nền Xanh Mint Nhạt #EBF7E5 như Figma 08) -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <!-- 1. Bữa Sáng -->
-        <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-5 flex flex-col justify-between">
-          <div class="space-y-4">
-            <div class="flex items-start justify-between border-b border-[#F0F3EC] pb-3.5">
-              <div>
-                <h4 class="font-heading text-sm font-bold text-[#242424] flex items-center gap-1.5">
-                  🥣 Bữa Sáng
-                </h4>
-                <span class="text-[11px] text-[#7A866E] block mt-0.5">Đã hoàn thành lúc 07:30</span>
-              </div>
-              <div class="text-right">
-                <span class="text-xs font-bold text-[#242424] block">380 kcal</span>
-                <span class="text-[11px] text-[#7A866E]">22g Protein</span>
-              </div>
-            </div>
-
-            <!-- Danh sách món -->
-            <div class="space-y-2.5 text-xs">
-              <div class="p-3 rounded-2xl bg-[#FAF9F5] border border-[#F0F3EC] flex items-start justify-between gap-2">
-                <div>
-                  <span class="font-bold text-[#242424] block">Granola Yến Mạch NutriMate (40g)</span>
-                  <span class="text-[11px] text-[#7A866E] mt-0.5 block">152 kcal • 14g Đạm</span>
-                </div>
-                <div class="w-4 h-4 rounded-full border border-[#536124] text-[#536124] flex items-center justify-center shrink-0 mt-0.5">
-                  <Check class="w-2.5 h-2.5 stroke-[3]" />
-                </div>
-              </div>
-
-              <div class="p-3 rounded-2xl bg-[#FAF9F5] border border-[#F0F3EC] flex items-start justify-between gap-2">
-                <div>
-                  <span class="font-bold text-[#242424] block">Sữa chua Hy Lạp không đường (100g)</span>
-                  <span class="text-[11px] text-[#7A866E] mt-0.5 block">98 kcal • 10g Đạm</span>
-                </div>
-                <div class="w-4 h-4 rounded-full border border-[#536124] text-[#536124] flex items-center justify-center shrink-0 mt-0.5">
-                  <Check class="w-2.5 h-2.5 stroke-[3]" />
-                </div>
-              </div>
-
-              <div class="p-3 rounded-2xl bg-[#FAF9F5] border border-[#F0F3EC] flex items-start justify-between gap-2">
-                <div>
-                  <span class="font-bold text-[#242424] block">Nửa quả táo xanh và hạt chia</span>
-                  <span class="text-[11px] text-[#7A866E] mt-0.5 block">130 kcal • 2g Đạm</span>
-                </div>
-                <div class="w-4 h-4 rounded-full border border-[#536124] text-[#536124] flex items-center justify-center shrink-0 mt-0.5">
-                  <Check class="w-2.5 h-2.5 stroke-[3]" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="pt-3 border-t border-[#F0F3EC] flex items-center justify-between text-xs text-[#536124]">
-            <button class="hover:underline flex items-center gap-1 cursor-pointer">
-              <FileText class="w-3.5 h-3.5" />
-              <span>Xem nhãn Nutrition</span>
-            </button>
-            <button class="font-bold hover:underline cursor-pointer">+ Thêm món</button>
-          </div>
+        <p v-if="isLoadingDiary" class="col-span-full text-center text-sm text-[#7A866E]">Đang tải nhật ký...</p>
+        <div v-else-if="diaryError" class="col-span-full rounded-2xl bg-red-50 p-4 text-sm text-red-800" role="alert">
+          {{ diaryError }} <button type="button" class="ml-2 font-bold underline" @click="loadDiary">Thử lại</button>
         </div>
+        <article v-for="meal in mealsByType" :key="meal.id" class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-4">
+          <header class="flex items-start justify-between border-b border-[#F0F3EC] pb-3.5">
+            <h3 class="font-heading text-sm font-bold">{{ meal.emoji }} {{ meal.title }}</h3>
+            <div class="text-right text-xs"><strong class="block">{{ meal.calories }} kcal</strong><span class="text-[#7A866E]">{{ meal.protein }}g Protein</span></div>
+          </header>
+          <p v-if="meal.items.length === 0" class="py-4 text-xs text-[#7A866E]">Chưa ghi nhận món ăn.</p>
+          <ul v-else class="space-y-2 text-xs">
+            <li v-for="item in meal.items" :key="item.id" class="rounded-xl bg-[#FAF9F5] p-3">
+              <strong class="block">{{ item.foodName }}</strong>
+              <span class="text-[#7A866E]">{{ item.calories }} kcal · {{ item.protein }}g đạm · {{ item.carbs }}g carbs · {{ item.fat }}g fat</span>
+            </li>
+          </ul>
+          <button type="button" class="font-bold text-xs text-[#536124] hover:underline" @click="openMealForm(meal.id)">+ Thêm món</button>
+        </article>
 
-        <!-- 2. Bữa Trưa -->
-        <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-5 flex flex-col justify-between">
-          <div class="space-y-4">
-            <div class="flex items-start justify-between border-b border-[#F0F3EC] pb-3.5">
-              <div>
-                <h4 class="font-heading text-sm font-bold text-[#242424] flex items-center gap-1.5">
-                  ☀️ Bữa Trưa
-                </h4>
-                <span class="text-[11px] text-[#7A866E] block mt-0.5">Đã hoàn thành lúc 12:15</span>
-              </div>
-              <div class="text-right">
-                <span class="text-xs font-bold text-[#242424] block">450 kcal</span>
-                <span class="text-[11px] text-[#7A866E]">32g Protein</span>
-              </div>
-            </div>
-
-            <!-- Danh sách món -->
-            <div class="space-y-2.5 text-xs">
-              <div class="p-3 rounded-2xl bg-[#FAF9F5] border border-[#F0F3EC] flex items-start justify-between gap-2">
-                <div>
-                  <span class="font-bold text-[#242424] block">Ức gà sấy giòn thảo mộc NutriMate (100g)</span>
-                  <span class="text-[11px] text-[#7A866E] mt-0.5 block">220 kcal • 28g Đạm</span>
-                </div>
-                <div class="w-4 h-4 rounded-full border border-[#536124] text-[#536124] flex items-center justify-center shrink-0 mt-0.5">
-                  <Check class="w-2.5 h-2.5 stroke-[3]" />
-                </div>
-              </div>
-
-              <div class="p-3 rounded-2xl bg-[#FAF9F5] border border-[#F0F3EC] flex items-start justify-between gap-2">
-                <div>
-                  <span class="font-bold text-[#242424] block">Khoai lang luộc & Rau củ sốt mè</span>
-                  <span class="text-[11px] text-[#7A866E] mt-0.5 block">230 kcal • 4g Đạm</span>
-                </div>
-                <div class="w-4 h-4 rounded-full border border-[#536124] text-[#536124] flex items-center justify-center shrink-0 mt-0.5">
-                  <Check class="w-2.5 h-2.5 stroke-[3]" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="pt-3 border-t border-[#F0F3EC] flex items-center justify-between text-xs text-[#536124]">
-            <button class="hover:underline flex items-center gap-1 cursor-pointer">
-              <FileText class="w-3.5 h-3.5" />
-              <span>Xem nhãn Nutrition</span>
-            </button>
-            <button class="font-bold hover:underline cursor-pointer">+ Thêm món</button>
-          </div>
-        </div>
-
-        <!-- 3. Bữa Xế / Snack -->
-        <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-5 flex flex-col justify-between">
-          <div class="space-y-4">
-            <div class="flex items-start justify-between border-b border-[#F0F3EC] pb-3.5">
-              <div>
-                <h4 class="font-heading text-sm font-bold text-[#242424] flex items-center gap-1.5">
-                  🕒 Bữa Xế / Snack
-                </h4>
-                <span class="text-[11px] text-[#7A866E] block mt-0.5">Đã nạp lúc 15:30</span>
-              </div>
-              <div class="text-right">
-                <span class="text-xs font-bold text-[#242424] block">150 kcal</span>
-                <span class="text-[11px] text-[#7A866E]">8g Protein</span>
-              </div>
-            </div>
-
-            <!-- Danh sách món -->
-            <div class="space-y-2.5 text-xs">
-              <div class="p-3 rounded-2xl bg-[#FAF9F5] border border-[#F0F3EC] flex items-start justify-between gap-2">
-                <div>
-                  <span class="font-bold text-[#242424] block">Protein Bar sô-cô-la đen (1/2 thanh)</span>
-                  <span class="text-[11px] text-[#7A866E] mt-0.5 block">110 kcal • 7.5g Đạm</span>
-                </div>
-                <div class="w-4 h-4 rounded-full border border-[#536124] text-[#536124] flex items-center justify-center shrink-0 mt-0.5">
-                  <Check class="w-2.5 h-2.5 stroke-[3]" />
-                </div>
-              </div>
-
-              <div class="p-3 rounded-2xl bg-[#FAF9F5] border border-[#F0F3EC] flex items-start justify-between gap-2">
-                <div>
-                  <span class="font-bold text-[#242424] block">Trà xanh không đường</span>
-                  <span class="text-[11px] text-[#7A866E] mt-0.5 block">0 kcal • 0g Đạm</span>
-                </div>
-                <div class="w-4 h-4 rounded-full border border-[#536124] text-[#536124] flex items-center justify-center shrink-0 mt-0.5">
-                  <Check class="w-2.5 h-2.5 stroke-[3]" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="pt-3 border-t border-[#F0F3EC] flex items-center justify-between text-xs text-[#536124]">
-            <button class="hover:underline flex items-center gap-1 cursor-pointer">
-              <FileText class="w-3.5 h-3.5" />
-              <span>Xem nhãn Nutrition</span>
-            </button>
-            <button class="font-bold hover:underline cursor-pointer">+ Thêm món</button>
-          </div>
-        </div>
-
-        <!-- 4. Bữa Tối (Đặc biệt: Nền Xanh Mint #EDF4E7 như Figma 08) -->
-        <div class="bg-[#EDF4E7] p-6 rounded-3xl border border-[#CCD7BC] shadow-2xs space-y-5 flex flex-col justify-between">
-          <div class="space-y-4">
-            <div class="flex items-start justify-between border-b border-[#CCD7BC] pb-3.5">
-              <div>
-                <h4 class="font-heading text-sm font-bold text-[#242424] flex items-center gap-1.5">
-                  🌙 Bữa Tối
-                </h4>
-                <span class="text-[11px] text-[#7A866E] block mt-0.5">Dự kiến khoảng 19:00</span>
-              </div>
-              <div class="text-right">
-                <span class="text-xs font-bold text-[#242424] block">340 kcal</span>
-                <span class="text-[11px] text-[#7A866E]">20g Protein</span>
-              </div>
-            </div>
-
-            <!-- Lời gợi ý AI trên thẻ trắng bên trong -->
-            <div class="p-4 rounded-2xl bg-white border border-[#D5DFC8] text-xs space-y-2 shadow-2xs">
-              <div class="flex items-center gap-1.5 font-bold text-[#536124]">
-                <span>🎁</span>
-                <span>Gợi ý từ NutriBot:</span>
-              </div>
-              <p class="text-[#3E4A2E] leading-relaxed italic">
-                "Salad cá hồi hoặc Salad ức gà với mì Konjac ít calo để tối ưu hóa việc đốt mỡ ban đêm."
-              </p>
-              <span class="text-[11px] text-[#7A866E] block">Chưa ghi nhận món ăn thực tế.</span>
-            </div>
-          </div>
-
-          <!-- Nút NutriBot gợi ý món tối phù hợp (xanh rêu) -->
-          <button
-            type="button"
-            @click="chatStore.openChat()"
-            class="w-full py-3 rounded-2xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-          >
-            <Sparkles class="w-3.5 h-3.5" />
-            <span>NutriBot gợi ý món tối phù hợp</span>
-          </button>
-        </div>
       </div>
     </div>
 
@@ -605,7 +670,7 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
         <!-- Cột Trái -->
         <div class="lg:col-span-7 space-y-5">
           <span class="inline-block text-xs font-bold text-[#536124] bg-white px-3.5 py-1.5 rounded-full border border-[#CCD7BC]">
-            📷 Công nghệ Trí tuệ Nhân tạo NutriVision
+            Công nghệ Trí tuệ Nhân tạo NutriVision
           </span>
           <h2 class="font-heading text-2xl sm:text-3xl lg:text-4xl font-black text-[#242424]">
             Quét nhãn dinh dưỡng thông minh bằng Camera
@@ -614,18 +679,21 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
             Chụp ảnh bảng thành phần dinh dưỡng phía sau bất kỳ bao bì thực phẩm nào, NutriBot sẽ tự động trích xuất Calo, Đạm, Đường và đồng bộ ngay vào Nhật ký dinh dưỡng của bạn mà không cần nhập thủ công.
           </p>
 
+          <input ref="scanInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" @change="analyzeSelectedImage" />
+          <p v-if="scanError" class="text-sm text-red-700" role="alert">{{ scanError }}</p>
+          <p v-if="isScanLoading" class="text-sm" aria-live="polite">Đang phân tích ảnh...</p>
           <div class="flex flex-wrap items-center gap-3.5 pt-2">
             <button
               type="button"
-              @click="handleScanSimulate"
+              @click="openMealProductPicker"
               class="px-6 py-3.5 rounded-2xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
             >
-              <Camera class="w-4.5 h-4.5" />
-              <span>Mở máy quét ngay</span>
+              <ShoppingBag class="w-4.5 h-4.5" />
+              <span>Chọn sản phẩm NutriMate</span>
             </button>
             <button
               type="button"
-              @click="handleScanSimulate"
+              @click="scanInput?.click()"
               class="px-6 py-3.5 rounded-2xl bg-white hover:bg-[#FAF9F5] text-[#242424] text-xs sm:text-sm font-bold border border-[#CCD7BC] flex items-center gap-2 transition-colors cursor-pointer"
             >
               <Upload class="w-4.5 h-4.5 text-[#7A866E]" />
@@ -649,25 +717,25 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
             <div class="space-y-2.5 text-xs sm:text-sm border-t border-b border-[#F0F3EC] py-3">
               <div class="flex justify-between">
                 <span class="text-[#7A866E]">Calories:</span>
-                <span class="font-bold text-[#242424]">190 kcal</span>
+                <span class="font-bold text-[#242424]">{{ scanResult?.predictedCalories ?? '—' }} kcal</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-[#7A866E]">Protein:</span>
-                <span class="font-bold text-[#242424]">16.5g</span>
+                <span class="font-bold text-[#242424]">{{ scanResult?.predictedProtein ?? '—' }}g</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-[#7A866E]">Total Fat:</span>
-                <span class="font-bold text-[#242424]">3.2g</span>
+                <span class="font-bold text-[#242424]">{{ scanResult?.predictedFat ?? '—' }}g</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-[#7A866E]">Carbohydrates:</span>
-                <span class="font-bold text-[#242424]">22.0g</span>
+                <span class="font-bold text-[#242424]">{{ scanResult?.predictedCarbs ?? '—' }}g</span>
               </div>
             </div>
 
-            <div class="text-center text-xs font-bold text-[#536124]">
-              ✓ Đã nhận diện 100%
-            </div>
+            <p class="text-center text-xs font-bold text-[#536124]">{{ scanResult?.status === 'completed' ? 'Đã phân tích · ước lượng tham khảo' : scanResult?.status === 'unrecognized' ? 'Không nhận diện được món ăn/nhãn.' : 'Chưa có kết quả phân tích.' }}</p>
+            <p class="text-center text-xs text-[#68725F]">Thông tin chỉ mang tính tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.</p>
+            <button v-if="scanResult?.status === 'completed'" type="button" class="w-full rounded-xl bg-[#536124] p-3 font-bold text-white" @click="addScanResultToDiary">Kiểm tra và ghi vào nhật ký</button>
           </div>
         </div>
       </div>
@@ -680,9 +748,7 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
           <h2 class="font-heading text-2xl font-black text-[#242424] flex items-center gap-2">
             <span>🌱</span> Gợi ý Thực phẩm Bổ sung Thiếu hụt
           </h2>
-          <p class="text-xs sm:text-sm text-[#7A866E] mt-1">
-            Hôm nay bạn còn thiếu <strong>12g Protein</strong> để đạt mốc 80g mục tiêu. Dưới đây là các lựa chọn tiện lợi từ cửa hàng NutriMate:
-          </p>
+          <p class="text-xs sm:text-sm text-[#7A866E] mt-1">{{ proteinSuggestionMessage }}</p>
         </div>
         <RouterLink to="/catalog" class="text-xs sm:text-sm font-bold text-[#536124] hover:underline">
           Xem tất cả thực phẩm sạch &gt;
@@ -690,69 +756,13 @@ function handleAddDeficitProduct(name: string, price: number, protein: number, i
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <!-- Item 1: Bột đạm hạt bí -->
-        <div class="p-6 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#536124] transition-all flex items-center gap-5 shadow-2xs">
-          <img
-            src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=180&q=80"
-            alt="bot-dam"
-            class="w-24 h-24 rounded-2xl object-cover shrink-0"
-          />
-          <div class="flex-1 min-w-0 space-y-2">
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="text-xs font-bold text-[#2D3B1E] bg-[#CCD7BC] px-3 py-0.5 rounded-full">
-                Bổ sung 15g Protein
-              </span>
-              <span class="text-xs font-medium text-[#7A866E] bg-[#F5F4EE] px-2.5 py-0.5 rounded-full">
-                Thuần chay Organic
-              </span>
-            </div>
-            <h4 class="font-heading text-base font-bold text-[#242424] truncate">Bột đạm hạt bí hữu cơ NutriMate</h4>
-            <p class="text-xs text-[#7A866E]">Dễ pha với sữa hạt chua hoặc sinh tố, không gây đầy bụng.</p>
-            <div class="pt-2 flex items-center justify-between">
-              <span class="font-heading font-black text-base text-[#242424]">120.000 đ</span>
-              <button
-                type="button"
-                @click="handleAddDeficitProduct('Bột đạm hạt bí hữu cơ NutriMate', 120000, 15, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=180&q=80')"
-                class="px-4 py-2 rounded-xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <ShoppingBag class="w-3.5 h-3.5" />
-                <span>+ Thêm vào giỏ</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Item 2: Snack Ức gà sấy giòn thảo mộc -->
-        <div class="p-6 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#536124] transition-all flex items-center gap-5 shadow-2xs">
-          <img
-            src="https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=180&q=80"
-            alt="snack-uc-ga"
-            class="w-24 h-24 rounded-2xl object-cover shrink-0"
-          />
-          <div class="flex-1 min-w-0 space-y-2">
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="text-xs font-bold text-[#2D3B1E] bg-[#CCD7BC] px-3 py-0.5 rounded-full">
-                Bổ sung 20g Protein
-              </span>
-              <span class="text-xs font-medium text-[#7A866E] bg-[#F5F4EE] px-2.5 py-0.5 rounded-full">
-                Không dầu mỡ
-              </span>
-            </div>
-            <h4 class="font-heading text-base font-bold text-[#242424] truncate">Snack Ức gà sấy giòn thảo mộc</h4>
-            <p class="text-xs text-[#7A866E]">Ăn liền tiện lợi lúc xế chiều, giòn rụm và giàu axit amin.</p>
-            <div class="pt-2 flex items-center justify-between">
-              <span class="font-heading font-black text-base text-[#242424]">110.000 đ</span>
-              <button
-                type="button"
-                @click="handleAddDeficitProduct('Snack Ức gà sấy giòn thảo mộc', 110000, 20, 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=180&q=80')"
-                class="px-4 py-2 rounded-xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <ShoppingBag class="w-3.5 h-3.5" />
-                <span>+ Thêm vào giỏ</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <p v-if="recommendationError" class="col-span-full rounded-2xl bg-white p-6 text-sm text-[#7A866E]">{{ recommendationError }}</p>
+        <p v-else-if="rankedRecommendedProducts.length === 0" class="col-span-full rounded-2xl bg-white p-6 text-sm text-[#7A866E]">Hiện không có sản phẩm còn hàng phù hợp.</p>
+        <article v-for="product in rankedRecommendedProducts" :key="product.id" class="flex items-center gap-5 rounded-3xl border border-[#E3E8DC] bg-white p-6">
+          <img v-if="product.image && !failedProductImages.includes(product.id)" :src="product.image" :alt="product.name" class="h-24 w-24 rounded-2xl object-cover" @error="markProductImageFailed(product.id)" />
+          <div v-else class="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-[#EBF7E5] p-2 text-center text-xs text-[#536124]">{{ product.name }}</div>
+          <div class="min-w-0 flex-1"><h3 class="truncate font-bold">{{ product.name }}</h3><p class="text-xs text-[#7A866E]">{{ product.nutrition.protein }}g Protein · {{ product.nutrition.carbs }}g Carbs · {{ product.nutrition.fat }}g Fat / {{ product.nutrition.servingSize }}</p><p class="font-bold">{{ product.price.toLocaleString("vi-VN") }} đ</p><button type="button" :disabled="product.stock <= 0" class="rounded-xl bg-[#536124] px-4 py-2 text-xs font-bold text-white disabled:opacity-50" @click="addRecommendedProduct(product)">Thêm vào giỏ</button></div>
+        </article>
       </div>
     </div>
   </div>

@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import express from 'express';
 import { config } from '../config.js';
 import { resolveChatOwner } from '../middleware/chatIdentity.js';
-import { ChatError } from '../types/chat.js';
+import { ChatError, UUID_PATTERN } from '../types/chat.js';
 import type { ApiResponse } from '../types/index.js';
 import type { NutritionImagePrediction } from '../types/nutritionImage.js';
 import { createNutritionImageService, type NutritionImageService } from '../services/nutritionImageService.js';
@@ -48,7 +48,22 @@ export function createNutritionImageController(
       try {
         const userId = res.locals.nutritionImageUserId;
         if (typeof userId !== 'number' || !Number.isSafeInteger(userId)) throw new ChatError(401, 'Đăng nhập Customer để phân tích ảnh thực phẩm.');
-        const result = await service.analyze(userId, req.body, req.get('content-type') ?? '');
+        const conversationId = req.get('x-chat-conversation-id') ?? '';
+        const requestId = req.get('x-chat-request-id') ?? '';
+        if (!UUID_PATTERN.test(conversationId) || !UUID_PATTERN.test(requestId)) {
+          throw new ChatError(400, 'Thiếu thông tin hội thoại để lưu ảnh vào lịch sử chat.');
+        }
+        const encodedQuestion = req.get('x-chat-question') ?? '';
+        let question = '';
+        try {
+          const decoded = Buffer.from(encodedQuestion, 'base64');
+          if (decoded.toString('base64') !== encodedQuestion) throw new Error('Invalid base64');
+          question = new TextDecoder('utf-8', { fatal: true }).decode(decoded).trim();
+        } catch {
+          throw new ChatError(400, 'Câu hỏi gửi kèm ảnh không hợp lệ.');
+        }
+        if (question.length > 1000) throw new ChatError(400, 'Câu hỏi kèm ảnh tối đa 1000 ký tự.');
+        const result = await service.analyze(userId, conversationId, requestId, req.body, req.get('content-type') ?? '', question);
         res.status(201).json({ success: true, data: result });
       } catch (error) {
         failure(res, error);

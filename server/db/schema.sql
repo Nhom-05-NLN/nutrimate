@@ -151,23 +151,40 @@ CREATE TABLE IF NOT EXISTS nutrition_logs (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
     log_date DATE NOT NULL,
+-- 6. Nhật ký dinh dưỡng chuẩn hóa trong nutrition_diary và diary_entries.
+CREATE TABLE IF NOT EXISTS nutrition_diary (
+    diary_id SERIAL PRIMARY KEY,
+    customer_id INT REFERENCES customers(user_id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    total_calories DOUBLE PRECISION DEFAULT 0,
+    total_protein DOUBLE PRECISION DEFAULT 0,
+    total_carbs DOUBLE PRECISION DEFAULT 0,
+    total_fat DOUBLE PRECISION DEFAULT 0,
+    total_sugar DOUBLE PRECISION DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nutrition_diary_customer_date ON nutrition_diary(customer_id, date);
+
+CREATE TABLE IF NOT EXISTS diary_entries (
+    entry_id SERIAL PRIMARY KEY,
+    diary_id INT NOT NULL REFERENCES nutrition_diary(diary_id) ON DELETE CASCADE,
+    product_id INT REFERENCES products(product_id) ON DELETE SET NULL,
+    food_name VARCHAR(200),
     meal_type VARCHAR(20) NOT NULL CHECK (meal_type IN ('breakfast', 'lunch', 'dinner', 'snack')),
-    food_name VARCHAR(200) NOT NULL,
-    calories NUMERIC(6, 1) NOT NULL,
-    protein NUMERIC(6, 1) DEFAULT 0,
-    carbs NUMERIC(6, 1) DEFAULT 0,
-    fat NUMERIC(6, 1) DEFAULT 0,
-    sugar NUMERIC(6, 1) DEFAULT 0,
-    product_id INT REFERENCES products(id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    quantity DOUBLE PRECISION NOT NULL DEFAULT 1,
+    calories DOUBLE PRECISION NOT NULL,
+    protein DOUBLE PRECISION NOT NULL DEFAULT 0,
+    carbs DOUBLE PRECISION NOT NULL DEFAULT 0,
+    fat DOUBLE PRECISION NOT NULL DEFAULT 0,
+    sugar DOUBLE PRECISION NOT NULL DEFAULT 0
 );
 COMMENT ON TABLE nutrition_logs IS 'Ghi nhận thực phẩm và lượng dinh dưỡng người dùng tiêu thụ theo ngày.';
+ALTER TABLE diary_entries ADD COLUMN IF NOT EXISTS food_name VARCHAR(200);
 
 -- 10. Bảng nhật ký lượng nước uống.
 CREATE TABLE IF NOT EXISTS water_logs (
-    id SERIAL PRIMARY KEY,
-    user_id INT REFERENCES users(id) ON DELETE CASCADE,
-    log_date DATE NOT NULL,
+    water_log_id SERIAL PRIMARY KEY,
+    customer_id INT REFERENCES customers(user_id) ON DELETE CASCADE,
+    recorded_date DATE NOT NULL,
     amount_ml INT NOT NULL CHECK (amount_ml > 0),
     logged_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -185,6 +202,7 @@ CREATE TABLE IF NOT EXISTS knowledge_base (
 COMMENT ON TABLE knowledge_base IS 'Lưu câu hỏi, câu trả lời và chủ đề kiến thức dinh dưỡng cho chatbot.';
 
 -- 12. Bảng ảnh thực phẩm và kết quả dự đoán dinh dưỡng.
+-- 9. Dự đoán dinh dưỡng từ ảnh (NutritionImage)
 CREATE TABLE IF NOT EXISTS nutrition_images (
     image_id SERIAL PRIMARY KEY,
     customer_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -209,4 +227,4 @@ CREATE INDEX IF NOT EXISTS idx_products_is_featured ON products(is_featured) WHE
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
-CREATE INDEX IF NOT EXISTS idx_nutrition_logs_user_date ON nutrition_logs(user_id, log_date);
+CREATE INDEX IF NOT EXISTS idx_nutrition_diary_customer_date_lookup ON nutrition_diary(customer_id, date);

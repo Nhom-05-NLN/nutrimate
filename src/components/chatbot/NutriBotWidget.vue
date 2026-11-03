@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue';
+import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue';
 import { useChatStore } from '../../stores/chatStore';
 import { useCartStore } from '../../stores/cartStore';
 import { useProductStore } from '../../stores/productStore';
@@ -13,6 +13,8 @@ import {
   Sparkles,
   ShoppingBag,
   ImagePlus,
+  ChevronDown,
+  Plus,
 } from 'lucide-vue-next';
 
 const chatStore = useChatStore();
@@ -25,14 +27,16 @@ const productStore = useProductStore();
 const inputText = ref('');
 const messagesContainer = ref<HTMLDivElement | null>(null);
 const imageInput = ref<HTMLInputElement | null>(null);
+const pendingImage = ref<File | null>(null);
+const pendingImagePreview = ref('');
 const maxNutritionImageBytes = 5 * 1024 * 1024;
 const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
 const quickPrompts = [
-  'Tôi muốn giảm cân nhưng hay đói vặt tầm 4h chiều',
-  'Tính chỉ số TDEE & Macro hôm nay',
-  'Gợi ý bữa tối dưới 400 kcal',
-  'Tư vấn món ăn kèm Granola',
+  'Gợi ý món giàu protein, ít đường',
+  'Tìm món ít calo cho bữa tối',
+  'Tôi muốn giảm cân nhưng hay đói vặt',
+  'Gợi ý thực phẩm phù hợp với chế độ Low-Carb',
 ];
 
 function scrollToBottom() {
@@ -51,15 +55,32 @@ watch(
 );
 
 function handleSend() {
-  if (inputText.value.trim() && !chatBlocked.value) {
-    const txt = inputText.value;
-    inputText.value = '';
-    chatStore.sendMessage(txt);
+  if (chatBlocked.value || (!inputText.value.trim() && !pendingImage.value)) return;
+  const question = inputText.value.trim();
+  const image = pendingImage.value;
+  if (image && !authStore.accessToken) {
+    void chatStore.analyzeImage(image, question);
+    return;
   }
+  inputText.value = '';
+  clearPendingImage();
+  if (image) void chatStore.analyzeImage(image, question);
+  else chatStore.sendMessage(question);
 }
 
 function handleQuickPrompt(promptText: string) {
-  chatStore.sendMessage(promptText);
+  if (pendingImage.value) inputText.value = promptText;
+  else chatStore.sendMessage(promptText);
+}
+
+function formatMessageText(text: string): string {
+  const disclaimer = 'Thông tin chỉ mang tính tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.';
+  const flexibleDisclaimer = disclaimer
+    .split(/\s+/)
+    .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('\\s+');
+  const repeatedDisclaimer = new RegExp(`(?:${flexibleDisclaimer})(?:\\s*(?:${flexibleDisclaimer}))+`, 'giu');
+  return text.replace(/\*\*/g, '').replace(repeatedDisclaimer, disclaimer);
 }
 
 function handleImageSelected(event: Event) {
@@ -76,8 +97,18 @@ function handleImageSelected(event: Event) {
     toastStore.show('Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.', 'error');
     return;
   }
-  void chatStore.analyzeImage(file);
+  clearPendingImage();
+  pendingImage.value = file;
+  pendingImagePreview.value = URL.createObjectURL(file);
 }
+
+function clearPendingImage() {
+  if (pendingImagePreview.value) URL.revokeObjectURL(pendingImagePreview.value);
+  pendingImagePreview.value = '';
+  pendingImage.value = null;
+}
+
+onBeforeUnmount(clearPendingImage);
 
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -124,7 +155,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
     <!-- Chat Modal / Drawer Widget -->
     <div
       v-if="chatStore.isOpen"
-      class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[calc(100vw-32px)] sm:w-[420px] h-[580px] max-h-[85vh] bg-white rounded-3xl shadow-2xl border border-[#E3E8DC] flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-200"
+      class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[calc(100vw-20px)] sm:w-[480px] h-[660px] max-h-[90vh] bg-white rounded-3xl shadow-2xl border border-[#E3E8DC] flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-200"
       role="dialog"
       aria-modal="true"
     >
@@ -159,11 +190,30 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
       </div>
 
       <!-- Messages Stream -->
-      <div class="px-4 py-2 flex gap-2 border-b border-[#E3E8DC] text-xs">
-        <select :value="chatStore.conversationId || ''" :disabled="chatBlocked" aria-label="Chọn hội thoại" class="flex-1 min-w-0" @change="chatStore.selectConversation(($event.target as HTMLSelectElement).value)">
-          <option v-for="(conversation, index) in chatStore.conversations" :key="conversation.id" :value="conversation.id">Hội thoại {{ index + 1 }} · {{ new Date(conversation.createdAt).toLocaleDateString('vi-VN') }}</option>
-        </select>
-        <button type="button" :disabled="chatBlocked" @click="chatStore.newConversation()">Chat mới</button>
+      <div class="flex items-center gap-2 border-b border-[#E3E8DC] bg-white px-4 py-2.5">
+        <div class="relative min-w-0 flex-1">
+          <select
+            :value="chatStore.conversationId || ''"
+            :disabled="chatBlocked"
+            aria-label="Chọn hội thoại"
+            class="w-full appearance-none rounded-xl border border-[#E3E8DC] bg-[#FAF9F5] py-2 pl-3 pr-9 text-xs font-semibold text-[#344625] outline-none transition-colors hover:border-[#B8C9A8] focus:border-[#718C54] disabled:opacity-60"
+            @change="chatStore.selectConversation(($event.target as HTMLSelectElement).value)"
+          >
+            <option v-for="(conversation, index) in chatStore.conversations" :key="conversation.id" :value="conversation.id">Hội thoại {{ index + 1 }} · {{ new Date(conversation.createdAt).toLocaleDateString('vi-VN') }}</option>
+          </select>
+          <ChevronDown class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#71805F]" />
+        </div>
+        <button
+          type="button"
+          :disabled="chatBlocked"
+          @click="chatStore.newConversation()"
+          class="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#4D6A34] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#3B4E24] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8EA675] disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Bắt đầu hội thoại mới"
+          title="Bắt đầu hội thoại mới"
+        >
+          <Plus class="h-4 w-4" />
+          <span>Chat mới</span>
+        </button>
       </div>
       <div
         ref="messagesContainer"
@@ -191,7 +241,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
               alt="Ảnh thực phẩm được gửi để phân tích"
               class="mb-2 max-h-48 max-w-full rounded-xl object-contain"
             />
-            {{ msg.text }}
+            <p class="whitespace-pre-line break-words">{{ msg.sender === 'bot' ? formatMessageText(msg.text) : msg.text }}</p>
           </div>
           <button v-if="msg.failed" type="button" :disabled="chatBlocked" class="text-xs text-red-700 underline" @click="chatStore.retryMessage(msg)">Gửi lại tin nhắn</button>
 
@@ -207,15 +257,19 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
               <div
                 v-for="prod in msg.suggestedProducts"
                 :key="prod.id"
-                class="flex items-center gap-2.5 p-2 bg-white rounded-2xl border border-[#E3E8DC] shadow-2xs hover:border-[#4D6A34] transition-all"
+                class="flex cursor-pointer items-center gap-2.5 rounded-2xl border border-[#E3E8DC] bg-white p-2 shadow-2xs transition-all hover:border-[#4D6A34] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8EA675]"
+                role="button"
+                tabindex="0"
+                @click="openSuggestedProduct(prod)"
+                @keydown.enter="openSuggestedProduct(prod)"
+                @keydown.space.prevent="openSuggestedProduct(prod)"
               >
                 <img
                   :src="prod.image"
                   :alt="prod.name"
                   class="w-12 h-12 rounded-xl object-cover shrink-0 cursor-pointer"
-                  @click="openSuggestedProduct(prod)"
                 />
-                <div class="flex-1 min-w-0" :class="hasNutritionFacts(prod) ? 'cursor-pointer' : ''" @click="openSuggestedProduct(prod)">
+                <div class="flex-1 min-w-0">
                   <h4 class="font-heading text-xs font-bold text-[#2D3B1E] truncate">
                     {{ prod.name }}
                   </h4>
@@ -234,7 +288,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
                 <button
                   v-if="hasNutritionFacts(prod)"
                   type="button"
-                  @click="handleAddToCartFromChat(prod)"
+                  @click.stop="handleAddToCartFromChat(prod)"
                   class="px-2.5 py-1.5 rounded-xl bg-[#EBF1E6] hover:bg-[#4D6A34] text-[#4D6A34] hover:text-white shrink-0 transition-colors text-xs font-bold flex items-center gap-1"
                   title="Thêm vào giỏ"
                   aria-label="Thêm món này vào giỏ hàng"
@@ -254,7 +308,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
           <div class="w-7 h-7 rounded-xl bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center">
             <Bot class="w-4 h-4 animate-spin" />
           </div>
-          <span class="italic">NutriBot đang tính toán calo và dinh dưỡng...</span>
+          <span>NutriBot đang chuẩn bị câu trả lời cho bạn…</span>
         </div>
       </div>
 
@@ -265,7 +319,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
         <button v-else-if="chatStore.guestSessionExpired" type="button" :disabled="chatStore.isThinking" class="underline ml-2" @click="chatStore.restartGuestSession()">Bắt đầu phiên Guest mới</button>
         <button v-else-if="!chatStore.conversationId" type="button" :disabled="chatStore.isThinking" class="underline ml-2" @click="chatStore.initialize()">Thử kết nối lại</button>
       </div>
-      <div class="px-4 py-2 border-t border-[#ECEFE7] bg-white overflow-x-auto flex gap-1.5 no-scrollbar">
+      <div class="chat-prompt-strip flex gap-1.5 overflow-x-auto overscroll-x-contain border-t border-[#ECEFE7] bg-white px-4 py-2 touch-pan-x">
         <button
           v-for="qp in quickPrompts"
           :key="qp"
@@ -279,7 +333,13 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
       </div>
 
       <!-- Chat Input Field -->
-      <form @submit.prevent="handleSend" class="p-3 bg-white border-t border-[#ECEFE7] flex items-center gap-2">
+      <form @submit.prevent="handleSend" class="p-3 bg-white border-t border-[#ECEFE7] flex flex-col gap-2">
+        <div v-if="pendingImagePreview" class="flex items-center gap-2 rounded-xl border border-[#DEE5D4] bg-[#F3F6EE] p-2">
+          <img :src="pendingImagePreview" alt="Ảnh đính kèm" class="h-12 w-12 rounded-lg object-cover" />
+          <span class="min-w-0 flex-1 truncate text-xs text-[#556345]">{{ pendingImage?.name }}</span>
+          <button type="button" class="rounded-lg px-2 py-1 text-xs text-red-700 hover:bg-white" @click="clearPendingImage">Bỏ ảnh</button>
+        </div>
+        <div class="flex items-center gap-2">
         <input
           ref="imageInput"
           type="file"
@@ -300,7 +360,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
         <input
           type="text"
           v-model="inputText"
-          maxlength="4000"
+          :maxlength="pendingImage ? 1000 : 4000"
           :disabled="chatBlocked"
           aria-label="Câu hỏi gửi NutriBot"
           placeholder="Hỏi về calo, đạm, thực đơn giảm cân..."
@@ -308,13 +368,35 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
         />
         <button
           type="submit"
-          :disabled="!inputText.trim() || chatBlocked"
+          :disabled="(!inputText.trim() && !pendingImage) || chatBlocked"
           class="p-2.5 rounded-xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white disabled:opacity-40 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
           aria-label="Gửi tin nhắn"
         >
           <Send class="w-4 h-4" />
         </button>
+        </div>
       </form>
     </div>
   </div>
 </template>
+
+<style scoped>
+.chat-prompt-strip {
+  scrollbar-width: thin;
+  scrollbar-color: #a8b995 #f3f6ee;
+}
+
+.chat-prompt-strip::-webkit-scrollbar {
+  height: 5px;
+}
+
+.chat-prompt-strip::-webkit-scrollbar-track {
+  background: #f3f6ee;
+  border-radius: 999px;
+}
+
+.chat-prompt-strip::-webkit-scrollbar-thumb {
+  background: #a8b995;
+  border-radius: 999px;
+}
+</style>

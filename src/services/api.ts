@@ -8,10 +8,13 @@ import {
   KnowledgeImportResult,
   NutritionImagePrediction,
   Order,
+  PaginatedProductResult,
   Product,
   ProductFilterQuery,
   CaloriePlanResponse,
   CalorieProfileInput,
+  CreateNutritionDiaryMeal,
+  NutritionDiaryDay,
 } from '../types';
 
 const API_BASE = '/api';
@@ -57,7 +60,7 @@ export async function fetchCategories(): Promise<Category[]> {
   return res.data || [];
 }
 
-export async function fetchProducts(filter: ProductFilterQuery = {}): Promise<Product[]> {
+export async function fetchProducts(filter: ProductFilterQuery = {}): Promise<PaginatedProductResult> {
   const query = new URLSearchParams();
   if (filter.category && filter.category !== 'all') {
     query.set('category', filter.category);
@@ -74,11 +77,27 @@ export async function fetchProducts(filter: ProductFilterQuery = {}): Promise<Pr
   if (filter.minProtein && filter.minProtein > 0) {
     query.set('minProtein', String(filter.minProtein));
   }
+  if (filter.page && filter.page > 0) {
+    query.set('page', String(filter.page));
+  }
+  if (filter.limit && filter.limit > 0) {
+    query.set('limit', String(filter.limit));
+  }
+  if (filter.sort) {
+    query.set('sort', filter.sort);
+  }
 
   const qs = query.toString();
   const endpoint = qs ? `/products?${qs}` : '/products';
   const res = await fetchJson<ApiResponse<Product[]>>(endpoint);
-  return res.data || [];
+  const items = res.data || [];
+  return {
+    products: items,
+    total: res.total !== undefined ? res.total : items.length,
+    page: res.page || filter.page || 1,
+    limit: res.limit || filter.limit || 12,
+    totalPages: res.totalPages || Math.ceil((res.total || items.length) / (res.limit || filter.limit || 12)) || 1,
+  };
 }
 
 export async function fetchProductById(id: string): Promise<Product> {
@@ -276,6 +295,24 @@ export async function postLogout(): Promise<void> {
   });
 }
 
+export async function fetchNutritionDiary(date: string): Promise<NutritionDiaryDay> {
+  const response = await fetchJson<ApiResponse<NutritionDiaryDay>>(`/nutrition-diary?date=${encodeURIComponent(date)}`);
+  if (!response.data) throw new Error(response.message || 'Không thể tải nhật ký dinh dưỡng.');
+  return response.data;
+}
+
+export async function postNutritionMeal(payload: CreateNutritionDiaryMeal): Promise<NutritionDiaryDay> {
+  const response = await fetchJson<ApiResponse<NutritionDiaryDay>>('/nutrition-diary/meals', { method: 'POST', body: JSON.stringify(payload) });
+  if (!response.data) throw new Error(response.message || 'Không thể lưu món ăn.');
+  return response.data;
+}
+
+export async function postNutritionWater(date: string, amountMl: number): Promise<NutritionDiaryDay> {
+  const response = await fetchJson<ApiResponse<NutritionDiaryDay>>('/nutrition-diary/water', { method: 'POST', body: JSON.stringify({ date, amountMl }) });
+  if (!response.data) throw new Error(response.message || 'Không thể lưu lượng nước.');
+  return response.data;
+}
+
 export interface ChatbotResponse {
   conversationId: string;
   messages: ChatHistoryMessage[];
@@ -292,6 +329,7 @@ export interface ChatHistoryMessage {
   createdAt: string;
   requestId: string;
   suggestedProducts: ChatSuggestedProduct[];
+  imageUrl?: string | null;
 }
 function chatHeaders(token?: string | null): Record<string, string> {
   return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
@@ -409,14 +447,20 @@ async function prepareNutritionImage(image: File): Promise<File> {
   }
 }
 
-export async function postNutritionImage(image: File, token: string): Promise<NutritionImagePrediction> {
+export async function postNutritionImage(image: File, token: string, conversationId: string, requestId: string, question = ''): Promise<NutritionImagePrediction> {
   const preparedImage = await prepareNutritionImage(image);
+  const questionBytes = new TextEncoder().encode(question.trim());
+  let questionBinary = '';
+  for (const byte of questionBytes) questionBinary += String.fromCharCode(byte);
   const response = await fetch(`${API_BASE}/chat/nutrition-images`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: {
       'Content-Type': preparedImage.type || 'application/octet-stream',
       Authorization: `Bearer ${token}`,
+      'X-Chat-Conversation-Id': conversationId,
+      'X-Chat-Request-Id': requestId,
+      'X-Chat-Question': btoa(questionBinary),
     },
     body: preparedImage,
   });
@@ -430,6 +474,18 @@ export async function postNutritionImage(image: File, token: string): Promise<Nu
   if (!response.ok) throw new ApiError(response.status, result.message || `Lỗi mạng HTTP ${response.status}`);
   if (!result.data) throw new Error('Không nhận được kết quả phân tích ảnh.');
   return result.data;
+}
+
+export async function fetchNutritionChatImage(imageUrl: string, token: string): Promise<Blob> {
+  if (!/^\/api\/chat\/nutrition-images\/[0-9a-f-]{36}\.(?:jpg|png|webp)$/i.test(imageUrl)) {
+    throw new Error('Đường dẫn ảnh trong lịch sử không hợp lệ.');
+  }
+  const response = await fetch(imageUrl, {
+    credentials: 'same-origin',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new ApiError(response.status, 'Không thể tải ảnh trong lịch sử chat.');
+  return response.blob();
 }
 
 export async function fetchHealth(): Promise<{ status: string; service: string }> {

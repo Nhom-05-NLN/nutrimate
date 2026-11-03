@@ -109,6 +109,16 @@ export async function findProducts(
         values.push(filter.maxCalories);
       }
 
+      if (filter.maxCarbs && filter.maxCarbs > 0) {
+        conditions.push(`carbs <= $${paramIdx++}`);
+        values.push(filter.maxCarbs);
+      }
+
+      if (filter.maxSugar && filter.maxSugar > 0) {
+        conditions.push(`sugar <= $${paramIdx++}`);
+        values.push(filter.maxSugar);
+      }
+
       if (filter.minProtein && filter.minProtein > 0) {
         conditions.push(`protein >= $${paramIdx++}`);
         values.push(filter.minProtein);
@@ -131,6 +141,9 @@ export async function findProducts(
       else if (filter.sort === 'price_desc') orderBy = 'ORDER BY price DESC';
       else if (filter.sort === 'calories_asc') orderBy = 'ORDER BY calories ASC';
       else if (filter.sort === 'calories_desc') orderBy = 'ORDER BY calories DESC';
+      else if (filter.sort === 'protein_desc') orderBy = 'ORDER BY protein DESC';
+      else if (filter.sort === 'carbs_asc') orderBy = 'ORDER BY carbs ASC';
+      else if (filter.sort === 'sugar_asc') orderBy = 'ORDER BY sugar ASC';
       else if (filter.sort === 'rating_desc') orderBy = 'ORDER BY rating DESC';
       else if (filter.sort === 'newest') orderBy = 'ORDER BY id DESC';
 
@@ -187,6 +200,9 @@ export async function findProducts(
   else if (filter.sort === 'price_desc') list.sort((a, b) => b.price - a.price);
   else if (filter.sort === 'calories_asc') list.sort((a, b) => a.nutrition.calories - b.nutrition.calories);
   else if (filter.sort === 'calories_desc') list.sort((a, b) => b.nutrition.calories - a.nutrition.calories);
+  else if (filter.sort === 'protein_desc') list.sort((a, b) => b.nutrition.protein - a.nutrition.protein);
+  else if (filter.sort === 'carbs_asc') list.sort((a, b) => a.nutrition.carbs - b.nutrition.carbs);
+  else if (filter.sort === 'sugar_asc') list.sort((a, b) => a.nutrition.sugar - b.nutrition.sugar);
   else if (filter.sort === 'rating_desc') list.sort((a, b) => b.rating - a.rating);
   else if (filter.sort === 'newest') list.sort((a, b) => b.id.localeCompare(a.id));
 
@@ -209,8 +225,9 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
   const columns = new Set(schema.rows.map(row => row.column_name));
 
   if (columns.has('id') && columns.has('calories') && columns.has('category')) {
-    const res = await findProducts(filter, true, executeQuery);
-    return res.products as ChatSuggestedProduct[];
+    const res = await findProducts({ ...filter, limit: 50, page: 1 }, true, executeQuery);
+    return res.products.filter(product => [product.nutrition.calories, product.nutrition.protein, product.nutrition.carbs,
+      product.nutrition.fat, product.nutrition.sugar].every(Number.isFinite)).slice(0, 3);
   }
 
   if (!columns.has('product_id') || !columns.has('base_price') || !columns.has('status')) {
@@ -226,6 +243,14 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
   if (filter.maxCalories && filter.maxCalories > 0) {
     values.push(filter.maxCalories);
     conditions.push(`nf.calories <= $${values.length}`);
+  }
+  if (filter.maxCarbs && filter.maxCarbs > 0) {
+    values.push(filter.maxCarbs);
+    conditions.push(`nf.carbs <= $${values.length}`);
+  }
+  if (filter.maxSugar && filter.maxSugar > 0) {
+    values.push(filter.maxSugar);
+    conditions.push(`nf.sugar <= $${values.length}`);
   }
   if (filter.minProtein && filter.minProtein > 0) {
     values.push(filter.minProtein);
@@ -265,7 +290,10 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
        WHERE i.product_id = p.product_id
      ) stock ON TRUE
      WHERE ${conditions.join(' AND ')}
-     ORDER BY p.product_id
+       AND nf.serving_size IS NOT NULL AND nf.calories IS NOT NULL
+       AND nf.protein IS NOT NULL AND nf.carbs IS NOT NULL
+       AND nf.fat IS NOT NULL AND nf.sugar IS NOT NULL
+     ORDER BY ${filter.sort === 'protein_desc' ? 'nf.protein DESC' : filter.sort === 'carbs_asc' ? 'nf.carbs ASC' : filter.sort === 'sugar_asc' ? 'nf.sugar ASC' : filter.sort === 'calories_desc' ? 'nf.calories DESC' : filter.sort === 'calories_asc' ? 'nf.calories ASC' : 'p.product_id'}
      LIMIT 3`,
     values,
   );

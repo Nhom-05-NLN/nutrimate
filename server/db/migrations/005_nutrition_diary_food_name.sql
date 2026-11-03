@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE diary_entries
+  ADD COLUMN IF NOT EXISTS food_name VARCHAR(200);
+
+COMMIT;
