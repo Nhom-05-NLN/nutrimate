@@ -93,8 +93,8 @@ onMounted(async () => {
   catch (error: unknown) { caloriePlanError.value = error instanceof Error ? error.message : 'Không thể tải mục tiêu Calories.'; }
   finally { isCaloriePlanLoading.value = false; }
   try {
-    const products = await fetchProducts();
-    recommendedProducts.value = products.filter((product) => product.stock > 0 &&
+    const result = await fetchProducts();
+    recommendedProducts.value = result.products.filter((product) => product.stock > 0 &&
       (product.nutrition.protein > 0 || product.nutrition.carbs > 0 || product.nutrition.fat > 0));
   } catch (error: unknown) {
     recommendedProducts.value = [];
@@ -240,8 +240,8 @@ async function loadMealProducts() {
   isProductPickerLoading.value = true;
   productPickerError.value = '';
   try {
-    const products = await fetchProducts(productPickerSearch.value.trim() ? { search: productPickerSearch.value.trim() } : {});
-    mealProductOptions.value = products.filter(product => product.stock > 0 && product.nutrition
+    const result = await fetchProducts(productPickerSearch.value.trim() ? { search: productPickerSearch.value.trim() } : {});
+    mealProductOptions.value = result.products.filter(product => product.stock > 0 && product.nutrition
       && [product.nutrition.calories, product.nutrition.protein, product.nutrition.carbs, product.nutrition.fat, product.nutrition.sugar].every(Number.isFinite));
   } catch (error: unknown) {
     mealProductOptions.value = [];
