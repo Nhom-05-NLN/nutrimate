@@ -208,6 +208,14 @@ async function handleFinishOrder() {
     isSubmitting.value = false;
   }
 }
+
+function handlePaymentModalClose() {
+  showVietQrModal.value = false;
+  showMomoModal.value = false;
+  if (createdOrder.value) {
+    router.push('/orders');
+  }
+}
 </script>
 
 <template>
@@ -270,14 +278,22 @@ async function handleFinishOrder() {
       </div>
       <h3 class="font-heading text-xl font-bold text-[#242424]">Không có sản phẩm nào để thanh toán</h3>
       <p class="text-sm text-[#7A866E] max-w-md mx-auto">
-        Vui lòng quay lại giỏ hàng và chọn các sản phẩm bạn muốn đặt nhé.
+        Vui lòng quay lại giỏ hàng và chọn các sản phẩm bạn muốn đặt, hoặc theo dõi các đơn hàng vừa tạo nhé.
       </p>
-      <RouterLink
-        to="/cart"
-        class="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-[#4D6A34] text-white text-sm font-bold shadow-md hover:bg-[#3B4E24] transition-all"
-      >
-        <span>Quay lại Giỏ hàng</span>
-      </RouterLink>
+      <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+        <RouterLink
+          to="/cart"
+          class="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-[#4D6A34] text-white text-sm font-bold shadow-md hover:bg-[#3B4E24] transition-all"
+        >
+          <span>Quay lại Giỏ hàng</span>
+        </RouterLink>
+        <RouterLink
+          to="/orders"
+          class="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-[#FAF9F5] hover:bg-[#EBF7E5] text-[#4D6A34] border border-[#CCD7BC] text-sm font-bold transition-all"
+        >
+          <span>Xem Đơn Hàng Của Tôi</span>
+        </RouterLink>
+      </div>
     </div>
 
     <!-- 2 Columns Grid: Form Checkout + Summary -->
@@ -664,16 +680,16 @@ async function handleFinishOrder() {
     <VietQrModal
       :open="showVietQrModal"
       :order="createdOrder"
-      @close="showVietQrModal = false"
-      @payment-success="showVietQrModal = false"
+      @close="handlePaymentModalClose"
+      @payment-success="handlePaymentModalClose"
     />
 
     <!-- MoMo Payment Modal Component -->
     <MomoPaymentModal
       :open="showMomoModal"
       :order="createdOrder"
-      @close="showMomoModal = false"
-      @payment-success="showMomoModal = false"
+      @close="handlePaymentModalClose"
+      @payment-success="handlePaymentModalClose"
     />
   </div>
 </template>
