@@ -28,6 +28,7 @@ import {
   MapPin,
   X,
   UserRound,
+  Target,
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
@@ -150,10 +151,23 @@ async function loadCaloriePlan() {
 async function saveCaloriePlan() {
   if (
     profile.value.heightCm === null || profile.value.weightKg === null ||
-    profile.value.age === null || profile.value.gender === null ||
-    activityLevel.value === null || selectedGoal.value === null
+    profile.value.age === null || profile.value.gender === null
   ) {
-    planError.value = 'Vui lòng nhập đầy đủ chỉ số cơ thể, mức độ hoạt động và mục tiêu.';
+    planError.value = 'Vui lòng nhập đầy đủ chiều cao, cân nặng, tuổi và giới tính.';
+    return;
+  }
+  if (activityLevel.value === null) {
+    planError.value = 'Vui lòng chọn mức độ hoạt động.';
+    const activitySelector = document.getElementById('profile-activity-level');
+    activitySelector?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    activitySelector?.focus({ preventScroll: true });
+    return;
+  }
+  if (selectedGoal.value === null) {
+    planError.value = 'Hãy chọn mục tiêu thể chất trong phần “Mục tiêu dinh dưỡng” bên dưới.';
+    const goalSelector = document.getElementById('profile-goals');
+    goalSelector?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    goalSelector?.focus({ preventScroll: true });
     return;
   }
 
@@ -177,6 +191,28 @@ async function saveCaloriePlan() {
   } finally {
     planSaving.value = false;
   }
+}
+
+function cancelCalorieProfileEdit() {
+  const data = caloriePlanData.value;
+  if (data) {
+    applyCaloriePlan(data);
+  } else {
+    profile.value = { heightCm: null, weightKg: null, age: null, gender: null };
+    selectedGoal.value = null;
+    activityLevel.value = null;
+  }
+  planError.value = '';
+  isEditing.value = false;
+}
+
+function toggleCalorieProfileEditor() {
+  if (isEditing.value) {
+    cancelCalorieProfileEdit();
+    return;
+  }
+  planError.value = '';
+  isEditing.value = true;
 }
 
 onMounted(() => {
@@ -378,7 +414,7 @@ async function handleAvatarChange(event: Event) {
 </script>
 
 <template>
-  <div class="max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-10">
+  <div class="max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-8">
     <!-- Breadcrumb -->
     <nav class="flex items-center gap-2 text-sm font-medium text-[#7E8B73]">
       <RouterLink to="/" class="hover:text-[#242424]">Trang chủ</RouterLink>
@@ -429,42 +465,46 @@ async function handleAvatarChange(event: Event) {
               {{ authStore.currentUser?.name || 'Tài khoản' }}
             </h1>
 
-            <div class="flex flex-wrap items-center gap-4 text-sm text-[#576449] pt-1">
-              <span>Chế độ ăn: <strong class="text-[#242424]">Eat Clean & Low-Carb</strong></span>
-              <span>•</span>
+            <div class="flex flex-wrap items-center gap-2 text-sm text-[#576449] pt-1">
               <span>Mục tiêu: <strong class="text-[#242424]">{{ selectedGoal ? goalLabels[selectedGoal] : 'Chưa thiết lập' }}</strong></span>
             </div>
           </div>
         </div>
-
-        <button
-          type="button"
-          @click="isEditing = !isEditing"
-          class="px-6 py-3.5 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-all shrink-0 min-h-[46px] cursor-pointer"
-        >
-          <Edit3 class="w-4 h-4" />
-          <span>Cập nhật số đo hôm nay</span>
-        </button>
       </div>
     </div>
 
     <!-- 2 Columns Grid: BMI Analysis (Left) vs Personal Info & Macro Goals (Right) -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
       <!-- Cột Trái: Phân tích Thể Trạng & Chỉ Số BMI (Figma 07) -->
       <div class="lg:col-span-5 space-y-6">
-        <div class="bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-6">
-          <div class="flex items-center justify-between border-b border-[#F0F3EC] pb-4">
+        <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-6">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#F0F3EC] pb-4">
             <div class="flex items-center gap-2.5">
               <Activity class="w-5 h-5 text-[#4D6A34]" />
               <h2 class="font-heading text-base font-bold text-[#242424]">
-                Phân tích Thể Trạng & Chỉ Số BMI
+                Chỉ số sức khỏe
               </h2>
             </div>
-            <span class="text-xs text-[#7A866E] uppercase font-bold">WHO 2024</span>
+            <div class="flex items-center gap-2">
+              <span v-if="isEditing" class="hidden rounded-full bg-[#EBF7E5] px-3 py-1.5 text-xs font-bold text-[#4D6A34] sm:inline-flex">
+                Chế độ chỉnh sửa
+              </span>
+              <button
+                v-else
+                type="button"
+                @click="isEditing = true; planError = ''"
+                :disabled="planLoading || planSaving"
+                :aria-expanded="isEditing"
+                aria-controls="profile-measurement-form"
+                class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#CCD7BC] bg-white px-3 py-2 text-xs font-bold text-[#4D6A34] transition-colors hover:bg-[#F6F8F3] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Edit3 class="h-3.5 w-3.5" />
+                {{ profile.heightCm === null ? 'Nhập chỉ số' : 'Chỉnh sửa' }}
+              </button>
+            </div>
           </div>
 
-          <!-- 4 Ô Thông số thể trạng (Font to rõ ràng) -->
-          <div class="grid grid-cols-4 gap-2.5 text-center">
+          <div class="grid grid-cols-2 gap-2.5 text-center sm:grid-cols-4">
             <div class="p-3.5 rounded-2xl bg-[#FAF9F5] border border-[#ECEFE7]">
               <span class="text-xs text-[#7A866E] block font-medium">Chiều cao</span>
               <span class="font-heading text-base sm:text-lg font-black text-[#242424] mt-0.5 block">{{ profile.heightCm ?? '—' }} <span class="text-xs font-normal">cm</span></span>
@@ -483,27 +523,31 @@ async function handleAvatarChange(event: Event) {
             </div>
           </div>
 
-          <div v-if="isEditing" class="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-2xl border border-[#CCD7BC] bg-[#FAF9F5] p-4">
-            <label class="text-xs font-bold text-[#576449]">Chiều cao (cm)
-              <input v-model.number="profile.heightCm" type="number" min="80" max="250" step="0.1" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm" />
+          <div v-if="isEditing" id="profile-measurement-form" class="grid grid-cols-1 gap-3 rounded-2xl border border-[#CCD7BC] bg-[#FAF9F5] p-4 sm:grid-cols-2">
+            <label for="profile-height" class="text-xs font-bold text-[#576449]">Chiều cao (cm)
+              <input id="profile-height" v-model.number="profile.heightCm" type="number" min="80" max="250" step="0.1" required :disabled="planSaving" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm disabled:opacity-60" />
             </label>
-            <label class="text-xs font-bold text-[#576449]">Cân nặng (kg)
-              <input v-model.number="profile.weightKg" type="number" min="20" max="400" step="0.1" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm" />
+            <label for="profile-weight" class="text-xs font-bold text-[#576449]">Cân nặng (kg)
+              <input id="profile-weight" v-model.number="profile.weightKg" type="number" min="20" max="400" step="0.1" required :disabled="planSaving" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm disabled:opacity-60" />
             </label>
-            <label class="text-xs font-bold text-[#576449]">Tuổi
-              <input v-model.number="profile.age" type="number" min="13" max="120" step="1" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm" />
+            <label for="profile-age" class="text-xs font-bold text-[#576449]">Tuổi
+              <input id="profile-age" v-model.number="profile.age" type="number" min="13" max="120" step="1" required :disabled="planSaving" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm disabled:opacity-60" />
             </label>
-            <label class="text-xs font-bold text-[#576449]">Giới tính dùng cho công thức
-              <select v-model="profile.gender" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm">
+            <label for="profile-gender" class="text-xs font-bold text-[#576449]">Giới tính dùng cho công thức
+              <select id="profile-gender" v-model="profile.gender" required :disabled="planSaving" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm disabled:opacity-60">
                 <option :value="null" disabled>Chọn giới tính</option><option value="female">Nữ</option><option value="male">Nam</option><option value="other">Khác / hệ số trung bình</option>
               </select>
             </label>
-            <label class="text-xs font-bold text-[#576449] sm:col-span-2">Mức độ hoạt động
-              <select v-model="activityLevel" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm">
-                <option :value="null" disabled>Chọn mức độ hoạt động</option>
-                <option v-for="option in activityOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-              </select>
-            </label>
+            <p v-if="planError" class="sm:col-span-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800" role="alert">{{ planError }}</p>
+            <div class="sm:col-span-2 flex justify-end gap-2">
+              <button type="button" :disabled="planSaving" @click="cancelCalorieProfileEdit" class="rounded-xl border border-[#CCD7BC] bg-white px-4 py-2 text-sm font-semibold text-[#576449] disabled:opacity-60">
+                Hủy
+              </button>
+              <button type="button" :disabled="planSaving || planLoading" @click="saveCaloriePlan" class="inline-flex items-center gap-2 rounded-xl bg-[#4D6A34] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">
+                <Save class="h-4 w-4" />
+                {{ planSaving ? 'Đang lưu…' : 'Lưu chỉ số' }}
+              </button>
+            </div>
           </div>
 
           <!-- Card Chỉ Số Khối Cơ Thể BMI -->
@@ -545,19 +589,108 @@ async function handleAvatarChange(event: Event) {
             </div>
           </div>
 
-          <!-- BMR & TDEE (Chỉ số to rõ) -->
-          <div class="grid grid-cols-2 gap-3.5">
-            <div class="p-4 rounded-2xl bg-[#FAF9F5] border border-[#E3E8DC]">
-              <span class="text-xs text-[#7A866E] font-medium block">⚡ Chỉ số BMR</span>
-              <span class="font-heading text-xl font-black text-[#242424] mt-0.5 block">{{ formatNumber(caloriePlan?.bmrKcal) }} <span class="text-xs font-normal">kcal</span></span>
-              <span class="text-xs text-[#7A866E] block mt-1">Tiêu hao cơ bản tĩnh</span>
-            </div>
-            <div class="p-4 rounded-2xl bg-[#FAF9F5] border border-[#E3E8DC]">
-              <span class="text-xs text-[#7A866E] font-medium block">🏃 Chỉ số TDEE</span>
-              <span class="font-heading text-xl font-black text-[#4D6A34] mt-0.5 block">{{ formatNumber(caloriePlan?.tdeeKcal) }} <span class="text-xs font-normal">kcal</span></span>
-              <span class="text-xs text-[#7A866E] block mt-1">Tiêu hao kèm vận động</span>
+        </div>
+
+        <!-- Card Mục tiêu dinh dưỡng & Chế độ ăn uống -->
+        <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-6">
+          <div class="flex items-center gap-3 border-b border-[#F0F3EC] pb-4">
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#EBF7E5] text-[#4D6A34]">
+              <Target class="h-5 w-5" aria-hidden="true" />
+            </span>
+            <h2 class="font-heading text-base font-bold text-[#242424]">
+              Mục tiêu dinh dưỡng & Chế độ ăn uống
+            </h2>
+          </div>
+
+          <div id="profile-goals" tabindex="-1" class="space-y-2">
+            <span class="text-xs font-bold text-[#242424] block">Mục tiêu thể chất</span>
+            <div class="grid grid-cols-1 gap-1.5">
+              <button
+                v-for="goal in goalOptions"
+                :key="goal.value"
+                type="button"
+                @click="selectedGoal = goal.value; planError = ''"
+                class="flex items-center justify-between rounded-xl border px-3 py-2 text-left text-xs font-semibold transition-colors cursor-pointer"
+                :class="
+                  selectedGoal === goal.value
+                    ? 'bg-[#F1F6EC] text-[#3B4E24] border-[#A9BB91]'
+                    : 'bg-white text-[#576449] border-[#E3E8DC] hover:bg-[#FAF9F5]'
+                "
+              >
+                {{ goal.label }}
+                <span v-if="selectedGoal === goal.value" class="text-[#4D6A34]" aria-hidden="true">✓</span>
+              </button>
             </div>
           </div>
+
+          <div class="space-y-1.5">
+            <label class="block text-xs font-bold text-[#242424]" for="profile-activity-level">Mức độ hoạt động</label>
+            <select id="profile-activity-level" v-model="activityLevel" @change="planError = ''" class="w-full rounded-xl border border-[#DEE5D4] bg-[#FAF9F5] px-3 py-2.5 text-sm text-[#242424]">
+              <option :value="null" disabled>Chọn mức độ hoạt động</option>
+              <option v-for="option in activityOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div class="rounded-xl border border-[#E3E8DC] bg-[#FAF9F5] px-3 py-2.5">
+              <span class="block text-[11px] font-medium text-[#7A866E]">⚡ BMR</span>
+              <span class="mt-0.5 block font-heading text-lg font-black text-[#242424]">{{ formatNumber(caloriePlan?.bmrKcal) }} <span class="text-xs font-normal">kcal</span></span>
+            </div>
+            <div class="rounded-xl border border-[#E3E8DC] bg-[#FAF9F5] px-3 py-2.5">
+              <span class="block text-[11px] font-medium text-[#7A866E]">🏃 TDEE</span>
+              <span class="mt-0.5 block font-heading text-lg font-black text-[#4D6A34]">{{ formatNumber(caloriePlan?.tdeeKcal) }} <span class="text-xs font-normal">kcal</span></span>
+            </div>
+          </div>
+
+          <div class="space-y-2 border-t border-[#F0F3EC] pt-3">
+            <span class="block text-xs font-bold text-[#242424]">Ưu tiên dinh dưỡng</span>
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                v-for="pref in ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt', 'Keto chuẩn']"
+                :key="pref"
+                type="button"
+                @click="togglePreference(pref)"
+                class="flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-colors cursor-pointer"
+                :class="
+                  dietPreferences.includes(pref)
+                    ? 'bg-[#EBF7E5] text-[#3B4E24] border-[#CCD7BC] font-bold'
+                    : 'bg-white text-[#7A866E] border-[#E3E8DC]'
+                "
+              >
+                <span v-if="dietPreferences.includes(pref)">✓</span>
+                <span>{{ pref }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-3 border-t border-[#F0F3EC] pt-3">
+            <div class="flex items-center justify-between gap-2 rounded-2xl bg-[#F1F6EC] px-4 py-3">
+              <div>
+                <span class="block text-xs font-bold text-[#3B4E24]">Calories mục tiêu</span>
+                <span v-if="caloriePlan" class="block text-[11px] text-[#7A866E]">
+                  {{ caloriePlan.adjustmentKcal > 0 ? '+' : '' }}{{ formatNumber(caloriePlan.adjustmentKcal) }} kcal/ngày so với TDEE
+                </span>
+                <span v-if="caloriePlan?.minimumTargetApplied" class="block text-[11px] text-amber-700">
+                  Đã áp dụng mức sàn 1.200 kcal/ngày
+                </span>
+                <span v-if="!caloriePlan" class="text-[11px] text-[#7A866E]">{{ planLoading ? 'Đang tính…' : 'Lưu hồ sơ để tính' }}</span>
+              </div>
+              <span v-if="caloriePlan" class="shrink-0 font-heading text-xl font-black text-[#4D6A34]">{{ formatNumber(caloriePlan.targetCalories) }} <span class="text-xs font-semibold">kcal/ngày</span></span>
+              <span v-else class="shrink-0 text-xs text-[#7A866E]">— kcal/ngày</span>
+            </div>
+
+            <p v-if="planError && !isEditing" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800" role="alert">{{ planError }}</p>
+            <button
+              type="button"
+              :disabled="planSaving || planLoading"
+              @click="saveCaloriePlan"
+              class="flex w-full items-center justify-center gap-2 rounded-xl bg-[#4D6A34] py-3 text-sm font-bold text-white transition-colors hover:bg-[#3B4E24] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+            >
+              <Save class="w-4 h-4" />
+              <span>{{ planSaving ? 'Đang lưu hồ sơ…' : 'Lưu hồ sơ và cập nhật lộ trình Calories' }}</span>
+            </button>
+          </div>
+        </div>
 
           <!-- Lời khuyên từ NutriBot AI -->
           <div class="p-5 rounded-2xl bg-[#FAF9F5] border border-[#CCD7BC] space-y-2.5">
@@ -574,7 +707,6 @@ async function handleAvatarChange(event: Event) {
             </p>
             <p v-else class="text-xs sm:text-sm text-[#4E5C3E] leading-relaxed">{{ planLoading ? 'Đang tải lộ trình Calories…' : 'Chưa có lộ trình. Hãy cập nhật số đo và mục tiêu ở mục bên phải.' }}</p>
           </div>
-        </div>
 
         <!-- Gói thực phẩm gợi ý -->
         <div class="p-5 rounded-3xl bg-white border border-[#E3E8DC] shadow-2xs flex items-center justify-between gap-4">
@@ -603,7 +735,7 @@ async function handleAvatarChange(event: Event) {
       <div class="lg:col-span-7 space-y-6">
         <!-- Card 1: Thông tin cá nhân & liên hệ -->
         <form
-          class="relative overflow-hidden bg-white p-6 sm:p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-6"
+          class="relative overflow-hidden bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-6"
           @submit.prevent="handleSave"
         >
           <div class="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-[#4D6A34] via-[#A6BB87] to-[#EBF7E5]" />
@@ -616,9 +748,6 @@ async function handleAvatarChange(event: Event) {
                 <h2 class="font-heading text-base font-bold text-[#242424]">
                   Thông tin cá nhân & Liên hệ
                 </h2>
-                <p class="mt-0.5 text-xs text-[#7A866E]">
-                  {{ isEditingAccount ? 'Chỉnh sửa các ô nhập bên dưới' : 'Thông tin tài khoản của bạn' }}
-                </p>
               </div>
             </div>
             <div class="flex shrink-0 items-center gap-2">
@@ -699,7 +828,7 @@ async function handleAvatarChange(event: Event) {
           </div>
         </form>
 
-        <section class="rounded-3xl border border-[#E3E8DC] bg-white p-6 shadow-2xs space-y-5 sm:p-7">
+        <section class="rounded-3xl border border-[#E3E8DC] bg-white p-6 shadow-2xs space-y-6">
           <div class="flex flex-col gap-3 border-b border-[#F0F3EC] pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex items-center gap-3">
               <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#EBF7E5] text-[#4D6A34]">
@@ -844,98 +973,6 @@ async function handleAvatarChange(event: Event) {
           </form>
         </section>
 
-        <!-- Card 2: Mục tiêu dinh dưỡng & Chế độ ăn uống (Figma 07) -->
-        <div class="bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-6">
-          <div class="border-b border-[#F0F3EC] pb-4">
-            <h2 class="font-heading text-base font-bold text-[#242424]">
-              Mục tiêu dinh dưỡng & Chế độ ăn uống
-            </h2>
-            <p class="text-xs text-[#7A866E]">Định hình tỷ lệ Macro và lượng Calo hàng ngày</p>
-          </div>
-
-          <!-- Mục tiêu thể chất trọng tâm -->
-          <div class="space-y-2.5">
-            <span class="text-xs font-bold text-[#242424] block">Mục tiêu thể chất trọng tâm</span>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              <button
-                v-for="goal in goalOptions"
-                :key="goal.value"
-                type="button"
-                @click="selectedGoal = goal.value"
-                class="px-3.5 py-2.5 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer"
-                :class="
-                  selectedGoal === goal.value
-                    ? 'bg-[#4D6A34] text-white border-[#4D6A34] shadow-2xs'
-                    : 'bg-[#FAF9F5] text-[#576449] border-[#DEE5D4] hover:bg-white'
-                "
-              >
-                {{ goal.label }}
-              </button>
-            </div>
-          </div>
-
-          <div class="space-y-2.5 pt-3 border-t border-[#F0F3EC]">
-            <label class="text-xs font-bold text-[#242424] block" for="profile-activity-level">Mức độ hoạt động để tính Calories</label>
-            <select id="profile-activity-level" v-model="activityLevel" class="w-full sm:max-w-md px-4 py-3 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm text-[#242424]">
-              <option :value="null" disabled>Chọn mức độ hoạt động</option>
-              <option v-for="option in activityOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
-          </div>
-
-          <!-- Tiêu chí chế độ dinh dưỡng áp dụng -->
-          <div class="space-y-2.5 pt-3 border-t border-[#F0F3EC]">
-            <span class="text-xs font-bold text-[#242424] block">Tiêu chí chế độ dinh dưỡng áp dụng</span>
-            <div class="flex flex-wrap gap-2.5">
-              <button
-                v-for="pref in ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt', 'Keto chuẩn']"
-                :key="pref"
-                type="button"
-                @click="togglePreference(pref)"
-                class="px-4 py-2 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5 cursor-pointer"
-                :class="
-                  dietPreferences.includes(pref)
-                    ? 'bg-[#EBF7E5] text-[#3B4E24] border-[#CCD7BC] font-bold'
-                    : 'bg-white text-[#7A866E] border-[#E3E8DC]'
-                "
-              >
-                <span v-if="dietPreferences.includes(pref)">✓</span>
-                <span>{{ pref }}</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="space-y-4 pt-3 border-t border-[#F0F3EC]">
-            <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <span class="font-bold text-[#242424]">Mục tiêu Calories mỗi ngày</span>
-              <span v-if="caloriePlan" class="font-heading text-xl font-black text-[#4D6A34]">{{ formatNumber(caloriePlan.targetCalories) }} kcal/ngày</span>
-              <span v-else class="text-xs text-[#7A866E]">{{ planLoading ? 'Đang tải…' : 'Chưa có lộ trình' }}</span>
-            </div>
-
-            <div v-if="caloriePlan" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              <div class="rounded-2xl bg-[#F6F8F3] border border-[#DEE5D4] p-4">
-                <span class="text-xs text-[#7A866E] block">TDEE theo hoạt động</span>
-                <strong class="mt-1 block text-[#242424]">{{ formatNumber(caloriePlan.tdeeKcal) }} kcal/ngày</strong>
-              </div>
-              <div class="rounded-2xl bg-[#F6F8F3] border border-[#DEE5D4] p-4">
-                <span class="text-xs text-[#7A866E] block">Điều chỉnh so với TDEE</span>
-                <strong class="mt-1 block text-[#242424]">{{ caloriePlan.adjustmentKcal > 0 ? '+' : '' }}{{ formatNumber(caloriePlan.adjustmentKcal) }} kcal/ngày</strong>
-              </div>
-            </div>
-            <p v-if="caloriePlan?.minimumTargetApplied" class="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Đã áp dụng mức sàn 1.200 kcal/ngày.</p>
-
-            <p v-if="planError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800" role="alert">{{ planError }}</p>
-            <p class="text-xs leading-5 text-[#7A866E]">Ước tính dùng công thức Mifflin–St Jeor và hệ số hoạt động đã chọn; mục tiêu giảm/tăng dùng mức điều chỉnh 300 kcal/ngày. Đây là giả định tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.</p>
-            <button
-              type="button"
-              :disabled="planSaving || planLoading"
-              @click="saveCaloriePlan"
-              class="w-full py-3.5 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] disabled:opacity-60 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors mt-2 cursor-pointer"
-            >
-              <Save class="w-4 h-4" />
-              <span>{{ planSaving ? 'Đang lưu hồ sơ…' : 'Lưu hồ sơ và cập nhật lộ trình Calories' }}</span>
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   </div>
