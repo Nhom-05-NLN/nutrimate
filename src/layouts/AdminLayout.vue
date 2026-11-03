@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { fetchAdminCustomers } from '../services/api';
 import {
   LayoutDashboard,
   Package,
@@ -20,12 +21,35 @@ import {
 
 const route = useRoute();
 const isSidebarOpen = ref(false);
+const customerCount = ref<number | null>(null);
+
+async function loadCustomerCount() {
+  try {
+    const result = await fetchAdminCustomers({ limit: 1, includeAvatars: false });
+    customerCount.value = result.totalCustomers;
+  } catch (error: unknown) {
+    console.error(
+      '[AdminLayout] Không thể tải tổng số khách hàng:',
+      error instanceof Error ? error.message : 'Lỗi không xác định',
+    );
+    customerCount.value = null;
+  }
+}
+
+onMounted(() => {
+  void loadCustomerCount();
+  window.addEventListener('admin-customers-changed', loadCustomerCount);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('admin-customers-changed', loadCustomerCount);
+});
 
 const navItems = [
   { path: '/admin', label: 'Tổng quan', icon: LayoutDashboard },
   { path: '/admin/products', label: 'Sản phẩm & Kho', icon: Package },
   { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart, badge: '12 mới' },
-  { path: '/admin/customers', label: 'Khách hàng', icon: Users, badge: '3.8k' },
+  { path: '/admin/customers', label: 'Khách hàng', icon: Users },
   { path: '/admin/knowledge-base', label: 'AI Knowledge Base', icon: Bot, badge: 'v2.4' },
 ];
 </script>
@@ -92,11 +116,11 @@ const navItems = [
                 <span>{{ item.label }}</span>
               </div>
               <span
-                v-if="item.badge"
+                v-if="item.path === '/admin/customers' ? customerCount !== null : item.badge"
                 class="px-2 py-0.5 rounded-full text-[9px] font-bold"
                 :class="route.path === item.path ? 'bg-white/20 text-white' : 'bg-[#EBF7E5] text-[#536124]'"
               >
-                {{ item.badge }}
+                {{ item.path === '/admin/customers' ? customerCount?.toLocaleString('vi-VN') : item.badge }}
               </span>
             </RouterLink>
           </div>

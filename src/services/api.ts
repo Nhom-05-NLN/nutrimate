@@ -1,5 +1,6 @@
 import {
   ApiResponse,
+  AdminCustomerListResponse,
   Category,
   ChatSuggestedProduct,
   CreateOrderPayload,
@@ -505,4 +506,82 @@ export async function saveCalorieProfile(profile: CalorieProfileInput): Promise<
   });
   if (!response.data) throw new Error(response.message || 'Không thể lưu hồ sơ Calories.');
   return response.data;
+}
+
+export interface AdminCustomerQuery {
+  search?: string;
+  segment?: 'all' | 'frequent';
+  nutritionGoal?: 'all' | 'lose_weight' | 'maintain_weight' | 'gain_weight' | 'unset';
+  bmiProfile?: 'all' | 'set' | 'unset';
+  orders?: 'all' | 'has_orders' | 'no_orders';
+  includeAvatars?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+export interface AdminCustomerMutationInput {
+  fullName: string;
+  email: string;
+  phone: string;
+  password?: string;
+  heightCm: number | null;
+  weightKg: number | null;
+  nutritionGoal: 'lose_weight' | 'maintain_weight' | 'gain_weight' | null;
+}
+
+function notifyAdminCustomerCountChanged(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('admin-customers-changed'));
+  }
+}
+
+export async function fetchAdminCustomers(
+  filters: AdminCustomerQuery = {},
+): Promise<AdminCustomerListResponse> {
+  const query = new URLSearchParams();
+  if (filters.search?.trim()) query.set('search', filters.search.trim());
+  if (filters.segment && filters.segment !== 'all') query.set('segment', filters.segment);
+  if (filters.nutritionGoal && filters.nutritionGoal !== 'all') query.set('nutritionGoal', filters.nutritionGoal);
+  if (filters.bmiProfile && filters.bmiProfile !== 'all') query.set('bmiProfile', filters.bmiProfile);
+  if (filters.orders && filters.orders !== 'all') query.set('orders', filters.orders);
+  if (filters.includeAvatars === false) query.set('includeAvatars', 'false');
+  if (filters.page && filters.page > 1) query.set('page', String(filters.page));
+  if (filters.limit) query.set('limit', String(filters.limit));
+  const queryString = query.toString();
+  const response = await fetchJson<ApiResponse<AdminCustomerListResponse>>(
+    `/admin/customers${queryString ? `?${queryString}` : ''}`,
+  );
+  if (!response.data) {
+    throw new Error(response.message || 'Không thể tải danh sách khách hàng.');
+  }
+  return response.data;
+}
+
+export async function createAdminCustomer(input: AdminCustomerMutationInput): Promise<string> {
+  const response = await fetchJson<ApiResponse<{ id: string }>>('/admin/customers', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (!response.data) throw new Error(response.message || 'Không thể tạo khách hàng.');
+  notifyAdminCustomerCountChanged();
+  return response.data.id;
+}
+
+export async function updateAdminCustomer(
+  id: string,
+  input: AdminCustomerMutationInput,
+): Promise<void> {
+  const response = await fetchJson<ApiResponse<{ updated: boolean }>>(`/admin/customers/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+  if (!response.data?.updated) throw new Error(response.message || 'Không thể cập nhật khách hàng.');
+}
+
+export async function deleteAdminCustomer(id: string): Promise<void> {
+  const response = await fetchJson<ApiResponse<{ deleted: boolean }>>(`/admin/customers/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!response.data?.deleted) throw new Error(response.message || 'Không thể xóa khách hàng.');
+  notifyAdminCustomerCountChanged();
 }
