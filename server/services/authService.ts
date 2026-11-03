@@ -1,8 +1,9 @@
-import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { createHmac, scrypt, timingSafeEqual } from 'node:crypto';
 import { isDbConnected } from '../db/index.js';
 import { config } from '../config.js';
 import * as authRepository from '../repositories/authRepository.js';
 import { DuplicateEmailError } from '../repositories/authRepository.js';
+import { hashPassword } from '../utils/password.js';
 
 export interface RegisterUserInput {
   fullName: unknown;
@@ -59,21 +60,6 @@ export class AuthServiceError extends Error {
     super(message);
     this.name = 'AuthServiceError';
   }
-}
-
-function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16);
-
-  return new Promise((resolve, reject) => {
-    scrypt(password, salt, 64, (err, derivedKey) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      resolve(`scrypt$${salt.toString('hex')}$${derivedKey.toString('hex')}`);
-    });
-  });
 }
 
 function verifyPassword(password: string, passwordHash: string): Promise<boolean> {
