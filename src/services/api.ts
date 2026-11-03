@@ -15,6 +15,8 @@ import {
   ProductFilterQuery,
   CaloriePlanResponse,
   CalorieProfileInput,
+  CreateNutritionDiaryMeal,
+  NutritionDiaryDay,
   Voucher,
 } from '../types';
 
@@ -177,6 +179,73 @@ export interface RegisteredUser {
   phone: string;
   accessToken: string;
   role: 'customer' | 'admin';
+  avatarUrl?: string | null;
+  defaultAddress?: {
+    addressId: number;
+    receiverName: string;
+    receiverPhone: string;
+    address: string;
+    houseNumber: string;
+    street: string;
+    hamlet: string;
+    ward: string;
+    province: string;
+    isDefault: boolean;
+  } | null;
+  addresses?: ShippingAddress[];
+}
+
+export interface ShippingAddress {
+  addressId: number;
+  receiverName: string;
+  receiverPhone: string;
+  address: string;
+  houseNumber: string;
+  street: string;
+  hamlet: string;
+  ward: string;
+  province: string;
+  isDefault: boolean;
+}
+
+export type ShippingAddressInput = Omit<ShippingAddress, "addressId" | "address" | "isDefault">;
+
+export async function fetchUserAddresses(): Promise<ShippingAddress[]> {
+  const res = await fetchJson<ApiResponse<ShippingAddress[]>>("/auth/me/addresses");
+  return res.data ?? [];
+}
+
+export async function createUserAddress(payload: ShippingAddressInput): Promise<ShippingAddress> {
+  const res = await fetchJson<ApiResponse<ShippingAddress>>("/auth/me/addresses", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!res.data) throw new Error(res.message || "Không thể thêm địa chỉ.");
+  return res.data;
+}
+
+export async function editUserAddress(
+  addressId: number,
+  payload: ShippingAddressInput,
+): Promise<ShippingAddress> {
+  const res = await fetchJson<ApiResponse<ShippingAddress>>(`/auth/me/addresses/${addressId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+  if (!res.data) throw new Error(res.message || "Không thể cập nhật địa chỉ.");
+  return res.data;
+}
+
+export async function setDefaultUserAddress(addressId: number): Promise<void> {
+  await fetchJson<ApiResponse<never>>(`/auth/me/addresses/${addressId}/default`, {
+    method: "PATCH",
+  });
+}
+
+export async function deleteUserAddress(addressId: number): Promise<void> {
+  await fetchJson<ApiResponse<never>>(`/auth/me/addresses/${addressId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function postRegister(payload: RegisterPayload): Promise<RegisteredUser> {
@@ -225,11 +294,69 @@ export async function fetchCurrentUser(): Promise<RegisteredUser | null> {
   return res.data;
 }
 
+export async function updateCurrentUser(
+  payload: Pick<RegisteredUser, "name" | "email" | "phone">,
+): Promise<Pick<RegisteredUser, "id" | "name" | "email" | "phone" | "role" | "defaultAddress" | "addresses">> {
+  const res = await fetchJson<ApiResponse<Pick<RegisteredUser, "id" | "name" | "email" | "phone" | "role" | "defaultAddress" | "addresses">>>(
+    "/auth/me",
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!res.data) {
+    throw new Error(res.message || "Không thể cập nhật thông tin cá nhân.");
+  }
+  return res.data;
+}
+
+export async function updateCurrentUserAvatar(avatarUrl: string): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const res = await fetchJson<ApiResponse<{ avatarUrl: string }>>('/auth/me/avatar', {
+      method: 'PATCH',
+      body: JSON.stringify({ avatarUrl }),
+      signal: controller.signal,
+    });
+    if (!res.data) {
+      throw new Error(res.message || 'Không thể cập nhật ảnh đại diện.');
+    }
+    return res.data.avatarUrl;
+  } catch (error: unknown) {
+    if (controller.signal.aborted) {
+      throw new Error('Máy chủ mất quá lâu để lưu ảnh. Kiểm tra API/Neon và thử lại.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function postLogout(): Promise<void> {
   await fetchJson<ApiResponse<never>>('/auth/logout', {
     method: 'POST',
   });
 }
+
+export async function fetchNutritionDiary(date: string): Promise<NutritionDiaryDay> {
+  const response = await fetchJson<ApiResponse<NutritionDiaryDay>>(`/nutrition-diary?date=${encodeURIComponent(date)}`);
+  if (!response.data) throw new Error(response.message || 'Không thể tải nhật ký dinh dưỡng.');
+  return response.data;
+}
+
+export async function postNutritionMeal(payload: CreateNutritionDiaryMeal): Promise<NutritionDiaryDay> {
+  const response = await fetchJson<ApiResponse<NutritionDiaryDay>>('/nutrition-diary/meals', { method: 'POST', body: JSON.stringify(payload) });
+  if (!response.data) throw new Error(response.message || 'Không thể lưu món ăn.');
+  return response.data;
+}
+
+export async function postNutritionWater(date: string, amountMl: number): Promise<NutritionDiaryDay> {
+  const response = await fetchJson<ApiResponse<NutritionDiaryDay>>('/nutrition-diary/water', { method: 'POST', body: JSON.stringify({ date, amountMl }) });
+  if (!response.data) throw new Error(response.message || 'Không thể lưu lượng nước.');
+  return response.data;
+}
+
 export interface ChatbotResponse {
   conversationId: string;
   messages: ChatHistoryMessage[];

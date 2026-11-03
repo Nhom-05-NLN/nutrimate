@@ -8,6 +8,7 @@ import knowledgeRoutes from './knowledgeRoutes.js';
 import healthRoutes from './healthRoutes.js';
 import caloriePlanRoutes from './caloriePlanRoutes.js';
 import authRoutes from './authRoutes.js';
+import nutritionDiaryRoutes from './nutritionDiaryRoutes.js';
 
 const apiRouter = Router();
 
@@ -19,6 +20,7 @@ apiRouter.use('/orders', orderRoutes);
 apiRouter.use('/vouchers', voucherRoutes);
 apiRouter.use('/chat', chatRoutes);
 apiRouter.use('/calorie-plan', caloriePlanRoutes);
+apiRouter.use('/nutrition-diary', nutritionDiaryRoutes);
 apiRouter.use('/knowledge', knowledgeRoutes);
 
 export default apiRouter;

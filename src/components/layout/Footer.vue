@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useToastStore } from '../../stores/toastStore';
+import { useAuthStore } from '../../stores/authStore';
 import { Leaf, PhoneCall, ShieldCheck, ArrowRight } from 'lucide-vue-next';
 
 const toastStore = useToastStore();
+const authStore = useAuthStore();
 const email = ref('');
 
 function handleSubscribe() {
@@ -62,7 +64,7 @@ function handleSubscribe() {
           <ul class="space-y-2 text-xs text-[#3E4A2E] font-medium">
             <li><a href="#" class="hover:text-black transition-colors">Chính sách đổi trả & bảo hành</a></li>
             <li><a href="#" class="hover:text-black transition-colors">Chính sách bảo mật</a></li>
-            <li><RouterLink to="/nutrition" class="hover:text-black transition-colors">Hướng dẫn tư vấn NutriBot</RouterLink></li>
+            <li v-if="authStore.currentUser?.role === 'customer'"><RouterLink to="/nutrition" class="hover:text-black transition-colors">Hướng dẫn tư vấn NutriBot</RouterLink></li>
             <li><RouterLink to="/orders" class="hover:text-black transition-colors">Trung tâm trợ giúp</RouterLink></li>
           </ul>
         </div>

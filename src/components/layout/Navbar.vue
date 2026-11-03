@@ -85,6 +85,7 @@ function handleSearchSubmit() {
           </RouterLink>
 
           <RouterLink
+            v-if="authStore.currentUser?.role === 'customer'"
             to="/nutrition"
             active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
             class="py-1 hover:text-[#6B7A3A] transition-colors relative"
@@ -165,6 +166,7 @@ function handleSearchSubmit() {
               </RouterLink>
 
               <RouterLink
+                v-if="authStore.currentUser?.role === 'customer'"
                 to="/nutrition"
                 @click="isUserDropdownOpen = false"
                 class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#242424] hover:bg-[#F6F8F3] transition-colors"
@@ -248,6 +250,7 @@ function handleSearchSubmit() {
           Thực phẩm
         </RouterLink>
         <RouterLink
+          v-if="authStore.currentUser?.role === 'customer'"
           to="/nutrition"
           @click="isMobileMenuOpen = false"
           class="px-4 py-2.5 rounded-xl text-sm font-semibold text-[#242424] hover:bg-[#EBF7E5]"

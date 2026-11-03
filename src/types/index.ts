@@ -259,6 +259,7 @@ export interface CaloriePlanResult extends CalorieProfileInput {
   tdeeKcal: number;
   targetCalories: number;
   adjustmentKcal: number;
+  minimumTargetApplied: boolean;
 }
 
 export interface CaloriePlanResponse {
@@ -273,6 +274,30 @@ export interface CaloriePlanResponse {
   plan: CaloriePlanResult | null;
 }
 
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+export interface NutritionDiaryMeal {
+  id: number;
+  mealType: MealType;
+  foodName: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  sugar: number;
+  createdAt: string;
+}
+export interface NutritionDiaryWaterLog { id: number; amountMl: number; loggedAt: string }
+export interface NutritionDiaryDay {
+  date: string;
+  meals: NutritionDiaryMeal[];
+  waterLogs: NutritionDiaryWaterLog[];
+  totals: { calories: number; protein: number; carbs: number; fat: number; sugar: number; waterMl: number };
+}
+export interface CreateNutritionDiaryMeal {
+  date: string; mealType: MealType; foodName: string;
+  calories: number; protein: number; carbs: number; fat: number; sugar: number;
+}
+
 // User Profile & Body Metrics (Figma 07)
 export type UserRole = 'customer' | 'admin';
 
@@ -281,6 +306,30 @@ export interface UserProfile {
   name: string;
   email: string;
   phone: string;
+  defaultAddress?: {
+    addressId: number;
+    receiverName: string;
+    receiverPhone: string;
+    address: string;
+    houseNumber: string;
+    street: string;
+    hamlet: string;
+    ward: string;
+    province: string;
+    isDefault: boolean;
+  } | null;
+  addresses?: {
+    addressId: number;
+    receiverName: string;
+    receiverPhone: string;
+    address: string;
+    houseNumber: string;
+    street: string;
+    hamlet: string;
+    ward: string;
+    province: string;
+    isDefault: boolean;
+  }[];
   role?: UserRole;
   avatar: string;
   birthDate: string;

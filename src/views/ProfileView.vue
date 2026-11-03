@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { ActivityLevel, CaloriePlanResponse, CalorieProfileInput, NutritionGoal } from '../types';
-import { fetchCaloriePlan, saveCalorieProfile } from '../services/api';
+import {
+  createUserAddress,
+  deleteUserAddress,
+  editUserAddress,
+  fetchCaloriePlan,
+  fetchUserAddresses,
+  saveCalorieProfile,
+  setDefaultUserAddress,
+  ShippingAddress,
+  ShippingAddressInput,
+} from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import {
@@ -12,29 +22,68 @@ import {
   Save,
   Bot,
   Activity,
+  Plus,
+  Pencil,
+  Trash2,
+  MapPin,
+  X,
+  UserRound,
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
 const toastStore = useToastStore();
 
 const isEditing = ref(false);
+const isEditingAccount = ref(false);
+const profileSaving = ref(false);
+const profileError = ref("");
+const avatarError = ref("");
+const avatarSaving = ref(false);
+const avatarStatus = ref("");
+const avatarInput = ref<HTMLInputElement | null>(null);
 
 const profile = ref({
-  name: authStore.currentUser?.name || '',
-  birthDate: authStore.currentUser?.birthDate || '1998-06-18',
-  phone: authStore.currentUser?.phone || '0912 345 678',
-  email: authStore.currentUser?.email || 'minhanh.fit@gmail.com',
-  city: authStore.currentUser?.city || 'TP. Hồ Chí Minh',
   heightCm: null as number | null,
   weightKg: null as number | null,
   age: null as number | null,
   gender: null as CalorieProfileInput['gender'] | null,
 });
 
+const accountForm = ref({
+  name: authStore.currentUser?.name || '',
+  email: authStore.currentUser?.email || '',
+  phone: authStore.currentUser?.phone || '',
+});
+
+const addresses = ref<ShippingAddress[]>(authStore.currentUser?.addresses ?? []);
+const addressLoading = ref(true);
+const addressSaving = ref(false);
+const addressError = ref('');
+const showAddressForm = ref(false);
+const editingAddressId = ref<number | null>(null);
+
+function emptyAddressForm(): ShippingAddressInput {
+  return {
+    receiverName: authStore.currentUser?.name ?? '',
+    receiverPhone: authStore.currentUser?.phone ?? '',
+    houseNumber: '',
+    street: '',
+    hamlet: '',
+    ward: '',
+    province: '',
+  };
+}
+
+const addressForm = ref<ShippingAddressInput>(emptyAddressForm());
+
 watch(
-  () => authStore.currentUser?.name,
-  (name) => {
-    if (name) profile.value.name = name;
+  () => authStore.currentUser,
+  (user) => {
+    if (!user) return;
+    accountForm.value.name = user.name;
+    accountForm.value.email = user.email;
+    accountForm.value.phone = user.phone;
+    addresses.value = user.addresses ?? [];
   },
   { immediate: true },
 );
@@ -70,7 +119,19 @@ const bmiCategory = computed(() => {
   if (bmi < 25) return 'Thừa cân';
   return 'Béo phì';
 });
-const dietPreferences = ref(['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt']);
+const availableDietPreferences = ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt', 'Keto chuẩn'];
+const dietPreferences = ref<string[]>([
+  ...(authStore.currentUser?.dietPreferences ?? ['Low-Carb', 'Giàu Protein']),
+]);
+const currentDietLabel = computed(() => dietPreferences.value.join(' & ') || 'Chưa chọn');
+const suggestedFoodPackage = computed(() => ({
+  title: dietPreferences.value.length
+    ? `Gợi ý theo chế độ ${dietPreferences.value.slice(0, 2).join(' & ')}`
+    : 'Chưa có tiêu chí dinh dưỡng',
+  description: dietPreferences.value.length
+    ? `${dietPreferences.value.join(', ')}${caloriePlan.value ? ` • ${formatNumber(caloriePlan.value.targetCalories)} kcal/ngày` : ''}`
+    : 'Chọn tiêu chí dinh dưỡng để cá nhân hóa gợi ý.',
+}));
 
 function formatNumber(value: number | null | undefined): string {
   return value === null || value === undefined ? '—' : value.toLocaleString('vi-VN');
@@ -130,25 +191,201 @@ async function saveCaloriePlan() {
   }
 }
 
-onMounted(loadCaloriePlan);
+onMounted(() => {
+  void loadCaloriePlan();
+  void loadAddresses();
+});
 
 function togglePreference(pref: string) {
-  if (dietPreferences.value.includes(pref)) {
-    dietPreferences.value = dietPreferences.value.filter((p) => p !== pref);
-  } else {
-    dietPreferences.value.push(pref);
+  const updatedPreferences = dietPreferences.value.includes(pref)
+    ? dietPreferences.value.filter((preference) => preference !== pref)
+    : [...dietPreferences.value, pref];
+  dietPreferences.value = updatedPreferences;
+  authStore.updateDietPreferences(updatedPreferences);
+}
+
+async function handleSave() {
+  profileSaving.value = true;
+  profileError.value = "";
+  try {
+    const savedUser = await authStore.updateAccountProfile(accountForm.value);
+    accountForm.value.name = savedUser.name;
+    accountForm.value.email = savedUser.email;
+    accountForm.value.phone = savedUser.phone;
+    isEditingAccount.value = false;
+  } catch (error: unknown) {
+    profileError.value = error instanceof Error
+      ? error.message
+      : "Không thể cập nhật thông tin cá nhân.";
+  } finally {
+    profileSaving.value = false;
   }
 }
 
-function handleSave() {
-  authStore.updateProfile({
-    name: profile.value.name,
-    phone: profile.value.phone,
-    email: profile.value.email,
-    city: profile.value.city,
-    birthDate: profile.value.birthDate,
-  });
-  toastStore.show('Đã lưu thông tin hồ sơ cá nhân thành công!', 'success');
+function cancelAccountEdit() {
+  const user = authStore.currentUser;
+  if (user) {
+    accountForm.value.name = user.name;
+    accountForm.value.email = user.email;
+    accountForm.value.phone = user.phone;
+  }
+  profileError.value = "";
+  isEditingAccount.value = false;
+}
+
+async function loadAddresses() {
+  addressLoading.value = true;
+  addressError.value = '';
+  try {
+    addresses.value = await fetchUserAddresses();
+  } catch (error: unknown) {
+    addressError.value = error instanceof Error ? error.message : 'Không thể tải địa chỉ nhận hàng.';
+  } finally {
+    addressLoading.value = false;
+  }
+}
+
+function startAddingAddress() {
+  editingAddressId.value = null;
+  addressForm.value = emptyAddressForm();
+  addressError.value = '';
+  showAddressForm.value = true;
+}
+
+function startEditingAddress(address: ShippingAddress) {
+  editingAddressId.value = address.addressId;
+  addressForm.value = {
+    receiverName: address.receiverName,
+    receiverPhone: address.receiverPhone,
+    houseNumber: address.houseNumber,
+    street: address.street,
+    hamlet: address.hamlet,
+    ward: address.ward,
+    province: address.province,
+  };
+  addressError.value = '';
+  showAddressForm.value = true;
+}
+
+function cancelAddressForm() {
+  showAddressForm.value = false;
+  editingAddressId.value = null;
+  addressForm.value = emptyAddressForm();
+}
+
+async function saveAddress() {
+  addressSaving.value = true;
+  addressError.value = '';
+  const isEditingAddress = editingAddressId.value !== null;
+  try {
+    if (editingAddressId.value === null) {
+      await createUserAddress(addressForm.value);
+    } else {
+      await editUserAddress(editingAddressId.value, addressForm.value);
+    }
+    cancelAddressForm();
+    await loadAddresses();
+    toastStore.show(
+      isEditingAddress ? 'Đã cập nhật địa chỉ nhận hàng.' : 'Đã thêm địa chỉ nhận hàng.',
+      'success',
+    );
+  } catch (error: unknown) {
+    addressError.value = error instanceof Error ? error.message : 'Không thể lưu địa chỉ.';
+  } finally {
+    addressSaving.value = false;
+  }
+}
+
+async function makeAddressDefault(address: ShippingAddress) {
+  addressError.value = '';
+  try {
+    await setDefaultUserAddress(address.addressId);
+    await loadAddresses();
+    toastStore.show('Đã đặt làm địa chỉ mặc định.', 'success');
+  } catch (error: unknown) {
+    addressError.value = error instanceof Error ? error.message : 'Không thể đặt địa chỉ mặc định.';
+  }
+}
+
+async function removeAddress(address: ShippingAddress) {
+  if (!window.confirm(`Xóa địa chỉ "${address.address}"?`)) return;
+  addressError.value = '';
+  try {
+    await deleteUserAddress(address.addressId);
+    await loadAddresses();
+    if (editingAddressId.value === address.addressId) cancelAddressForm();
+    toastStore.show('Đã xóa địa chỉ nhận hàng.', 'success');
+  } catch (error: unknown) {
+    addressError.value = error instanceof Error ? error.message : 'Không thể xóa địa chỉ.';
+  }
+}
+
+async function handleAvatarChange(event: Event) {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+
+  const file = input.files?.[0];
+  input.value = "";
+  avatarError.value = "";
+  if (!file) return;
+
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    avatarError.value = "Vui lòng chọn ảnh JPEG, PNG hoặc WebP.";
+    return;
+  }
+  if (file.size > 5_000_000) {
+    avatarError.value = "Ảnh gốc phải nhỏ hơn 5 MB.";
+    return;
+  }
+
+  avatarSaving.value = true;
+  avatarStatus.value = "Đang xử lý ảnh…";
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 384 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Không thể xử lý ảnh đại diện.");
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (result) => result
+          ? resolve(result)
+          : reject(new Error("Không thể nén ảnh đại diện.")),
+        "image/webp",
+        0.72,
+      );
+    });
+    if (blob.size > 750_000) {
+      throw new Error("Ảnh sau khi xử lý vẫn quá lớn. Vui lòng chọn ảnh khác.");
+    }
+
+    const avatar = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        if (typeof reader.result !== "string") {
+          reject(new Error("Không thể đọc ảnh đã xử lý."));
+          return;
+        }
+        resolve(reader.result);
+      });
+      reader.addEventListener("error", () => {
+        reject(reader.error ?? new Error("Không thể đọc ảnh đã xử lý."));
+      });
+      reader.readAsDataURL(blob);
+    });
+    avatarStatus.value = "Đang lưu ảnh vào tài khoản…";
+    await authStore.updateAvatar(avatar);
+  } catch (error: unknown) {
+    avatarError.value = error instanceof Error ? error.message : "Không thể cập nhật ảnh đại diện.";
+  } finally {
+    avatarSaving.value = false;
+    avatarStatus.value = "";
+  }
 }
 </script>
 
@@ -158,9 +395,7 @@ function handleSave() {
     <nav class="flex items-center gap-2 text-sm font-medium text-[#7E8B73]">
       <RouterLink to="/" class="hover:text-[#242424]">Trang chủ</RouterLink>
       <ChevronRight class="w-4 h-4" />
-      <span class="hover:text-[#242424]">Thành viên NutriMate</span>
-      <ChevronRight class="w-4 h-4" />
-      <span class="text-[#242424] font-bold">Hồ sơ dinh dưỡng cá nhân</span>
+      <span class="text-[#242424] font-bold">Hồ sơ cá nhân</span>
     </nav>
 
     <!-- Top Profile Banner Card (Figma 07) -->
@@ -170,32 +405,44 @@ function handleSave() {
           <!-- Avatar với Icon Camera -->
           <div class="relative">
             <img
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80"
-              alt="Avatar"
+              :src="authStore.currentUser?.avatar"
+              alt="Ảnh đại diện"
               class="w-22 h-22 sm:w-26 sm:h-26 rounded-3xl object-cover border-2 border-white shadow-md"
+            />
+            <input
+              ref="avatarInput"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              class="hidden"
+              @change="handleAvatarChange"
             />
             <button
               type="button"
-              class="absolute -bottom-1 -right-1 p-2 rounded-xl bg-[#4D6A34] text-white hover:bg-[#3B4E24] shadow-xs transition-colors cursor-pointer"
-              title="Thay đổi ảnh đại diện"
+              @click="avatarInput?.click()"
+              :disabled="avatarSaving"
+              class="absolute -bottom-1 -right-1 p-2 rounded-xl bg-[#4D6A34] text-white hover:bg-[#3B4E24] shadow-xs transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+              aria-label="Thay đổi ảnh đại diện"
+              :title="avatarSaving ? 'Đang lưu ảnh đại diện…' : 'Thay đổi ảnh đại diện'"
             >
-              <Camera class="w-4 h-4" />
+              <span v-if="avatarSaving" class="block w-4 h-4 animate-spin rounded-full border-2 border-white border-r-transparent" />
+              <Camera v-else class="w-4 h-4" />
             </button>
           </div>
+          <p v-if="avatarError" role="alert" class="max-w-40 text-xs text-red-600">
+            {{ avatarError }}
+          </p>
+          <p v-else-if="avatarStatus" role="status" class="max-w-40 text-xs text-[#576449]">
+            {{ avatarStatus }}
+          </p>
 
           <!-- Thông tin tổng quan (To, rõ, dễ đọc) -->
           <div class="space-y-2">
             <h1 class="font-heading text-2xl sm:text-3xl lg:text-4xl font-black text-[#242424]">
-              {{ profile.name || 'Tài khoản' }}
+              {{ authStore.currentUser?.name || 'Tài khoản' }}
             </h1>
 
-            <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/95 border border-[#CCD7BC] text-xs font-bold text-[#E8A020]">
-              <span>★</span>
-              <span class="text-[#242424]">Hội Viên Vàng (Gold Member) • 490 NutriPoints</span>
-            </div>
-
             <div class="flex flex-wrap items-center gap-4 text-sm text-[#576449] pt-1">
-              <span>Chế độ ăn: <strong class="text-[#242424]">Eat Clean & Low-Carb</strong></span>
+              <span>Chế độ ăn: <strong class="text-[#242424]">{{ currentDietLabel }}</strong></span>
               <span>•</span>
               <span>Mục tiêu: <strong class="text-[#242424]">{{ selectedGoal ? goalLabels[selectedGoal] : 'Chưa thiết lập' }}</strong></span>
             </div>
@@ -351,8 +598,8 @@ function handleSave() {
             />
             <div>
               <span class="text-xs font-bold text-[#7A866E] uppercase block">Gói thực phẩm gợi ý</span>
-              <h4 class="font-heading text-sm font-bold text-[#242424]">Combo Eat Clean Săn Cơ</h4>
-              <span class="text-xs text-[#4D6A34] font-semibold">Giàu Protein, chuẩn 1.550 kcal</span>
+              <h4 class="font-heading text-sm font-bold text-[#242424]">{{ suggestedFoodPackage.title }}</h4>
+              <span class="text-xs text-[#4D6A34] font-semibold">{{ suggestedFoodPackage.description }}</span>
             </div>
           </div>
           <RouterLink
@@ -367,71 +614,247 @@ function handleSave() {
       <!-- Cột Phải: Thông Tin Cá Nhân & Mục Tiêu Macro (Figma 07) -->
       <div class="lg:col-span-7 space-y-6">
         <!-- Card 1: Thông tin cá nhân & liên hệ -->
-        <div class="bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-5">
-          <div class="flex items-center justify-between border-b border-[#F0F3EC] pb-4">
-            <h2 class="font-heading text-base font-bold text-[#242424]">
-              Thông tin cá nhân & Liên hệ
-            </h2>
-            <span class="px-3 py-1 rounded-full bg-[#EBF7E5] text-xs font-bold text-[#4D6A34]">
-              ✓ Đã xác thực
-            </span>
+        <form
+          class="relative overflow-hidden bg-white p-6 sm:p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-6"
+          @submit.prevent="handleSave"
+        >
+          <div class="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-[#4D6A34] via-[#A6BB87] to-[#EBF7E5]" />
+          <div class="flex items-center justify-between gap-4 border-b border-[#F0F3EC] pb-5">
+            <div class="flex items-center gap-3">
+              <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#EBF7E5] text-[#4D6A34]">
+                <UserRound class="h-5 w-5" />
+              </span>
+              <div>
+                <h2 class="font-heading text-base font-bold text-[#242424]">
+                  Thông tin cá nhân & Liên hệ
+                </h2>
+                <p class="mt-0.5 text-xs text-[#7A866E]">
+                  {{ isEditingAccount ? 'Chỉnh sửa các ô nhập bên dưới' : 'Thông tin tài khoản của bạn' }}
+                </p>
+              </div>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+              <span v-if="isEditingAccount" class="hidden rounded-full bg-[#EBF7E5] px-3 py-1.5 text-xs font-bold text-[#4D6A34] sm:inline-flex">
+                Chế độ chỉnh sửa
+              </span>
+              <button
+                v-else
+                type="button"
+                @click="isEditingAccount = true; profileError = ''"
+                class="inline-flex items-center gap-2 rounded-xl border border-[#CCD7BC] bg-white px-4 py-2.5 text-sm font-bold text-[#4D6A34] shadow-xs transition-all hover:border-[#4D6A34] hover:bg-[#F6F8F3]"
+              >
+                <Pencil class="h-4 w-4" />
+                Chỉnh sửa
+              </button>
+            </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label class="text-xs font-bold text-[#576449] block mb-1.5">Họ và tên</label>
+          <div class="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+            <label class="block space-y-1.5">
+              <span class="block text-sm font-semibold text-[#576449]">Họ và tên</span>
               <input
                 type="text"
-                v-model="profile.name"
-                class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm font-bold text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
+                v-model="accountForm.name"
+                maxlength="150"
+                required
+                :disabled="!isEditingAccount || profileSaving"
+                class="w-full rounded-xl border px-3.5 py-3 text-sm text-[#242424] outline-none transition"
+                :class="isEditingAccount ? 'border-[#CCD7BC] bg-white focus:border-[#4D6A34] focus:ring-2 focus:ring-[#4D6A34]/10' : 'border-[#E8ECE3] bg-[#FAFBF8] disabled:cursor-default disabled:opacity-100'"
               />
-            </div>
-            <div>
-              <label class="text-xs font-bold text-[#576449] block mb-1.5">Ngày sinh</label>
-              <input
-                type="date"
-                v-model="profile.birthDate"
-                class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm font-bold text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
-              />
-            </div>
-            <div>
-              <label class="text-xs font-bold text-[#576449] block mb-1.5">Số điện thoại</label>
-              <input
-                type="text"
-                v-model="profile.phone"
-                class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm font-bold text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
-              />
-            </div>
-            <div>
-              <label class="text-xs font-bold text-[#576449] block mb-1.5">Email</label>
+            </label>
+            <label class="block space-y-1.5">
+              <span class="block text-sm font-semibold text-[#576449]">Email</span>
               <input
                 type="email"
-                v-model="profile.email"
-                class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm font-bold text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
+                v-model="accountForm.email"
+                maxlength="255"
+                required
+                :disabled="!isEditingAccount || profileSaving"
+                class="w-full rounded-xl border px-3.5 py-3 text-sm text-[#242424] outline-none transition"
+                :class="isEditingAccount ? 'border-[#CCD7BC] bg-white focus:border-[#4D6A34] focus:ring-2 focus:ring-[#4D6A34]/10' : 'border-[#E8ECE3] bg-[#FAFBF8] disabled:cursor-default disabled:opacity-100'"
               />
+            </label>
+            <label class="block space-y-1.5 sm:col-span-2 sm:max-w-[calc(50%-0.625rem)]">
+              <span class="block text-sm font-semibold text-[#576449]">Số điện thoại đăng ký</span>
+              <input
+                type="tel"
+                v-model="accountForm.phone"
+                maxlength="20"
+                autocomplete="tel"
+                required
+                :disabled="!isEditingAccount || profileSaving"
+                class="w-full rounded-xl border px-3.5 py-3 text-sm text-[#242424] outline-none transition"
+                :class="isEditingAccount ? 'border-[#CCD7BC] bg-white focus:border-[#4D6A34] focus:ring-2 focus:ring-[#4D6A34]/10' : 'border-[#E8ECE3] bg-[#FAFBF8] disabled:cursor-default disabled:opacity-100'"
+              />
+            </label>
+          </div>
+          <p v-if="profileError" role="alert" class="text-sm font-medium text-red-600">
+            {{ profileError }}
+          </p>
+          <div v-if="isEditingAccount" class="flex justify-end gap-2 border-t border-[#F0F3EC] pt-4">
+            <button
+              type="button"
+              :disabled="profileSaving"
+              @click="cancelAccountEdit"
+              class="px-5 py-3 rounded-2xl border border-[#CCD7BC] bg-white text-[#576449] text-sm font-bold transition-colors hover:bg-[#FAF9F5] disabled:opacity-60"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              :disabled="profileSaving"
+              class="px-7 py-3 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white text-sm font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Save class="w-4 h-4" />
+              <span>{{ profileSaving ? 'Đang lưu…' : 'Lưu thay đổi' }}</span>
+            </button>
+          </div>
+        </form>
+
+        <section class="rounded-3xl border border-[#E3E8DC] bg-white p-6 shadow-2xs space-y-5 sm:p-7">
+          <div class="flex flex-col gap-3 border-b border-[#F0F3EC] pb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-center gap-3">
+              <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#EBF7E5] text-[#4D6A34]">
+                <MapPin class="h-5 w-5" />
+              </span>
+              <h2 class="font-heading text-base font-bold text-[#242424]">Địa chỉ nhận hàng</h2>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-if="!showAddressForm"
+                type="button"
+                @click="startAddingAddress"
+                class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#4D6A34] px-4 py-2.5 text-sm font-bold text-white shadow-xs transition-all hover:-translate-y-0.5 hover:bg-[#3B4E24] hover:shadow-sm"
+              >
+                <Plus class="h-4 w-4" />
+                Thêm địa chỉ
+              </button>
+              <button
+                v-else
+                type="button"
+                @click="cancelAddressForm"
+                class="inline-flex items-center justify-center gap-2 rounded-xl border border-[#CCD7BC] bg-white px-4 py-2.5 text-sm font-bold text-[#576449] transition-colors hover:bg-[#FAF9F5]"
+              >
+                <X class="h-4 w-4" />
+                Đóng biểu mẫu
+              </button>
             </div>
           </div>
 
-          <div>
-            <label class="text-xs font-bold text-[#576449] block mb-1.5">Tỉnh / Thành phố</label>
-            <input
-              type="text"
-              v-model="profile.city"
-              class="w-full px-4 py-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm font-bold text-[#242424] focus:bg-white focus:border-[#4D6A34] outline-none transition-colors"
-            />
+          <p v-if="addressError" role="alert" class="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {{ addressError }}
+          </p>
+
+          <div v-if="addressLoading" class="py-5 text-center text-sm text-[#7A866E]">
+            Đang tải danh sách địa chỉ…
+          </div>
+          <div v-else-if="addresses.length === 0" class="rounded-2xl border border-dashed border-[#CCD7BC] bg-[#FAFBF8] p-8 text-center">
+            <MapPin class="mx-auto h-8 w-8 text-[#7A866E]" />
+            <p class="mt-2 text-sm font-semibold text-[#576449]">Bạn chưa lưu địa chỉ nhận hàng nào.</p>
+            <p class="mt-1 text-xs text-[#7A866E]">Thêm địa chỉ để thuận tiện khi đặt hàng.</p>
+          </div>
+          <div v-else class="space-y-3">
+            <article
+              v-for="address in addresses"
+              :key="address.addressId"
+              class="group rounded-2xl border p-4 transition-all hover:-translate-y-0.5 hover:shadow-sm sm:p-5"
+              :class="address.isDefault ? 'border-[#9CAD83] bg-linear-to-br from-[#F6F8F3] to-white shadow-xs' : 'border-[#E8ECE3] bg-white hover:border-[#CCD7BC]'"
+            >
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div class="min-w-0 space-y-2">
+                  <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                    <span class="font-bold text-[#242424]">{{ address.receiverName }}</span>
+                    <span class="text-sm font-medium text-[#7A866E]">{{ address.receiverPhone }}</span>
+                    <span v-if="address.isDefault" class="inline-flex items-center gap-1 rounded-full bg-[#E7F1DE] px-2.5 py-1 text-[11px] font-bold text-[#4D6A34]">
+                      <MapPin class="h-3 w-3" />
+                      Mặc định
+                    </span>
+                  </div>
+                  <p class="break-words text-sm leading-6 text-[#576449]">{{ address.address }}</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap gap-2">
+                  <button
+                    v-if="!address.isDefault"
+                    type="button"
+                    @click="makeAddressDefault(address)"
+                    class="rounded-lg border border-[#CCD7BC] px-3 py-2 text-xs font-semibold text-[#4D6A34] hover:bg-[#EBF7E5]"
+                  >
+                    Đặt mặc định
+                  </button>
+                  <button
+                    type="button"
+                    @click="startEditingAddress(address)"
+                    class="inline-flex items-center gap-1 rounded-lg border border-[#CCD7BC] px-3 py-2 text-xs font-semibold text-[#576449] hover:bg-[#FAF9F5]"
+                  >
+                    <Pencil class="h-3.5 w-3.5" /> Sửa
+                  </button>
+                  <button
+                    type="button"
+                    @click="removeAddress(address)"
+                    class="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 class="h-3.5 w-3.5" /> Xóa
+                  </button>
+                </div>
+              </div>
+            </article>
           </div>
 
-          <div class="pt-3 flex justify-end">
-            <button
-              type="button"
-              @click="handleSave"
-              class="px-7 py-3 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white text-sm font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
-            >
-              <Save class="w-4 h-4" />
-              <span>Lưu thay đổi</span>
-            </button>
-          </div>
-        </div>
+          <form
+            v-if="showAddressForm"
+            class="space-y-5 rounded-2xl border border-[#D8E1CE] bg-linear-to-br from-[#F8FAF5] to-[#F3F6EE] p-5 sm:p-6"
+            @submit.prevent="saveAddress"
+          >
+            <div class="flex items-center gap-3 border-b border-[#E5EBDD] pb-4">
+              <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[#4D6A34] shadow-xs">
+                <Pencil v-if="editingAddressId !== null" class="h-4 w-4" />
+                <Plus v-else class="h-4 w-4" />
+              </span>
+              <h3 class="font-bold text-[#242424]">
+                {{ editingAddressId === null ? 'Thêm địa chỉ nhận hàng' : 'Cập nhật địa chỉ' }}
+              </h3>
+            </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label for="address-receiver-name" class="mb-1.5 block text-xs font-bold text-[#576449]">Tên người nhận</label>
+                <input id="address-receiver-name" v-model="addressForm.receiverName" required maxlength="100" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
+              </div>
+              <div>
+                <label for="address-receiver-phone" class="mb-1.5 block text-xs font-bold text-[#576449]">Số điện thoại</label>
+                <input id="address-receiver-phone" v-model="addressForm.receiverPhone" required maxlength="20" type="tel" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
+              </div>
+              <div>
+                <label for="address-house-number" class="mb-1.5 block text-xs font-bold text-[#576449]">Số nhà / căn hộ</label>
+                <input id="address-house-number" v-model="addressForm.houseNumber" required maxlength="100" placeholder="Ví dụ: 12A, căn hộ 05.01" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
+              </div>
+              <div>
+                <label for="address-street" class="mb-1.5 block text-xs font-bold text-[#576449]">Đường</label>
+                <input id="address-street" v-model="addressForm.street" required maxlength="255" placeholder="Tên đường" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
+              </div>
+              <div>
+                <label for="address-hamlet" class="mb-1.5 block text-xs font-bold text-[#576449]">Ấp / thôn / khu phố <span class="font-normal">(nếu có)</span></label>
+                <input id="address-hamlet" v-model="addressForm.hamlet" maxlength="150" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
+              </div>
+              <div>
+                <label for="address-ward" class="mb-1.5 block text-xs font-bold text-[#576449]">Phường / xã</label>
+                <input id="address-ward" v-model="addressForm.ward" required maxlength="150" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
+              </div>
+              <div class="sm:col-span-2">
+                <label for="address-province" class="mb-1.5 block text-xs font-bold text-[#576449]">Tỉnh / thành phố</label>
+                <input id="address-province" v-model="addressForm.province" required maxlength="150" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
+              </div>
+            </div>
+            <div class="flex flex-wrap justify-end gap-2">
+              <button type="button" @click="cancelAddressForm" class="rounded-xl border border-[#CCD7BC] bg-white px-4 py-2.5 text-sm font-semibold text-[#576449]">
+                Hủy
+              </button>
+              <button type="submit" :disabled="addressSaving" class="inline-flex items-center gap-2 rounded-xl bg-[#4D6A34] px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">
+                <Save class="h-4 w-4" />
+                {{ addressSaving ? 'Đang lưu…' : 'Lưu địa chỉ' }}
+              </button>
+            </div>
+          </form>
+        </section>
 
         <!-- Card 2: Mục tiêu dinh dưỡng & Chế độ ăn uống (Figma 07) -->
         <div class="bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-6">
@@ -476,7 +899,7 @@ function handleSave() {
             <span class="text-xs font-bold text-[#242424] block">Tiêu chí chế độ dinh dưỡng áp dụng</span>
             <div class="flex flex-wrap gap-2.5">
               <button
-                v-for="pref in ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt', 'Keto chuẩn']"
+                v-for="pref in availableDietPreferences"
                 :key="pref"
                 type="button"
                 @click="togglePreference(pref)"
@@ -506,10 +929,11 @@ function handleSave() {
                 <strong class="mt-1 block text-[#242424]">{{ formatNumber(caloriePlan.tdeeKcal) }} kcal/ngày</strong>
               </div>
               <div class="rounded-2xl bg-[#F6F8F3] border border-[#DEE5D4] p-4">
-                <span class="text-xs text-[#7A866E] block">Điều chỉnh theo mục tiêu</span>
+                <span class="text-xs text-[#7A866E] block">Điều chỉnh so với TDEE</span>
                 <strong class="mt-1 block text-[#242424]">{{ caloriePlan.adjustmentKcal > 0 ? '+' : '' }}{{ formatNumber(caloriePlan.adjustmentKcal) }} kcal/ngày</strong>
               </div>
             </div>
+            <p v-if="caloriePlan?.minimumTargetApplied" class="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Đã áp dụng mức sàn 1.200 kcal/ngày.</p>
 
             <p v-if="planError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800" role="alert">{{ planError }}</p>
             <p class="text-xs leading-5 text-[#7A866E]">Ước tính dùng công thức Mifflin–St Jeor và hệ số hoạt động đã chọn; mục tiêu giảm/tăng dùng mức điều chỉnh 300 kcal/ngày. Đây là giả định tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.</p>
