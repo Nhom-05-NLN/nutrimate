@@ -8,6 +8,7 @@ import {
   KnowledgeImportResult,
   NutritionImagePrediction,
   Order,
+  PaginatedProductResult,
   Product,
   ProductFilterQuery,
   CaloriePlanResponse,
@@ -59,7 +60,7 @@ export async function fetchCategories(): Promise<Category[]> {
   return res.data || [];
 }
 
-export async function fetchProducts(filter: ProductFilterQuery = {}): Promise<Product[]> {
+export async function fetchProducts(filter: ProductFilterQuery = {}): Promise<PaginatedProductResult> {
   const query = new URLSearchParams();
   if (filter.category && filter.category !== 'all') {
     query.set('category', filter.category);
@@ -76,11 +77,27 @@ export async function fetchProducts(filter: ProductFilterQuery = {}): Promise<Pr
   if (filter.minProtein && filter.minProtein > 0) {
     query.set('minProtein', String(filter.minProtein));
   }
+  if (filter.page && filter.page > 0) {
+    query.set('page', String(filter.page));
+  }
+  if (filter.limit && filter.limit > 0) {
+    query.set('limit', String(filter.limit));
+  }
+  if (filter.sort) {
+    query.set('sort', filter.sort);
+  }
 
   const qs = query.toString();
   const endpoint = qs ? `/products?${qs}` : '/products';
   const res = await fetchJson<ApiResponse<Product[]>>(endpoint);
-  return res.data || [];
+  const items = res.data || [];
+  return {
+    products: items,
+    total: res.total !== undefined ? res.total : items.length,
+    page: res.page || filter.page || 1,
+    limit: res.limit || filter.limit || 12,
+    totalPages: res.totalPages || Math.ceil((res.total || items.length) / (res.limit || filter.limit || 12)) || 1,
+  };
 }
 
 export async function fetchProductById(id: string): Promise<Product> {

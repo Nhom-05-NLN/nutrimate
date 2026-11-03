@@ -139,6 +139,17 @@ export interface ProductFilterQuery {
   minPrice?: number;
   maxPrice?: number;
   specialDiet?: string[];
+  page?: number;
+  limit?: number;
+  sort?: string;
+}
+
+export interface PaginatedProductResult {
+  products: Product[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export interface CreateOrderPayload {
@@ -205,6 +216,9 @@ export interface ApiResponse<T> {
   data?: T;
   message?: string;
   total?: number;
+  page?: number;
+  limit?: number;
+  totalPages?: number;
 }
 
 export type NutritionGoal = 'lose_weight' | 'maintain_weight' | 'gain_weight';
@@ -225,6 +239,7 @@ export interface CaloriePlanResult extends CalorieProfileInput {
   tdeeKcal: number;
   targetCalories: number;
   adjustmentKcal: number;
+  minimumTargetApplied: boolean;
 }
 
 export interface CaloriePlanResponse {

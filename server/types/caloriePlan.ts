@@ -16,4 +16,5 @@ export interface CaloriePlan extends CalorieProfile {
   tdeeKcal: number;
   targetCalories: number;
   adjustmentKcal: number;
+  minimumTargetApplied: boolean;
 }
