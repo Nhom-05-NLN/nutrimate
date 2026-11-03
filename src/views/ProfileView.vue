@@ -660,7 +660,7 @@ async function handleAvatarChange(event: Event) {
             <span class="block text-xs font-bold text-[#242424]">Ưu tiên dinh dưỡng</span>
             <div class="flex flex-wrap gap-1.5">
               <button
-                v-for="pref in ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt', 'Keto chuẩn']"
+                v-for="pref in availableDietPreferences"
                 :key="pref"
                 type="button"
                 @click="togglePreference(pref)"
@@ -987,98 +987,6 @@ async function handleAvatarChange(event: Event) {
           </form>
         </section>
 
-        <!-- Card 2: Mục tiêu dinh dưỡng & Chế độ ăn uống (Figma 07) -->
-        <div class="bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-6">
-          <div class="border-b border-[#F0F3EC] pb-4">
-            <h2 class="font-heading text-base font-bold text-[#242424]">
-              Mục tiêu dinh dưỡng & Chế độ ăn uống
-            </h2>
-            <p class="text-xs text-[#7A866E]">Định hình tỷ lệ Macro và lượng Calo hàng ngày</p>
-          </div>
-
-          <!-- Mục tiêu thể chất trọng tâm -->
-          <div class="space-y-2.5">
-            <span class="text-xs font-bold text-[#242424] block">Mục tiêu thể chất trọng tâm</span>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              <button
-                v-for="goal in goalOptions"
-                :key="goal.value"
-                type="button"
-                @click="selectedGoal = goal.value"
-                class="px-3.5 py-2.5 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer"
-                :class="
-                  selectedGoal === goal.value
-                    ? 'bg-[#4D6A34] text-white border-[#4D6A34] shadow-2xs'
-                    : 'bg-[#FAF9F5] text-[#576449] border-[#DEE5D4] hover:bg-white'
-                "
-              >
-                {{ goal.label }}
-              </button>
-            </div>
-          </div>
-
-          <div class="space-y-2.5 pt-3 border-t border-[#F0F3EC]">
-            <label class="text-xs font-bold text-[#242424] block" for="profile-activity-level">Mức độ hoạt động để tính Calories</label>
-            <select id="profile-activity-level" v-model="activityLevel" class="w-full sm:max-w-md px-4 py-3 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-sm text-[#242424]">
-              <option :value="null" disabled>Chọn mức độ hoạt động</option>
-              <option v-for="option in activityOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
-          </div>
-
-          <!-- Tiêu chí chế độ dinh dưỡng áp dụng -->
-          <div class="space-y-2.5 pt-3 border-t border-[#F0F3EC]">
-            <span class="text-xs font-bold text-[#242424] block">Tiêu chí chế độ dinh dưỡng áp dụng</span>
-            <div class="flex flex-wrap gap-2.5">
-              <button
-                v-for="pref in availableDietPreferences"
-                :key="pref"
-                type="button"
-                @click="togglePreference(pref)"
-                class="px-4 py-2 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5 cursor-pointer"
-                :class="
-                  dietPreferences.includes(pref)
-                    ? 'bg-[#EBF7E5] text-[#3B4E24] border-[#CCD7BC] font-bold'
-                    : 'bg-white text-[#7A866E] border-[#E3E8DC]'
-                "
-              >
-                <span v-if="dietPreferences.includes(pref)">✓</span>
-                <span>{{ pref }}</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="space-y-4 pt-3 border-t border-[#F0F3EC]">
-            <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <span class="font-bold text-[#242424]">Mục tiêu Calories mỗi ngày</span>
-              <span v-if="caloriePlan" class="font-heading text-xl font-black text-[#4D6A34]">{{ formatNumber(caloriePlan.targetCalories) }} kcal/ngày</span>
-              <span v-else class="text-xs text-[#7A866E]">{{ planLoading ? 'Đang tải…' : 'Chưa có lộ trình' }}</span>
-            </div>
-
-            <div v-if="caloriePlan" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              <div class="rounded-2xl bg-[#F6F8F3] border border-[#DEE5D4] p-4">
-                <span class="text-xs text-[#7A866E] block">TDEE theo hoạt động</span>
-                <strong class="mt-1 block text-[#242424]">{{ formatNumber(caloriePlan.tdeeKcal) }} kcal/ngày</strong>
-              </div>
-              <div class="rounded-2xl bg-[#F6F8F3] border border-[#DEE5D4] p-4">
-                <span class="text-xs text-[#7A866E] block">Điều chỉnh so với TDEE</span>
-                <strong class="mt-1 block text-[#242424]">{{ caloriePlan.adjustmentKcal > 0 ? '+' : '' }}{{ formatNumber(caloriePlan.adjustmentKcal) }} kcal/ngày</strong>
-              </div>
-            </div>
-            <p v-if="caloriePlan?.minimumTargetApplied" class="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Đã áp dụng mức sàn 1.200 kcal/ngày.</p>
-
-            <p v-if="planError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800" role="alert">{{ planError }}</p>
-            <p class="text-xs leading-5 text-[#7A866E]">Ước tính dùng công thức Mifflin–St Jeor và hệ số hoạt động đã chọn; mục tiêu giảm/tăng dùng mức điều chỉnh 300 kcal/ngày. Đây là giả định tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.</p>
-            <button
-              type="button"
-              :disabled="planSaving || planLoading"
-              @click="saveCaloriePlan"
-              class="w-full py-3.5 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] disabled:opacity-60 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors mt-2 cursor-pointer"
-            >
-              <Save class="w-4 h-4" />
-              <span>{{ planSaving ? 'Đang lưu hồ sơ…' : 'Lưu hồ sơ và cập nhật lộ trình Calories' }}</span>
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   </div>
