@@ -55,4 +55,16 @@ test('calorie plan is unavailable until required profile fields are complete', (
     calculateCaloriePlan({ ...baseProfile, nutritionGoal: null }),
     null,
   );
+  assert.equal(
+    calculateCaloriePlan({ ...baseProfile, nutritionGoal: undefined as unknown as typeof baseProfile.nutritionGoal }),
+    null,
+  );
+  assert.equal(
+    calculateCaloriePlan({ ...baseProfile, heightCm: Number.NaN }),
+    null,
+  );
+  assert.equal(
+    calculateCaloriePlan({ ...baseProfile, activityLevel: 'invalid' as never }),
+    null,
+  );
 });

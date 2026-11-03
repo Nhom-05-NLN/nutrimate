@@ -23,7 +23,33 @@ const goalAdjustments: Record<NutritionGoal, number> = {
 
 export function calculateCaloriePlan(profile: CalorieProfile): CaloriePlan | null {
   const { heightCm, weightKg, age, gender, activityLevel, nutritionGoal } = profile;
-  if (heightCm === null || weightKg === null || age === null || gender === null || activityLevel === null || nutritionGoal === null) {
+  const hasMissingRequiredFields = (
+    heightCm == null ||
+    weightKg == null ||
+    age == null ||
+    gender == null ||
+    activityLevel == null ||
+    nutritionGoal == null
+  );
+
+  if (hasMissingRequiredFields) {
+    return null;
+  }
+
+  if (
+    !Number.isFinite(heightCm) ||
+    heightCm < 80 ||
+    heightCm > 250 ||
+    !Number.isFinite(weightKg) ||
+    weightKg < 20 ||
+    weightKg > 400 ||
+    !Number.isInteger(age) ||
+    age < 13 ||
+    age > 120 ||
+    (gender !== 'male' && gender !== 'female' && gender !== 'other') ||
+    !(activityLevel in activityFactors) ||
+    !(nutritionGoal in goalAdjustments)
+  ) {
     return null;
   }
 
