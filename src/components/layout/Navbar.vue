@@ -203,7 +203,12 @@ function handleSearchSubmit() {
               <!-- Account Actions -->
               <div v-if="authStore.currentUser" class="p-2.5 space-y-1">
 
-                <RouterLink to="/profile" @click="isUserDropdownOpen = false" class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#F4F7EF] transition-colors group">
+                <RouterLink
+                  v-if="authStore.currentUser?.role === 'customer'"
+                  to="/profile"
+                  @click="isUserDropdownOpen = false"
+                  class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#F4F7EF] transition-colors group"
+                >
                   <UserRoundPen class="w-[19px] h-[19px] text-[#71813B]" />
 
                   <div class="flex-1 min-w-0">
@@ -215,6 +220,20 @@ function handleSearchSubmit() {
                   <ChevronRight
                     class="w-4 h-4 text-[#A3AA98] group-hover:text-[#71813B]"
                   />
+                </RouterLink>
+
+                <RouterLink
+                  v-if="authStore.currentUser?.role === 'admin'"
+                  to="/admin"
+                  @click="isUserDropdownOpen = false"
+                  class="flex items-center gap-3 rounded-xl bg-[#F4F7EF] px-3 py-3 transition-colors group hover:bg-[#EBF7E5]"
+                >
+                  <ShieldCheck class="h-[19px] w-[19px] text-[#536124]" />
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[13px] font-bold text-[#2D3B1E]">Về trang quản trị</p>
+                    <p class="mt-0.5 text-[11px] text-[#7A866E]">Mở bảng điều khiển admin</p>
+                  </div>
+                  <ChevronRight class="h-4 w-4 text-[#A3AA98] group-hover:text-[#536124]" />
                 </RouterLink>
 
                 <RouterLink  v-if="authStore.currentUser?.role === 'customer'" to="/nutrition" @click="isUserDropdownOpen = false" class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#F4F7EF] transition-colors group">
@@ -324,6 +343,15 @@ function handleSearchSubmit() {
           class="px-4 py-2.5 rounded-xl text-sm font-semibold text-[#242424] hover:bg-[#EBF7E5]"
         >
           Đơn hàng
+        </RouterLink>
+        <RouterLink
+          v-if="authStore.currentUser?.role === 'admin'"
+          to="/admin"
+          @click="isMobileMenuOpen = false"
+          class="mx-2 flex items-center gap-2 rounded-xl bg-[#536124] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#434F1D]"
+        >
+          <ShieldCheck class="h-4 w-4" />
+          Về trang quản trị
         </RouterLink>
       </div>
     </div>
