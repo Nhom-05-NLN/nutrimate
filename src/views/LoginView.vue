@@ -101,15 +101,15 @@ async function handleLogin() {
 
         <div class="relative mt-4 grid grid-cols-3 divide-x divide-white/15 rounded-2xl border border-white/10 bg-white/5 px-2 py-2.5 text-center lg:mt-3 lg:py-2">
           <div class="px-1">
-            <p class="font-heading text-lg font-black">AI</p>
+            <p class="flex h-7 items-center justify-center font-heading text-lg font-black">AI</p>
             <p class="mt-0.5 text-[10px] text-white/65">Gợi ý cá nhân</p>
           </div>
           <div class="px-1">
-            <p class="font-heading text-lg font-black">BMI</p>
+            <p class="flex h-7 items-center justify-center font-heading text-lg font-black">BMI</p>
             <p class="mt-0.5 text-[10px] text-white/65">Theo dõi sức khỏe</p>
           </div>
           <div class="px-1">
-            <p class="font-heading text-lg font-black"><ShieldCheck class="mx-auto h-5 w-5 text-[#DCE9C5]" /></p>
+            <p class="flex h-7 items-center justify-center font-heading text-lg font-black"><ShieldCheck class="h-5 w-5 text-[#DCE9C5]" /></p>
             <p class="mt-0.5 text-[10px] text-white/65">Tài khoản an toàn</p>
           </div>
         </div>
@@ -198,12 +198,6 @@ async function handleLogin() {
           <div v-if="!isAdminLogin" class="mt-7 text-center text-sm text-[#7A866E] lg:mt-4">
             Chưa có tài khoản?
             <RouterLink to="/register" class="ml-1 font-bold text-[#536124] hover:underline">Tạo tài khoản mới</RouterLink>
-            <div class="mt-5 border-t border-[#EEF1E9] pt-4 lg:mt-3 lg:pt-3">
-              <RouterLink to="/admin/login" class="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8C9882] transition hover:text-[#536124]">
-                <ShieldCheck class="h-3.5 w-3.5" />
-                Đăng nhập quản trị viên
-              </RouterLink>
-            </div>
           </div>
           <div v-else class="mt-7 text-center text-sm text-[#7A866E] lg:mt-4">
             <RouterLink to="/login" class="font-bold text-[#536124] hover:underline">Quay lại đăng nhập khách hàng</RouterLink>

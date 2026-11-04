@@ -122,7 +122,7 @@ const bmiCategory = computed(() => {
 });
 const availableDietPreferences = ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt', 'Keto chuẩn'];
 const dietPreferences = ref<string[]>([
-  ...(authStore.currentUser?.dietPreferences ?? ['Low-Carb', 'Giàu Protein']),
+  ...(authStore.currentUser?.dietPreferences ?? []),
 ]);
 const currentDietLabel = computed(() => dietPreferences.value.join(' & ') || 'Chưa chọn');
 const suggestedFoodPackage = computed(() => ({

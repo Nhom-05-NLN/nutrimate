@@ -29,6 +29,7 @@ import {
   Camera,
   Pencil,
   Save,
+  LogOut,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -357,6 +358,13 @@ const todayLabel = new Date().toLocaleDateString('vi-VN', {
 function closeNotifications() {
   isNotificationsOpen.value = false;
 }
+
+async function handleAdminLogout() {
+  await authStore.logout();
+  isAccountDetailsOpen.value = false;
+  isSidebarOpen.value = false;
+  await router.replace('/admin/login');
+}
 </script>
 
 <template>
@@ -494,6 +502,14 @@ function closeNotifications() {
             <Store class="w-4 h-4" />
           </RouterLink>
         </div>
+        <button
+          type="button"
+          class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#E3E8DC] px-3 py-2.5 text-xs font-bold text-[#576449] transition-colors hover:border-[#D9B7B0] hover:bg-[#FBF3F1] hover:text-[#A33A2B] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#536124]"
+          @click="handleAdminLogout"
+        >
+          <LogOut class="h-4 w-4" />
+          Đăng xuất
+        </button>
       </div>
     </aside>
 
