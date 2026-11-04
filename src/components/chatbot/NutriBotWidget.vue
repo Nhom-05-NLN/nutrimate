@@ -168,8 +168,11 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
           <div>
             <div class="flex items-center gap-1.5">
               <h3 class="font-heading text-sm font-bold text-white">NutriBot AI Consultant</h3>
-              <span class="px-1.5 py-0.5 rounded-full bg-[#5A733E] text-[10px] font-semibold text-emerald-100 flex items-center gap-1">
-                <Sparkles class="w-2.5 h-2.5" /> v2.4
+              <span
+                title="Gemini 2.5 Flash"
+                class="px-1.5 py-0.5 rounded-full bg-[#5A733E] text-[10px] font-semibold text-emerald-100 flex items-center gap-1"
+              >
+                <Sparkles class="w-2.5 h-2.5" /> v2.5
               </span>
             </div>
             <p class="text-[11px] text-[#DCE7D0] flex items-center gap-1">

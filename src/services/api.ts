@@ -540,6 +540,80 @@ export interface AdminCustomerMutationInput {
   nutritionGoal: 'lose_weight' | 'maintain_weight' | 'gain_weight' | null;
 }
 
+export interface AdminNotification {
+  id: string;
+  type: 'customer_registered' | 'customer_logged_in';
+  title: string;
+  message: string;
+  customerId: string | null;
+  createdAt: string;
+  readAt: string | null;
+}
+
+export interface AdminNotificationList {
+  notifications: AdminNotification[];
+  unreadCount: number;
+}
+
+export async function fetchAdminNotifications(): Promise<AdminNotificationList> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetchJson<ApiResponse<AdminNotificationList>>('/admin/notifications', {
+      signal: controller.signal,
+    });
+    if (!response.data) {
+      throw new Error(response.message || 'Không thể tải thông báo quản trị.');
+    }
+    return response.data;
+  } catch (error: unknown) {
+    if (controller.signal.aborted) {
+      throw new Error('Máy chủ không phản hồi API thông báo. Hãy khởi động lại backend rồi thử lại.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export async function markAdminNotificationsRead(): Promise<void> {
+  const response = await fetchJson<ApiResponse<{ updated: boolean }>>('/admin/notifications/read-all', {
+    method: 'PATCH',
+  });
+  if (!response.data?.updated) {
+    throw new Error(response.message || 'Không thể cập nhật trạng thái thông báo.');
+  }
+}
+
+export async function markAdminNotificationRead(id: string): Promise<void> {
+  const response = await fetchJson<ApiResponse<{ updated: boolean }>>(
+    `/admin/notifications/${encodeURIComponent(id)}/read`,
+    { method: 'PATCH' },
+  );
+  if (!response.data?.updated) {
+    throw new Error(response.message || 'Không thể cập nhật trạng thái thông báo.');
+  }
+}
+
+export async function deleteAdminNotification(id: string): Promise<void> {
+  const response = await fetchJson<ApiResponse<{ deleted: boolean }>>(
+    `/admin/notifications/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+  );
+  if (!response.data?.deleted) {
+    throw new Error(response.message || 'Không thể xóa thông báo.');
+  }
+}
+
+export async function deleteAllAdminNotifications(): Promise<void> {
+  const response = await fetchJson<ApiResponse<{ deleted: boolean }>>('/admin/notifications', {
+    method: 'DELETE',
+  });
+  if (!response.data?.deleted) {
+    throw new Error(response.message || 'Không thể xóa tất cả thông báo.');
+  }
+}
+
 function notifyAdminCustomerCountChanged(): void {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('admin-customers-changed'));
