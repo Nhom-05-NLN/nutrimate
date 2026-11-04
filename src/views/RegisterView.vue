@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
+import { DEFAULT_USER_AVATAR } from '../constants/avatar';
 import { postRegister } from '../services/api';
 import {
   Leaf,
@@ -59,7 +60,7 @@ async function handleRegister() {
       email: registeredUser.email,
       phone: registeredUser.phone,
       role: registeredUser.role,
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+      avatar: DEFAULT_USER_AVATAR,
       birthDate: '1998-06-18',
       city: 'TP. Hồ Chí Minh',
       membershipTier: 'Silver',
@@ -89,7 +90,7 @@ async function handleRegister() {
       dietPreferences: ['Low-Carb', 'Giàu Protein'],
     }, registeredUser.accessToken);
 
-    toastStore.show('Đăng ký tài khoản thành công!', 'success', 'Bạn nhận được 50 NutriPoints & Voucher 15%');
+    toastStore.show('Đăng ký tài khoản thành công!', 'success');
     router.push('/profile');
   } catch (err: unknown) {
     toastStore.show(

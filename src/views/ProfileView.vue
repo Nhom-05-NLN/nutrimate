@@ -719,7 +719,7 @@ async function handleAvatarChange(event: Event) {
               Theo hồ sơ hiện tại, mục tiêu của bạn là <strong>{{ goalLabels[caloriePlan.nutritionGoal] }}</strong> với mức năng lượng tham khảo <strong>{{ formatNumber(caloriePlan.targetCalories) }} kcal/ngày</strong>.
               Thông tin chỉ mang tính tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.
             </p>
-            <p v-else class="text-xs sm:text-sm text-[#4E5C3E] leading-relaxed">{{ planLoading ? 'Đang tải lộ trình Calories…' : 'Chưa có lộ trình. Hãy cập nhật số đo và mục tiêu ở mục bên phải.' }}</p>
+            <p v-else class="text-xs sm:text-sm text-[#4E5C3E] leading-relaxed">{{ planLoading ? 'Đang tải lộ trình Calories…' : 'Chưa có lộ trình. Hãy cập nhật số đo và mục tiêu.' }}</p>
           </div>
 
         <!-- Gói thực phẩm gợi ý -->

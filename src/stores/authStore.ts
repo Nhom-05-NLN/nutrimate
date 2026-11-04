@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { UserProfile } from '../types';
 import { useToastStore } from './toastStore';
+import { DEFAULT_USER_AVATAR, LEGACY_DEFAULT_USER_AVATAR } from '../constants/avatar';
 import {
   fetchCurrentUser,
   postLogout,
@@ -13,7 +14,7 @@ import {
 export const useAuthStore = defineStore('auth', () => {
   const profileDefaults: Omit<UserProfile, 'id' | 'name' | 'email' | 'phone'> = {
     role: 'customer',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+    avatar: DEFAULT_USER_AVATAR,
     birthDate: '1998-06-18',
     city: 'TP. Hồ Chí Minh',
     membershipTier: 'Gold',
@@ -82,6 +83,12 @@ export const useAuthStore = defineStore('auth', () => {
               name: profile.name,
               email: profile.email,
               phone: profile.phone,
+              avatar:
+                'avatar' in profile &&
+                typeof profile.avatar === 'string' &&
+                profile.avatar !== LEGACY_DEFAULT_USER_AVATAR
+                  ? profile.avatar
+                  : DEFAULT_USER_AVATAR,
               role: 'role' in profile && profile.role === 'admin' ? 'admin' : 'customer',
             },
             storage,
@@ -129,7 +136,11 @@ export const useAuthStore = defineStore('auth', () => {
       ...profileDefaults,
       ...cachedProfile,
       ...user,
-      avatar: user.avatarUrl || cachedProfile?.avatar || profileDefaults.avatar,
+      avatar: user.avatarUrl || (
+        cachedProfile?.avatar && cachedProfile.avatar !== LEGACY_DEFAULT_USER_AVATAR
+          ? cachedProfile.avatar
+          : profileDefaults.avatar
+      ),
       role: user.role,
       defaultAddress: user.defaultAddress ?? cachedProfile?.defaultAddress ?? null,
     };
