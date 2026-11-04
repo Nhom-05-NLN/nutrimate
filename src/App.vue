@@ -12,7 +12,11 @@ const isAdminRoute = computed(() => route.path.startsWith('/admin'));
 
 <template>
   <div v-if="isBlankLayout" class="min-h-screen bg-white">
-    <RouterView />
+    <RouterView v-slot="{ Component, route: viewRoute }">
+      <Transition name="auth-page" mode="out-in">
+        <component :is="Component" :key="viewRoute.path" />
+      </Transition>
+    </RouterView>
     <ToastNotification />
   </div>
   <component v-else :is="isAdminRoute ? AdminLayout : DefaultLayout">

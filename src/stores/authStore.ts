@@ -19,7 +19,7 @@ export const useAuthStore = defineStore('auth', () => {
     city: 'TP. Hồ Chí Minh',
     membershipTier: 'Gold',
     nutriPoints: 490,
-    currentDiet: 'Eat Clean & Low-Carb',
+    currentDiet: 'Chưa chọn',
     fitnessGoal: 'Giảm 3kg mỡ và săn chắc cơ bắp',
     heightCm: 165,
     weightKg: 58.5,
@@ -41,7 +41,7 @@ export const useAuthStore = defineStore('auth', () => {
       fatGrams: 45,
       fatKcal: 405,
     },
-    dietPreferences: ['Low-Carb', 'Giàu Protein'],
+    dietPreferences: [],
   };
 
   const authStorageKey = "nutrimate-auth-user";
@@ -75,14 +75,24 @@ export const useAuthStore = defineStore('auth', () => {
           typeof token === "string" &&
           token.length > 0
         ) {
-          return {
-            user: {
+          const hasLegacyDefaultDietPreferences =
+            'dietPreferences' in profile &&
+            Array.isArray(profile.dietPreferences) &&
+            profile.dietPreferences.length === 2 &&
+            profile.dietPreferences[0] === 'Low-Carb' &&
+            profile.dietPreferences[1] === 'Giàu Protein' &&
+            'currentDiet' in profile &&
+            profile.currentDiet === 'Eat Clean & Low-Carb';
+          const user: UserProfile = {
               ...profileDefaults,
               ...profile,
               id: profile.id,
               name: profile.name,
               email: profile.email,
               phone: profile.phone,
+              ...(hasLegacyDefaultDietPreferences
+                ? { currentDiet: 'Chưa chọn', dietPreferences: [] }
+                : {}),
               avatar:
                 'avatar' in profile &&
                 typeof profile.avatar === 'string' &&
@@ -90,7 +100,12 @@ export const useAuthStore = defineStore('auth', () => {
                   ? profile.avatar
                   : DEFAULT_USER_AVATAR,
               role: 'role' in profile && profile.role === 'admin' ? 'admin' : 'customer',
-            },
+            };
+          if (hasLegacyDefaultDietPreferences) {
+            storage.setItem(authStorageKey, JSON.stringify(user));
+          }
+          return {
+            user,
             storage,
             token,
           };

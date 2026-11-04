@@ -14,8 +14,6 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  Bot,
-  Scan,
   ShieldCheck,
   Sparkles,
 } from 'lucide-vue-next';
@@ -31,7 +29,7 @@ const password = ref('');
 const confirmPassword = ref('');
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
-const isAgreed = ref(true);
+const isAgreed = ref(false);
 
 async function handleRegister() {
   if (password.value !== confirmPassword.value) {
@@ -65,7 +63,7 @@ async function handleRegister() {
       city: 'TP. Hồ Chí Minh',
       membershipTier: 'Silver',
       nutriPoints: 50,
-      currentDiet: 'Eat Clean',
+      currentDiet: 'Chưa chọn',
       fitnessGoal: 'Duy trì vóc dáng và sống khỏe',
       heightCm: 165,
       weightKg: 58.5,
@@ -87,7 +85,7 @@ async function handleRegister() {
         fatGrams: 45,
         fatKcal: 405,
       },
-      dietPreferences: ['Low-Carb', 'Giàu Protein'],
+      dietPreferences: [],
     }, registeredUser.accessToken);
 
     toastStore.show('Đăng ký tài khoản thành công!', 'success');
@@ -104,74 +102,66 @@ async function handleRegister() {
 <template>
   <div class="min-h-screen bg-[#F4F5EE] px-4 py-5 sm:px-8 sm:py-8 lg:flex lg:items-center lg:justify-center lg:px-6 lg:py-4">
     <div class="mx-auto flex w-full max-w-7xl flex-col overflow-hidden rounded-[30px] border border-[#E3E8DC] bg-white shadow-[0_24px_80px_rgba(45,59,30,0.12)] lg:min-h-[calc(100vh-4rem)] lg:flex-row">
-    <!-- CỘT TRÁI: ĐẶC QUYỀN THÀNH VIÊN MỚI (NỀN KEM #F7F3E8 - FIGMA 16) -->
-    <div class="w-full shrink-0 space-y-6 border-b border-[#E8ECE2] bg-[#F4F6EE] p-6 sm:p-9 lg:flex lg:w-[390px] lg:flex-col lg:justify-between lg:space-y-4 lg:border-b-0 lg:border-r lg:p-7 xl:w-[430px]">
-      <div class="space-y-4 lg:space-y-3">
-        <!-- Logo NutriMate -->
-        <RouterLink to="/" class="flex items-center gap-3.5 group">
-          <div class="w-11 h-11 rounded-2xl bg-[#6B7A3A] flex items-center justify-center text-white shadow-2xs group-hover:scale-105 transition-transform">
-            <Leaf class="w-6 h-6 text-[#EBF7E5]" />
-          </div>
-          <span class="font-heading text-2xl font-black tracking-tight text-[#242424]">NutriMate</span>
-        </RouterLink>
+    <!-- CỘT TRÁI: BỐ CỤC THƯƠNG HIỆU ĐỒNG NHẤT VỚI ĐĂNG NHẬP -->
+    <div class="relative flex min-h-[300px] w-full shrink-0 flex-col overflow-hidden bg-[#34451F] p-6 text-white sm:p-9 lg:min-h-full lg:w-[390px] lg:p-8 xl:w-[430px]">
+      <div class="pointer-events-none absolute -right-28 -top-24 h-80 w-80 rounded-full border border-white/10"></div>
+      <div class="pointer-events-none absolute -right-12 -top-8 h-48 w-48 rounded-full border border-white/10"></div>
+      <RouterLink to="/" class="relative z-10 inline-flex w-fit items-center gap-3 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
+        <span class="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/12 ring-1 ring-white/15">
+          <Leaf class="h-6 w-6 text-[#DCE9C5]" />
+        </span>
+        <span>
+          <span class="block font-heading text-xl font-black leading-tight">NutriMate</span>
+          <span class="mt-0.5 block text-[10px] font-medium tracking-wide text-white/65">Dinh dưỡng khoa học mỗi ngày</span>
+        </span>
+      </RouterLink>
 
-        <div class="space-y-2.5">
-          <span class="inline-flex items-center gap-1.5 rounded-full border border-[#CCD7BC] bg-[#EBF7E5] px-3 py-1.5 text-xs font-bold text-[#536124]">
-            <Sparkles class="h-3.5 w-3.5" />
-            Bắt đầu hành trình của bạn
-          </span>
-          <h2 class="font-heading text-2xl sm:text-3xl font-black text-[#242424] leading-snug">
-            Bắt đầu hành trình sống khỏe cùng NutriMate
-          </h2>
-          <p class="text-xs sm:text-sm text-[#576449] leading-relaxed">
-            Hệ thống dinh dưỡng cá nhân hóa tiên phong tại Việt Nam, kết nối bữa ăn lành mạnh và trí tuệ nhân tạo.
-          </p>
-        </div>
+      <div class="relative z-10 mt-6 lg:mt-auto">
+        <p class="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-[#E4EDCF] ring-1 ring-white/10">
+          <Sparkles class="h-3.5 w-3.5" />
+          Bắt đầu hành trình của bạn
+        </p>
+        <h1 class="max-w-lg font-heading text-3xl font-black leading-tight sm:text-4xl">
+          Bắt đầu hành trình sống khỏe cùng NutriMate
+        </h1>
+        <p class="mt-3 max-w-md text-sm leading-6 text-white/70">
+          Hệ thống dinh dưỡng cá nhân hóa tiên phong tại Việt Nam, kết nối bữa ăn lành mạnh và trí tuệ nhân tạo.
+        </p>
+      </div>
 
-        <!-- Thẻ ảnh bữa ăn lành mạnh -->
-        <div class="hidden overflow-hidden rounded-3xl border border-[#CCD7BC] bg-white shadow-xs lg:block">
-          <div class="relative">
-            <img
-              src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=700&q=80"
-              alt="Healthy Meal NutriMate"
-              class="h-40 w-full object-cover lg:h-32"
-            />
-            <div class="absolute inset-0 bg-linear-to-t from-[#1D2A14]/75 via-transparent to-transparent"></div>
-            <div class="absolute inset-x-4 bottom-4 text-white">
-              <span class="text-[10px] font-bold uppercase tracking-[0.16em] text-white/75">NutriMate</span>
-              <p class="mt-1 font-heading text-base font-bold">Ăn cân bằng, sống khỏe hơn</p>
+      <div class="relative mt-5 overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-2 shadow-2xl backdrop-blur-sm lg:mt-4">
+        <div class="relative h-36 overflow-hidden rounded-[20px] sm:h-48 lg:h-40">
+          <img
+            src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=900&q=85"
+            alt="Bữa ăn lành mạnh với rau củ tươi"
+            class="h-full w-full object-cover"
+          />
+          <div class="absolute inset-0 bg-linear-to-t from-[#1D2A14]/80 via-transparent to-transparent"></div>
+          <div class="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3 text-white sm:inset-x-5 sm:bottom-5">
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">NutriMate</p>
+              <p class="mt-1 font-heading text-lg font-bold">Ăn cân bằng, sống khỏe hơn</p>
             </div>
-          </div>
-        </div>
-
-        <div class="hidden grid-cols-2 gap-2 lg:grid">
-          <div class="flex items-center gap-2 rounded-xl border border-[#E3E8DC] bg-white px-3 py-2.5 text-[11px] font-semibold text-[#536124]">
-            <Bot class="h-4 w-4 shrink-0" />
-            Gợi ý từ NutriBot
-          </div>
-          <div class="flex items-center gap-2 rounded-xl border border-[#E3E8DC] bg-white px-3 py-2.5 text-[11px] font-semibold text-[#536124]">
-            <Scan class="h-4 w-4 shrink-0" />
-            Theo dõi dinh dưỡng
+            <span class="shrink-0 rounded-xl bg-white/90 px-3 py-2 text-[10px] font-bold text-[#34451F] shadow-lg">
+              NutriBot AI
+            </span>
           </div>
         </div>
       </div>
 
-      <!-- Avatar Stacks chân cột trái (Figma 16) -->
-      <div class="flex items-center gap-3 border-t border-[#DEE5D4] pt-4">
-        <div class="flex -space-x-2">
-          <div class="w-8 h-8 rounded-full bg-[#CCD7BC] text-[#242424] font-bold text-[10px] flex items-center justify-center border-2 border-white">
-            MA
-          </div>
-          <div class="w-8 h-8 rounded-full bg-[#EBF7E5] text-[#536124] font-bold text-[10px] flex items-center justify-center border-2 border-white">
-            TN
-          </div>
-          <div class="w-8 h-8 rounded-full bg-[#A3B88C] text-white font-bold text-[10px] flex items-center justify-center border-2 border-white">
-            QD
-          </div>
+      <div class="relative mt-4 grid grid-cols-3 divide-x divide-white/15 rounded-2xl border border-white/10 bg-white/5 px-2 py-2.5 text-center lg:mt-3 lg:py-2">
+        <div class="px-1">
+          <p class="flex h-7 items-center justify-center font-heading text-lg font-black">AI</p>
+          <p class="mt-0.5 text-[10px] text-white/65">Gợi ý cá nhân</p>
         </div>
-        <p class="text-xs text-[#576449]">
-          Đồng hành cùng bạn trên hành trình ăn uống lành mạnh mỗi ngày.
-        </p>
+        <div class="px-1">
+          <p class="flex h-7 items-center justify-center font-heading text-lg font-black">BMI</p>
+          <p class="mt-0.5 text-[10px] text-white/65">Theo dõi sức khỏe</p>
+        </div>
+        <div class="px-1">
+          <p class="flex h-7 items-center justify-center font-heading text-lg font-black"><ShieldCheck class="h-5 w-5 text-[#DCE9C5]" /></p>
+          <p class="mt-0.5 text-[10px] text-white/65">Tài khoản an toàn</p>
+        </div>
       </div>
     </div>
 
@@ -235,7 +225,7 @@ async function handleRegister() {
                   name="tel"
                   autocomplete="tel"
                   required
-                  placeholder="0912 345 678 (Giao 2H)"
+                  placeholder="0912 345 678"
                   class="h-13 w-full min-w-0 bg-transparent text-sm text-[#242424] outline-none placeholder:text-[#A0A897] sm:text-base lg:h-11 lg:text-sm"
                 />
               </div>
@@ -305,15 +295,16 @@ async function handleRegister() {
           </div>
 
           <!-- Checkbox Điều Khoản -->
-          <label class="flex cursor-pointer items-start gap-2 pt-0.5 text-xs leading-5 text-[#64705B] sm:text-sm lg:text-xs lg:leading-4">
-            <input type="checkbox" v-model="isAgreed" required class="mt-0.5 h-4 w-4 shrink-0 rounded accent-[#536124]" />
+          <label class="flex cursor-pointer items-center gap-2 pt-0.5 text-xs leading-5 text-[#64705B] sm:text-sm lg:text-xs lg:leading-4">
+            <input type="checkbox" v-model="isAgreed" required class="h-4 w-4 shrink-0 rounded accent-[#536124]" />
             <span>Tôi đồng ý với <a href="#" class="font-bold text-[#35432A] underline underline-offset-2">Điều khoản dịch vụ</a> và <a href="#" class="font-bold text-[#35432A] underline underline-offset-2">Chính sách bảo vệ dữ liệu sức khỏe</a> của NutriMate.</span>
           </label>
 
           <!-- Nút Submit (Xanh rêu đậm Figma 16) -->
           <button
             type="submit"
-            class="group flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-[#536124] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#536124]/15 transition hover:-translate-y-0.5 hover:bg-[#3F4C20] hover:shadow-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#536124]"
+            :disabled="!isAgreed"
+            class="group flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-[#536124] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#536124]/15 transition hover:-translate-y-0.5 hover:bg-[#3F4C20] hover:shadow-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#536124] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-[#536124] disabled:hover:shadow-lg"
           >
             <span>Tạo tài khoản</span>
             <ArrowRight class="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -323,7 +314,7 @@ async function handleRegister() {
         <!-- Chuyển sang Đăng nhập -->
         <div class="text-center text-sm text-[#576449] lg:text-xs">
           Bạn đã có tài khoản NutriMate?
-          <RouterLink to="/login" class="font-bold text-[#242424] hover:underline ml-1">
+          <RouterLink to="/login" class="ml-1 font-bold text-[#536124] hover:underline">
             Đăng nhập tại đây
           </RouterLink>
         </div>
