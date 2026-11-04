@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { fetchAdminCustomers } from '../services/api';
+import { useAuthStore } from '../stores/authStore';
 import {
   LayoutDashboard,
   Package,
@@ -17,11 +18,131 @@ import {
   ChevronRight,
   Menu,
   X,
+  Camera,
+  Pencil,
+  Save,
 } from 'lucide-vue-next';
 
 const route = useRoute();
+const authStore = useAuthStore();
 const isSidebarOpen = ref(false);
+const isAccountDetailsOpen = ref(false);
+const isNotificationsOpen = ref(false);
+const isEditingAccount = ref(false);
+const accountSaving = ref(false);
+const avatarSaving = ref(false);
+const accountError = ref('');
+const avatarError = ref('');
+const avatarInput = ref<HTMLInputElement | null>(null);
+const accountForm = ref({ name: '', email: '', phone: '' });
 const customerCount = ref<number | null>(null);
+
+function openAccountDetails() {
+  const user = authStore.currentUser;
+  if (!user) return;
+  accountForm.value = { name: user.name, email: user.email, phone: user.phone };
+  accountError.value = '';
+  avatarError.value = '';
+  isEditingAccount.value = false;
+  isAccountDetailsOpen.value = true;
+}
+
+function cancelAccountEdit() {
+  const user = authStore.currentUser;
+  if (user) accountForm.value = { name: user.name, email: user.email, phone: user.phone };
+  accountError.value = '';
+  isEditingAccount.value = false;
+}
+
+async function saveAccountDetails() {
+  accountSaving.value = true;
+  accountError.value = '';
+  try {
+    const savedUser = await authStore.updateAccountProfile(accountForm.value);
+    accountForm.value = {
+      name: savedUser.name,
+      email: savedUser.email,
+      phone: savedUser.phone,
+    };
+    isEditingAccount.value = false;
+  } catch (error: unknown) {
+    accountError.value = error instanceof Error
+      ? error.message
+      : 'Không thể cập nhật thông tin tài khoản.';
+  } finally {
+    accountSaving.value = false;
+  }
+}
+
+async function handleAvatarChange(event: Event) {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+
+  const file = input.files?.[0];
+  input.value = '';
+  avatarError.value = '';
+  if (!file) return;
+
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    avatarError.value = 'Chọn ảnh JPEG, PNG hoặc WebP.';
+    return;
+  }
+  if (file.size > 5_000_000) {
+    avatarError.value = 'Ảnh gốc phải nhỏ hơn 5 MB.';
+    return;
+  }
+
+  avatarSaving.value = true;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 384 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) {
+      bitmap.close();
+      throw new Error('Không thể xử lý ảnh đại diện.');
+    }
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (result) => result
+          ? resolve(result)
+          : reject(new Error('Không thể nén ảnh đại diện.')),
+        'image/webp',
+        0.72,
+      );
+    });
+    if (blob.size > 750_000) {
+      throw new Error('Ảnh sau khi xử lý vẫn quá lớn. Vui lòng chọn ảnh khác.');
+    }
+
+    const avatar = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener('load', () => {
+        if (typeof reader.result !== 'string') {
+          reject(new Error('Không thể đọc ảnh đã xử lý.'));
+          return;
+        }
+        resolve(reader.result);
+      });
+      reader.addEventListener('error', () => {
+        reject(reader.error ?? new Error('Không thể đọc ảnh đã xử lý.'));
+      });
+      reader.readAsDataURL(blob);
+    });
+    await authStore.updateAvatar(avatar);
+  } catch (error: unknown) {
+    avatarError.value = error instanceof Error
+      ? error.message
+      : 'Không thể cập nhật ảnh đại diện.';
+  } finally {
+    avatarSaving.value = false;
+  }
+}
 
 async function loadCustomerCount() {
   try {
@@ -52,6 +173,18 @@ const navItems = [
   { path: '/admin/customers', label: 'Khách hàng', icon: Users },
   { path: '/admin/knowledge-base', label: 'AI Knowledge Base', icon: Bot, badge: 'v2.4' },
 ];
+const adminPageTitle = computed(() =>
+  navItems.find((item) => item.path === route.path)?.label ?? 'Quản trị',
+);
+const todayLabel = new Date().toLocaleDateString('vi-VN', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});
+
+function closeNotifications() {
+  isNotificationsOpen.value = false;
+}
 </script>
 
 <template>
@@ -152,21 +285,6 @@ const navItems = [
               </span>
             </RouterLink>
 
-            <a
-              href="#"
-              class="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-[#576449] hover:bg-[#EBF7E5] hover:text-[#2D3B1E] transition-colors"
-            >
-              <BarChart3 class="w-4 h-4" />
-              <span>Báo cáo doanh thu</span>
-            </a>
-
-            <a
-              href="#"
-              class="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-[#576449] hover:bg-[#EBF7E5] hover:text-[#2D3B1E] transition-colors"
-            >
-              <Settings class="w-4 h-4" />
-              <span>Cài đặt hệ thống</span>
-            </a>
           </div>
         </div>
       </div>
@@ -174,17 +292,27 @@ const navItems = [
       <!-- Bottom: THẺ TÀI KHOẢN ADMIN (PINNED / CỐ ĐỊNH Ở ĐÁY, KHÔNG CUỘN) -->
       <div class="shrink-0 p-4 border-t border-[#ECEFE7] bg-white">
         <div class="p-3 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] flex items-center justify-between shadow-2xs">
-          <div class="flex items-center gap-2.5 min-w-0">
+          <button
+            type="button"
+            class="flex items-center gap-2.5 min-w-0 text-left rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#536124]"
+            aria-haspopup="dialog"
+            aria-label="Xem thông tin tài khoản quản trị viên"
+            @click="openAccountDetails"
+          >
             <img
-              src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80"
-              alt="Admin Avatar"
+              :src="authStore.currentUser?.avatar"
+              :alt="`Ảnh đại diện ${authStore.currentUser?.name ?? 'quản trị viên'}`"
               class="w-9 h-9 rounded-full object-cover border border-[#CCD7BC]"
             />
             <div class="min-w-0">
-              <h4 class="font-heading text-xs font-bold text-[#2D3B1E] truncate">Lê Hoàng Phúc</h4>
-              <span class="text-[10px] text-[#7A866E] truncate block">Quản trị viên cấp cao</span>
+              <h4 class="font-heading text-xs font-bold text-[#2D3B1E] truncate">
+                {{ authStore.currentUser?.name ?? 'Quản trị viên' }}
+              </h4>
+              <span class="text-[10px] text-[#7A866E] truncate block">
+                {{ authStore.currentUser?.role === 'admin' ? 'Quản trị viên' : 'Tài khoản' }}
+              </span>
             </div>
-          </div>
+          </button>
 
           <RouterLink
             to="/"
@@ -196,6 +324,161 @@ const navItems = [
         </div>
       </div>
     </aside>
+
+    <div
+      v-if="isAccountDetailsOpen && authStore.currentUser"
+      class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+      @click.self="isAccountDetailsOpen = false"
+      @keydown.esc="isAccountDetailsOpen = false"
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-account-dialog-title"
+        class="w-full max-w-lg overflow-hidden rounded-3xl border border-[#DEE5D4] bg-white shadow-2xl"
+      >
+        <div class="relative bg-linear-to-br from-[#2D3B1E] via-[#536124] to-[#7A8A43] px-6 pb-6 pt-5 text-white">
+          <div class="absolute -right-10 -top-16 h-44 w-44 rounded-full border border-white/10"></div>
+          <div class="absolute -right-2 -top-8 h-28 w-28 rounded-full border border-white/10"></div>
+          <div class="relative flex items-start justify-between gap-4">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-[0.18em] text-white/70">NutriMate Admin</p>
+              <h2 id="admin-account-dialog-title" class="mt-1 font-heading text-xl font-bold">
+                Hồ sơ tài khoản
+              </h2>
+            </div>
+            <button
+              type="button"
+              class="rounded-xl p-2 text-white/80 transition hover:bg-white/15 hover:text-white"
+              aria-label="Đóng thông tin tài khoản"
+              @click="isAccountDetailsOpen = false"
+            >
+              <X class="h-5 w-5" />
+            </button>
+          </div>
+          <div class="relative mt-5 flex items-center gap-4">
+            <div class="relative shrink-0">
+              <img
+                :src="authStore.currentUser.avatar"
+                :alt="`Ảnh đại diện ${authStore.currentUser.name}`"
+                class="h-20 w-20 rounded-2xl border-2 border-white/70 object-cover shadow-lg"
+              />
+              <button
+                type="button"
+                class="absolute -bottom-2 -right-2 rounded-xl border-2 border-[#536124] bg-white p-2 text-[#536124] shadow-md transition hover:bg-[#EBF7E5] disabled:cursor-wait disabled:opacity-60"
+                :disabled="avatarSaving"
+                aria-label="Thay đổi ảnh đại diện"
+                title="Thay đổi ảnh đại diện"
+                @click="avatarInput?.click()"
+              >
+                <Camera class="h-4 w-4" />
+              </button>
+              <input
+                ref="avatarInput"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                class="hidden"
+                @change="handleAvatarChange"
+              />
+            </div>
+            <div class="min-w-0">
+              <h3 class="truncate font-heading text-lg font-bold">{{ authStore.currentUser.name }}</h3>
+              <p class="mt-0.5 truncate text-sm text-white/75">{{ authStore.currentUser.email }}</p>
+              <span class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white">
+                <span class="h-1.5 w-1.5 rounded-full bg-[#C7E58B]"></span>
+                {{ authStore.currentUser.role === 'admin' ? 'Quản trị viên' : 'Tài khoản' }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <form class="space-y-5 p-6" @submit.prevent="saveAccountDetails">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h3 class="text-sm font-bold text-[#2D3B1E]">Thông tin cá nhân</h3>
+              <p class="mt-0.5 text-xs text-[#7A866E]">Cập nhật thông tin hồ sơ quản trị viên</p>
+            </div>
+            <button
+              v-if="!isEditingAccount"
+              type="button"
+              class="inline-flex shrink-0 items-center gap-2 rounded-xl border border-[#CCD7BC] px-3 py-2 text-xs font-bold text-[#536124] transition hover:bg-[#F4F7EF]"
+              @click="isEditingAccount = true; accountError = ''"
+            >
+              <Pencil class="h-3.5 w-3.5" />
+              Chỉnh sửa
+            </button>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="space-y-1.5 sm:col-span-2">
+              <span class="text-xs font-semibold text-[#576449]">Họ và tên</span>
+              <input
+                v-model="accountForm.name"
+                type="text"
+                maxlength="150"
+                required
+                :disabled="!isEditingAccount || accountSaving"
+                class="w-full rounded-xl border px-3.5 py-2.5 text-sm text-[#2D3B1E] outline-none transition disabled:cursor-default disabled:bg-[#F7F8F5]"
+                :class="isEditingAccount ? 'border-[#CCD7BC] focus:border-[#536124] focus:ring-2 focus:ring-[#536124]/10' : 'border-[#E8ECE3] bg-[#F7F8F5]'"
+              />
+            </label>
+            <label class="space-y-1.5">
+              <span class="text-xs font-semibold text-[#576449]">Email</span>
+              <input
+                v-model="accountForm.email"
+                type="email"
+                maxlength="255"
+                required
+                :disabled="!isEditingAccount || accountSaving"
+                class="w-full rounded-xl border px-3.5 py-2.5 text-sm text-[#2D3B1E] outline-none transition disabled:cursor-default disabled:bg-[#F7F8F5]"
+                :class="isEditingAccount ? 'border-[#CCD7BC] focus:border-[#536124] focus:ring-2 focus:ring-[#536124]/10' : 'border-[#E8ECE3] bg-[#F7F8F5]'"
+              />
+            </label>
+            <label class="space-y-1.5">
+              <span class="text-xs font-semibold text-[#576449]">Số điện thoại</span>
+              <input
+                v-model="accountForm.phone"
+                type="tel"
+                maxlength="20"
+                autocomplete="tel"
+                required
+                :disabled="!isEditingAccount || accountSaving"
+                class="w-full rounded-xl border px-3.5 py-2.5 text-sm text-[#2D3B1E] outline-none transition disabled:cursor-default disabled:bg-[#F7F8F5]"
+                :class="isEditingAccount ? 'border-[#CCD7BC] focus:border-[#536124] focus:ring-2 focus:ring-[#536124]/10' : 'border-[#E8ECE3] bg-[#F7F8F5]'"
+              />
+            </label>
+          </div>
+
+          <div class="rounded-xl bg-[#F7F8F5] px-3.5 py-3">
+            <span class="block text-[11px] font-semibold text-[#7A866E]">Mã tài khoản</span>
+            <span class="mt-1 block break-all font-mono text-xs text-[#2D3B1E]">{{ authStore.currentUser.id }}</span>
+          </div>
+
+          <p v-if="avatarSaving" role="status" class="text-xs text-[#536124]">Đang cập nhật ảnh đại diện…</p>
+          <p v-if="avatarError" role="alert" class="text-xs text-red-600">{{ avatarError }}</p>
+          <p v-if="accountError" role="alert" class="text-xs text-red-600">{{ accountError }}</p>
+
+          <div v-if="isEditingAccount" class="flex justify-end gap-2 border-t border-[#F0F3EC] pt-4">
+            <button
+              type="button"
+              :disabled="accountSaving"
+              class="rounded-xl border border-[#CCD7BC] px-4 py-2.5 text-sm font-bold text-[#576449] transition hover:bg-[#FAF9F5] disabled:opacity-60"
+              @click="cancelAccountEdit"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              :disabled="accountSaving"
+              class="inline-flex items-center gap-2 rounded-xl bg-[#536124] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#434F1D] disabled:cursor-wait disabled:opacity-60"
+            >
+              <Save class="h-4 w-4" />
+              {{ accountSaving ? 'Đang lưu…' : 'Lưu thay đổi' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
 
     <!-- 2. MAIN CONTENT AREA -->
     <div class="flex-1 flex flex-col min-w-0 min-h-screen">
@@ -211,25 +494,30 @@ const navItems = [
             <Menu class="w-5 h-5" />
           </button>
           <div class="flex items-center gap-2 text-xs text-[#7A866E]">
-            <span class="font-semibold text-[#2D3B1E]">Quản trị viên</span>
+            <RouterLink to="/admin" class="font-semibold text-[#2D3B1E] transition-colors hover:text-[#536124]">
+              Admin
+            </RouterLink>
             <ChevronRight class="w-3.5 h-3.5" />
-            <span class="text-[#536124] font-bold">Hệ thống vận hành</span>
+            <span class="text-[#536124] font-bold">{{ adminPageTitle }}</span>
           </div>
         </div>
 
         <div class="flex items-center gap-4">
           <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-bold text-[#2D3B1E]">
             <Calendar class="w-3.5 h-3.5 text-[#536124]" />
-            <span>Hôm nay, 24/10/2024</span>
+            <span>Hôm nay, {{ todayLabel }}</span>
           </div>
 
           <button
             type="button"
-            class="relative w-9 h-9 rounded-full bg-[#FAF9F5] border border-[#E3E8DC] text-[#2D3B1E] flex items-center justify-center hover:bg-[#F6F8F3] cursor-pointer"
+            class="relative w-9 h-9 rounded-full bg-[#FAF9F5] border border-[#E3E8DC] text-[#2D3B1E] flex items-center justify-center hover:bg-[#F6F8F3] cursor-pointer transition-colors"
             aria-label="Thông báo"
+            aria-haspopup="dialog"
+            :aria-expanded="isNotificationsOpen"
+            aria-controls="admin-notifications-panel"
+            @click="isNotificationsOpen = true"
           >
             <Bell class="w-4 h-4" />
-            <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500"></span>
           </button>
 
           <RouterLink
@@ -247,5 +535,76 @@ const navItems = [
         <slot />
       </main>
     </div>
+
+    <Transition
+      enter-active-class="transition-opacity duration-300 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition-opacity duration-200 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="isNotificationsOpen"
+        class="fixed inset-0 z-[70] bg-slate-950/40 backdrop-blur-[2px]"
+        @click.self="closeNotifications"
+        @keydown.esc="closeNotifications"
+      >
+        <Transition
+          appear
+          enter-active-class="transition-transform duration-300 ease-out"
+          enter-from-class="translate-x-full"
+          enter-to-class="translate-x-0"
+          leave-active-class="transition-transform duration-200 ease-in"
+          leave-from-class="translate-x-0"
+          leave-to-class="translate-x-full"
+        >
+          <aside
+            id="admin-notifications-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-notifications-title"
+            class="absolute inset-y-0 right-0 flex w-full flex-col border-l border-[#E3E8DC] bg-[#FAF9F5] shadow-2xl sm:max-w-xl"
+          >
+            <header class="flex items-center justify-between border-b border-[#E3E8DC] bg-white px-5 py-5 sm:px-8 sm:py-6">
+              <div class="flex items-center gap-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EBF7E5] text-[#536124]">
+                  <Bell class="h-5 w-5" />
+                </span>
+                <div>
+                  <h2 id="admin-notifications-title" class="font-heading text-xl font-bold text-[#2D3B1E]">
+                    Trung tâm thông báo
+                  </h2>
+                  <p class="mt-1 text-sm text-[#7A866E]">Theo dõi cập nhật và hoạt động quản trị</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="flex h-10 w-10 items-center justify-center rounded-xl text-[#7A866E] transition-colors hover:bg-[#F4F7EF] hover:text-[#2D3B1E]"
+                aria-label="Đóng thông báo"
+                @click="closeNotifications"
+              >
+                <X class="h-5 w-5" />
+              </button>
+            </header>
+
+            <div class="flex min-h-0 flex-1 flex-col p-4 sm:p-7">
+              <div class="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-3xl border border-[#E3E8DC] bg-white px-6 py-10 text-center shadow-[0_8px_30px_rgba(45,59,30,0.04)]">
+                <span class="flex h-20 w-20 items-center justify-center rounded-[28px] bg-[#F1F4EB] text-[#71813B]">
+                  <Bell class="h-8 w-8" />
+                </span>
+                <h3 class="mt-6 font-heading text-lg font-bold text-[#2D3B1E]">
+                  Bạn đã cập nhật mọi thứ
+                </h3>
+                <p class="mt-2 max-w-sm text-sm leading-6 text-[#7A866E]">
+                  Hiện chưa có thông báo mới. Các cập nhật về đơn hàng và hoạt động hệ thống sẽ xuất hiện tại đây.
+                </p>
+                <span class="mt-7 h-1 w-12 rounded-full bg-[#DDE8D1]"></span>
+              </div>
+            </div>
+          </aside>
+        </Transition>
+      </div>
+    </Transition>
   </div>
 </template>
