@@ -135,6 +135,20 @@ export async function findUserForLogin(
   };
 }
 
+export async function createCustomerLoginNotification(
+  user: Pick<LoginUserRecord, "id" | "name" | "email">,
+): Promise<void> {
+  if (!isDbConnected()) {
+    throw new Error("PostgreSQL chưa sẵn sàng.");
+  }
+
+  await getPool().query(
+    `INSERT INTO admin_notifications (type, title, message, customer_id)
+     VALUES ('customer_logged_in', 'Khách hàng đăng nhập', $1, $2)`,
+    [`${user.name} (${user.email}) vừa đăng nhập.`, user.id],
+  );
+}
+
 export async function findUserById(id: string): Promise<(UserRecord & { role: "customer" | "admin" }) | null> {
   if (!isDbConnected()) {
     throw new Error("PostgreSQL chưa sẵn sàng.");
@@ -516,6 +530,11 @@ export async function createUser(user: NewUserRecord): Promise<UserRecord> {
     await client.query("INSERT INTO customers (user_id) VALUES ($1)", [
       createdUser.id,
     ]);
+    await client.query(
+      `INSERT INTO admin_notifications (type, title, message, customer_id)
+       VALUES ('customer_registered', 'Khách hàng mới đăng ký', $1, $2)`,
+      [`${createdUser.full_name} (${createdUser.email}) vừa tạo tài khoản.`, createdUser.id],
+    );
     await client.query("COMMIT");
     transactionStarted = false;
 

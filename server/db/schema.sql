@@ -42,6 +42,23 @@ CREATE TABLE IF NOT EXISTS admins (
 );
 COMMENT ON TABLE admins IS 'Đánh dấu tài khoản người dùng có vai trò quản trị viên.';
 
+-- 3a. Thông báo dành cho quản trị viên.
+CREATE TABLE IF NOT EXISTS admin_notifications (
+    id BIGSERIAL PRIMARY KEY,
+    type VARCHAR(40) NOT NULL CHECK (type IN ('customer_registered', 'customer_logged_in')),
+    title VARCHAR(180) NOT NULL,
+    message TEXT NOT NULL,
+    customer_id INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    read_at TIMESTAMP WITH TIME ZONE
+);
+CREATE INDEX IF NOT EXISTS idx_admin_notifications_created
+    ON admin_notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_notifications_unread
+    ON admin_notifications(created_at DESC)
+    WHERE read_at IS NULL;
+COMMENT ON TABLE admin_notifications IS 'Lưu thông báo hoạt động mới dành cho quản trị viên.';
+
 -- 4. Bảng hồ sơ sức khỏe và mục tiêu dinh dưỡng của khách hàng.
 CREATE TABLE IF NOT EXISTS health_profiles (
     health_profile_id SERIAL PRIMARY KEY,

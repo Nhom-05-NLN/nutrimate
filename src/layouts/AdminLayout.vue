@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { useRoute } from 'vue-router';
-import { fetchAdminCustomers } from '../services/api';
+import { useRoute, useRouter } from 'vue-router';
+import {
+  fetchAdminCustomers,
+  fetchAdminNotifications,
+  markAdminNotificationsRead,
+  markAdminNotificationRead,
+  deleteAdminNotification,
+  deleteAllAdminNotifications,
+  AdminNotification,
+} from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import {
   LayoutDashboard,
@@ -24,10 +32,20 @@ import {
 } from 'lucide-vue-next';
 
 const route = useRoute();
+const router = useRouter();
 const authStore = useAuthStore();
 const isSidebarOpen = ref(false);
 const isAccountDetailsOpen = ref(false);
 const isNotificationsOpen = ref(false);
+const notifications = ref<AdminNotification[]>([]);
+const unreadNotificationCount = ref(0);
+const notificationPopup = ref<AdminNotification | null>(null);
+const notificationsLoading = ref(true);
+const notificationsError = ref('');
+const notificationActionError = ref('');
+const markingNotificationsRead = ref(false);
+const deletingNotificationIds = ref(new Set<string>());
+const deletingAllNotifications = ref(false);
 const isEditingAccount = ref(false);
 const accountSaving = ref(false);
 const avatarSaving = ref(false);
@@ -36,6 +54,10 @@ const avatarError = ref('');
 const avatarInput = ref<HTMLInputElement | null>(null);
 const accountForm = ref({ name: '', email: '', phone: '' });
 const customerCount = ref<number | null>(null);
+let notificationPollTimer: number | null = null;
+let notificationPopupTimer: number | null = null;
+let notificationRequestInFlight = false;
+let notificationSnapshotInitialized = false;
 
 function openAccountDetails() {
   const user = authStore.currentUser;
@@ -157,13 +179,163 @@ async function loadCustomerCount() {
   }
 }
 
+async function loadAdminNotifications() {
+  if (notificationRequestInFlight) return;
+  notificationRequestInFlight = true;
+  try {
+    const result = await fetchAdminNotifications();
+    const knownNotificationIds = new Set(notifications.value.map((notification) => notification.id));
+    const newNotifications = notificationSnapshotInitialized
+      ? result.notifications.filter((notification) => !knownNotificationIds.has(notification.id))
+      : [];
+    notifications.value = result.notifications;
+    unreadNotificationCount.value = result.unreadCount;
+    notificationsError.value = '';
+    notificationSnapshotInitialized = true;
+    if (newNotifications.length) {
+      showNotificationPopup(newNotifications[0]);
+      if (newNotifications.some((notification) => notification.type === 'customer_registered')) {
+        void loadCustomerCount();
+      }
+    }
+  } catch (error: unknown) {
+    notificationsError.value = error instanceof Error
+      ? error.message
+      : 'Không thể tải thông báo quản trị.';
+    console.error('[AdminLayout] Không thể tải thông báo quản trị:', error);
+  } finally {
+    notificationsLoading.value = false;
+    notificationRequestInFlight = false;
+  }
+}
+
+async function markNotificationsRead() {
+  markingNotificationsRead.value = true;
+  notificationsError.value = '';
+  try {
+    await markAdminNotificationsRead();
+    notifications.value = notifications.value.map((notification) => ({
+      ...notification,
+      readAt: notification.readAt ?? new Date().toISOString(),
+    }));
+    unreadNotificationCount.value = 0;
+  } catch (error: unknown) {
+    notificationsError.value = error instanceof Error
+      ? error.message
+      : 'Không thể cập nhật trạng thái thông báo.';
+    console.error('[AdminLayout] Không thể đánh dấu thông báo đã đọc:', error);
+  } finally {
+    markingNotificationsRead.value = false;
+  }
+}
+
+async function openNotification(notification: AdminNotification) {
+  if (!notification.readAt) {
+    notificationActionError.value = '';
+    try {
+      await markAdminNotificationRead(notification.id);
+      notifications.value = notifications.value.map((item) =>
+        item.id === notification.id ? { ...item, readAt: new Date().toISOString() } : item,
+      );
+      unreadNotificationCount.value = Math.max(0, unreadNotificationCount.value - 1);
+    } catch (error: unknown) {
+      notificationActionError.value = error instanceof Error
+        ? error.message
+        : 'Không thể cập nhật trạng thái thông báo.';
+      console.error('[AdminLayout] Không thể đánh dấu thông báo đã đọc:', error);
+      return;
+    }
+  }
+  closeNotifications();
+  await router.push(
+    notification.type === 'customer_registered' || notification.type === 'customer_logged_in'
+      ? '/admin/customers'
+      : '/admin',
+  );
+}
+
+async function removeNotification(notification: AdminNotification) {
+  if (deletingNotificationIds.value.has(notification.id)) return;
+  deletingNotificationIds.value = new Set(deletingNotificationIds.value).add(notification.id);
+  notificationsError.value = '';
+  try {
+    await deleteAdminNotification(notification.id);
+    notifications.value = notifications.value.filter((item) => item.id !== notification.id);
+    if (!notification.readAt) {
+      unreadNotificationCount.value = Math.max(0, unreadNotificationCount.value - 1);
+    }
+  } catch (error: unknown) {
+    notificationsError.value = error instanceof Error ? error.message : 'Không thể xóa thông báo.';
+    console.error('[AdminLayout] Không thể xóa thông báo:', error);
+  } finally {
+    const remaining = new Set(deletingNotificationIds.value);
+    remaining.delete(notification.id);
+    deletingNotificationIds.value = remaining;
+  }
+}
+
+async function clearAllNotifications() {
+  if (!notifications.value.length || deletingAllNotifications.value) return;
+  if (!window.confirm('Xóa tất cả thông báo? Thao tác này không thể hoàn tác.')) return;
+
+  deletingAllNotifications.value = true;
+  notificationsError.value = '';
+  try {
+    await deleteAllAdminNotifications();
+    notifications.value = [];
+    unreadNotificationCount.value = 0;
+  } catch (error: unknown) {
+    notificationsError.value = error instanceof Error
+      ? error.message
+      : 'Không thể xóa tất cả thông báo.';
+    console.error('[AdminLayout] Không thể xóa tất cả thông báo:', error);
+  } finally {
+    deletingAllNotifications.value = false;
+  }
+}
+
+function formatNotificationDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Thời gian không xác định';
+  return new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+}
+
+function openNotifications() {
+  dismissNotificationPopup();
+  isNotificationsOpen.value = true;
+  void loadAdminNotifications();
+}
+
+function showNotificationPopup(notification: AdminNotification) {
+  notificationPopup.value = notification;
+  if (notificationPopupTimer !== null) window.clearTimeout(notificationPopupTimer);
+  notificationPopupTimer = window.setTimeout(dismissNotificationPopup, 6000);
+}
+
+function dismissNotificationPopup() {
+  notificationPopup.value = null;
+  if (notificationPopupTimer !== null) {
+    window.clearTimeout(notificationPopupTimer);
+    notificationPopupTimer = null;
+  }
+}
+
 onMounted(() => {
   void loadCustomerCount();
+  void loadAdminNotifications();
+  notificationPollTimer = window.setInterval(() => {
+    void loadAdminNotifications();
+  }, 15_000);
   window.addEventListener('admin-customers-changed', loadCustomerCount);
 });
 
 onUnmounted(() => {
   window.removeEventListener('admin-customers-changed', loadCustomerCount);
+  if (notificationPollTimer !== null) window.clearInterval(notificationPollTimer);
+  dismissNotificationPopup();
 });
 
 const navItems = [
@@ -171,7 +343,7 @@ const navItems = [
   { path: '/admin/products', label: 'Sản phẩm & Kho', icon: Package },
   { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart, badge: '12 mới' },
   { path: '/admin/customers', label: 'Khách hàng', icon: Users },
-  { path: '/admin/knowledge-base', label: 'AI Knowledge Base', icon: Bot, badge: 'v2.4' },
+  { path: '/admin/knowledge-base', label: 'AI Knowledge Base', icon: Bot, badge: 'v2.5' },
 ];
 const adminPageTitle = computed(() =>
   navItems.find((item) => item.path === route.path)?.label ?? 'Quản trị',
@@ -515,9 +687,15 @@ function closeNotifications() {
             aria-haspopup="dialog"
             :aria-expanded="isNotificationsOpen"
             aria-controls="admin-notifications-panel"
-            @click="isNotificationsOpen = true"
+            @click="openNotifications"
           >
             <Bell class="w-4 h-4" />
+            <span
+              v-if="unreadNotificationCount > 0"
+              class="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-black text-white ring-2 ring-white"
+            >
+              {{ unreadNotificationCount > 99 ? '99+' : unreadNotificationCount }}
+            </span>
           </button>
 
           <RouterLink
@@ -535,6 +713,47 @@ function closeNotifications() {
         <slot />
       </main>
     </div>
+
+    <Transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="translate-y-3 opacity-0 sm:translate-x-3 sm:translate-y-0"
+      enter-to-class="translate-y-0 opacity-100 sm:translate-x-0"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="translate-y-0 opacity-100 sm:translate-x-0"
+      leave-to-class="translate-y-3 opacity-0 sm:translate-x-3 sm:translate-y-0"
+    >
+      <div
+        v-if="notificationPopup"
+        role="status"
+        aria-live="polite"
+        class="fixed right-4 top-20 z-[55] w-[calc(100vw-2rem)] max-w-sm rounded-2xl border border-[#DCE7D2] bg-white p-4 shadow-xl sm:right-6"
+      >
+        <div class="flex items-start gap-3">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EBF7E5] text-[#536124]">
+            <Bell class="h-5 w-5" />
+          </span>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-bold text-[#2D3B1E]">{{ notificationPopup.title }}</p>
+            <p class="mt-1 text-sm leading-5 text-[#576449]">{{ notificationPopup.message }}</p>
+          </div>
+          <button
+            type="button"
+            class="shrink-0 rounded-lg p-1.5 text-[#8C9882] transition hover:bg-[#F4F7EF] hover:text-[#2D3B1E]"
+            aria-label="Đóng thông báo mới"
+            @click="dismissNotificationPopup"
+          >
+            <X class="h-4 w-4" />
+          </button>
+        </div>
+        <button
+          type="button"
+          class="mt-3 ml-[52px] text-xs font-bold text-[#536124] underline underline-offset-2 hover:text-[#2D3B1E]"
+          @click="openNotifications"
+        >
+          Xem thông báo
+        </button>
+      </div>
+    </Transition>
 
     <Transition
       enter-active-class="transition-opacity duration-300 ease-out"
@@ -578,18 +797,120 @@ function closeNotifications() {
                   <p class="mt-1 text-sm text-[#7A866E]">Theo dõi cập nhật và hoạt động quản trị</p>
                 </div>
               </div>
-              <button
-                type="button"
-                class="flex h-10 w-10 items-center justify-center rounded-xl text-[#7A866E] transition-colors hover:bg-[#F4F7EF] hover:text-[#2D3B1E]"
-                aria-label="Đóng thông báo"
-                @click="closeNotifications"
-              >
-                <X class="h-5 w-5" />
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  v-if="unreadNotificationCount > 0"
+                  type="button"
+                  :disabled="markingNotificationsRead"
+                  class="hidden rounded-xl px-3 py-2 text-xs font-bold text-[#536124] transition hover:bg-[#F4F7EF] disabled:opacity-50 sm:inline-flex"
+                  @click="markNotificationsRead"
+                >
+                  {{ markingNotificationsRead ? 'Đang cập nhật…' : 'Đánh dấu đã đọc' }}
+                </button>
+                <button
+                  type="button"
+                  class="flex h-10 w-10 items-center justify-center rounded-xl text-[#7A866E] transition-colors hover:bg-[#F4F7EF] hover:text-[#2D3B1E]"
+                  aria-label="Đóng thông báo"
+                  @click="closeNotifications"
+                >
+                  <X class="h-5 w-5" />
+                </button>
+              </div>
             </header>
 
             <div class="flex min-h-0 flex-1 flex-col p-4 sm:p-7">
-              <div class="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-3xl border border-[#E3E8DC] bg-white px-6 py-10 text-center shadow-[0_8px_30px_rgba(45,59,30,0.04)]">
+              <div
+                v-if="unreadNotificationCount > 0"
+                class="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DCE7D2] bg-[#F1F4EB] px-4 py-3 sm:hidden"
+              >
+                <span class="text-xs font-semibold text-[#536124]">{{ unreadNotificationCount }} thông báo chưa đọc</span>
+                <div class="flex items-center gap-3">
+                  <button
+                    type="button"
+                    :disabled="markingNotificationsRead"
+                    class="text-xs font-bold text-[#536124] underline underline-offset-2 disabled:opacity-50"
+                    @click="markNotificationsRead"
+                  >
+                    Đánh dấu đã đọc
+                  </button>
+                </div>
+              </div>
+              <div
+                v-if="notificationsError"
+                role="alert"
+                class="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800"
+              >
+                <p class="font-bold">Không thể tải thông báo</p>
+                <p class="mt-1">{{ notificationsError }}</p>
+                <button
+                  type="button"
+                  class="mt-3 font-bold underline underline-offset-2"
+                  @click="loadAdminNotifications"
+                >
+                  Thử tải lại
+                </button>
+              </div>
+              <p
+                v-if="notificationActionError && !notificationsError"
+                role="alert"
+                class="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
+              >
+                {{ notificationActionError }}
+              </p>
+              <div
+                v-if="!notificationsError && notificationsLoading"
+                role="status"
+                class="flex min-h-0 flex-1 items-center justify-center rounded-3xl border border-[#E3E8DC] bg-white text-sm text-[#7A866E]"
+              >
+                Đang tải thông báo…
+              </div>
+              <div
+                v-else-if="!notificationsError && notifications.length"
+                class="min-h-0 flex-1 space-y-3 overflow-y-auto"
+              >
+                <article
+                  v-for="notification in notifications"
+                  :key="notification.id"
+                  class="flex items-start gap-3 rounded-2xl border p-4 transition duration-200 hover:-translate-y-0.5 hover:border-[#CCD7BC] hover:shadow-md"
+                  :class="notification.readAt ? 'border-[#E8ECE3] bg-white shadow-xs' : 'border-[#C9D8B5] bg-[#F1F4EB] shadow-sm'"
+                >
+                  <button
+                    type="button"
+                    class="flex min-w-0 flex-1 gap-3 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-[#536124]"
+                    @click="openNotification(notification)"
+                  >
+                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#EBF7E5] text-[#536124] ring-1 ring-inset ring-[#DCE7D2]">
+                      <Users class="h-5 w-5" />
+                    </span>
+                    <span class="min-w-0 flex-1 pt-0.5">
+                      <span class="flex items-start justify-between gap-3">
+                        <span class="text-left text-sm font-bold leading-5 text-[#2D3B1E]">{{ notification.title }}</span>
+                        <span
+                          v-if="!notification.readAt"
+                          class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#71813B] ring-2 ring-[#E2EBD5]"
+                          aria-label="Chưa đọc"
+                        ></span>
+                      </span>
+                      <span class="mt-1 block text-left text-sm leading-5 text-[#576449]">{{ notification.message }}</span>
+                      <span class="mt-2.5 block text-left text-xs font-medium text-[#8C9882]">{{ formatNotificationDate(notification.createdAt) }}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    :disabled="deletingNotificationIds.has(notification.id) || deletingAllNotifications"
+                    :aria-label="`Xóa thông báo: ${notification.title}`"
+                    title="Xóa thông báo"
+                    class="shrink-0 rounded-lg p-2 text-[#9AA58B] transition hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#536124] disabled:cursor-wait disabled:opacity-50"
+                    @click="removeNotification(notification)"
+                  >
+                    <X class="h-4 w-4" />
+                  </button>
+                </article>
+              </div>
+              <div
+                v-else-if="!notificationsError"
+                class="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-3xl border border-[#E3E8DC] bg-white px-6 py-10 text-center shadow-[0_8px_30px_rgba(45,59,30,0.04)]"
+              >
                 <span class="flex h-20 w-20 items-center justify-center rounded-[28px] bg-[#F1F4EB] text-[#71813B]">
                   <Bell class="h-8 w-8" />
                 </span>
@@ -602,6 +923,19 @@ function closeNotifications() {
                 <span class="mt-7 h-1 w-12 rounded-full bg-[#DDE8D1]"></span>
               </div>
             </div>
+            <footer
+              v-if="notifications.length && !notificationsLoading && !notificationsError"
+              class="shrink-0 border-t border-[#E3E8DC] bg-white px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-7"
+            >
+              <button
+                type="button"
+                :disabled="deletingAllNotifications"
+                class="flex w-full items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-bold text-rose-600 transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-wait disabled:opacity-50"
+                @click="clearAllNotifications"
+              >
+                {{ deletingAllNotifications ? 'Đang xóa…' : 'Xóa tất cả thông báo' }}
+              </button>
+            </footer>
           </aside>
         </Transition>
       </div>

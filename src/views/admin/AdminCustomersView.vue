@@ -2,14 +2,21 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import {
   Activity,
+  AlertTriangle,
   ChevronLeft,
   ChevronRight,
   Download,
+  HeartPulse,
+  Mail,
   MessageCircle,
   Pencil,
+  Phone,
   Plus,
   RefreshCw,
   Search,
+  Save,
+  ShoppingBag,
+  Sparkles,
   Trash2,
   Users,
   X,
@@ -36,6 +43,9 @@ const isExporting = ref(false);
 const isSaving = ref(false);
 const errorMessage = ref('');
 const isFormOpen = ref(false);
+const pendingDeleteCustomer = ref<AdminCustomer | null>(null);
+const isDeleting = ref(false);
+const deleteError = ref('');
 const editingCustomer = ref<AdminCustomer | null>(null);
 const selectedCustomer = ref<AdminCustomer | null>(null);
 const formError = ref('');
@@ -254,20 +264,28 @@ async function submitCustomerForm() {
   }
 }
 
-async function removeCustomer(customer: AdminCustomer) {
-  const confirmed = window.confirm(
-    `Xóa tài khoản "${customer.name || `Khách hàng #${customer.id}`}"? Chỉ xóa được khách hàng chưa có đơn hàng.`,
-  );
-  if (!confirmed) return;
+function removeCustomer(customer: AdminCustomer) {
+  pendingDeleteCustomer.value = customer;
+  deleteError.value = '';
+}
+
+async function confirmRemoveCustomer() {
+  const customer = pendingDeleteCustomer.value;
+  if (!customer || isDeleting.value) return;
+  isDeleting.value = true;
+  deleteError.value = '';
   errorMessage.value = '';
   try {
     await deleteAdminCustomer(customer.id);
+    pendingDeleteCustomer.value = null;
     const remaining = Math.max((pageData.value?.total ?? 1) - 1, 0);
     page.value = Math.min(page.value, Math.max(Math.ceil(remaining / (pageData.value?.limit ?? 20)), 1));
     pageData.value = null;
     await loadCustomers();
   } catch (error: unknown) {
-    errorMessage.value = error instanceof Error ? error.message : 'Không thể xóa khách hàng.';
+    deleteError.value = error instanceof Error ? error.message : 'Không thể xóa khách hàng.';
+  } finally {
+    isDeleting.value = false;
   }
 }
 
@@ -507,7 +525,7 @@ async function exportCsv() {
               :aria-label="`Xem thông tin chi tiết ${customer.name || `khách hàng ${customer.id}`}`"
               @click="showCustomerDetails(customer)"
               @keydown="handleCustomerRowKeydown($event, customer)"
-              class="cursor-pointer transition-all duration-150 even:bg-[#FCFCFA] hover:bg-[#EBF1E6] hover:shadow-[inset_4px_0_0_0_#536124] focus-visible:bg-[#EBF1E6] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#536124]"
+              class="customer-row cursor-pointer transition-all duration-200 even:bg-[#FCFCFA] hover:bg-[#EBF1E6] focus-visible:bg-[#EBF1E6] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#536124]"
               :class="{ 'is-selected': selectedCustomer?.id === customer.id }"
             >
               <td class="px-3 py-4 text-center text-xs text-[#7A866E]">{{ firstVisibleRow + index }}</td>
@@ -619,127 +637,173 @@ async function exportCsv() {
 
     <div
       v-if="selectedCustomer"
-      class="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-black/40 p-4"
+      class="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-slate-950/55 p-3 backdrop-blur-sm sm:p-6"
       @click.self="selectedCustomer = null"
     >
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="admin-customer-details-title"
-        class="my-auto w-full max-w-2xl space-y-6 rounded-3xl bg-white p-6 shadow-xl"
+        class="my-auto flex max-h-[calc(100vh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/60 bg-white shadow-[0_24px_80px_rgba(16,24,16,0.28)] sm:max-h-[calc(100vh-3rem)]"
       >
-        <div class="flex items-start justify-between gap-4">
-          <div class="flex min-w-0 items-center gap-4">
-            <div class="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#CCD7BC] bg-[#EBF7E5] text-lg font-bold text-[#536124]">
-              {{ getCustomerInitials(selectedCustomer.name, selectedCustomer.id) }}
-              <img
-                v-if="selectedCustomer.avatarUrl && !failedAvatarIds.has(selectedCustomer.id)"
-                :key="`${selectedCustomer.id}-${selectedCustomer.avatarUrl}-details`"
-                :src="selectedCustomer.avatarUrl"
-                :alt="`Ảnh đại diện ${selectedCustomer.name || `khách hàng ${selectedCustomer.id}`}`"
-                class="absolute inset-0 h-full w-full object-cover"
-                @error="markAvatarFailed(selectedCustomer.id)"
-              />
+        <div class="relative shrink-0 overflow-hidden bg-linear-to-br from-[#2D3B1E] via-[#536124] to-[#82925B] px-5 py-4 text-white sm:px-7">
+          <div class="pointer-events-none absolute -right-10 -top-20 h-48 w-48 rounded-full border border-white/10"></div>
+          <div class="pointer-events-none absolute -right-2 -top-12 h-32 w-32 rounded-full border border-white/10"></div>
+          <div class="relative flex items-start justify-between gap-4">
+            <div class="flex min-w-0 items-center gap-4">
+              <div class="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-white/70 bg-white/15 text-lg font-bold text-white shadow-lg sm:h-16 sm:w-16">
+                {{ getCustomerInitials(selectedCustomer.name, selectedCustomer.id) }}
+                <img
+                  v-if="selectedCustomer.avatarUrl && !failedAvatarIds.has(selectedCustomer.id)"
+                  :key="`${selectedCustomer.id}-${selectedCustomer.avatarUrl}-details`"
+                  :src="selectedCustomer.avatarUrl"
+                  :alt="`Ảnh đại diện ${selectedCustomer.name || `khách hàng ${selectedCustomer.id}`}`"
+                  class="absolute inset-0 h-full w-full object-cover"
+                  @error="markAvatarFailed(selectedCustomer.id)"
+                />
+              </div>
+              <div class="min-w-0">
+                <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-white/65">Hồ sơ khách hàng</p>
+                <h2 id="admin-customer-details-title" class="mt-1 truncate font-heading text-xl font-black sm:text-2xl">
+                  {{ selectedCustomer.name || `Khách hàng #${selectedCustomer.id}` }}
+                </h2>
+                <p class="mt-1 truncate text-sm text-white/75">
+                  {{ selectedCustomer.email || selectedCustomer.phone || `Mã khách hàng #${selectedCustomer.id}` }}
+                </p>
+                <span class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-semibold text-white">
+                  <span class="h-1.5 w-1.5 rounded-full" :class="selectedCustomer.lastChatAt ? 'bg-[#C7E58B]' : 'bg-white/50'"></span>
+                  {{ selectedCustomer.lastChatAt ? 'Đang hoạt động' : 'Chưa tương tác gần đây' }}
+                </span>
+              </div>
             </div>
-            <div class="min-w-0">
-              <h2 id="admin-customer-details-title" class="truncate font-heading text-xl font-black text-[#2D3B1E]">
-                {{ selectedCustomer.name || `Khách hàng #${selectedCustomer.id}` }}
-              </h2>
-              <p class="mt-1 text-sm text-[#7A866E]">Mã khách hàng #{{ selectedCustomer.id }}</p>
-            </div>
+            <button
+              type="button"
+              aria-label="Đóng chi tiết khách hàng"
+              @click="selectedCustomer = null"
+              class="shrink-0 rounded-xl bg-white/10 p-2.5 text-white/80 transition hover:bg-white/20 hover:text-white"
+            >
+              <X class="h-5 w-5" />
+            </button>
           </div>
-          <button
-            type="button"
-            aria-label="Đóng chi tiết khách hàng"
-            @click="selectedCustomer = null"
-            class="rounded-lg p-2 text-[#7A866E] hover:bg-[#F0F3EC]"
-          >
-            <X class="h-5 w-5" />
-          </button>
+          <p class="relative mt-3 border-t border-white/15 pt-2 text-[11px] text-white/65">
+            Mã khách hàng <span class="font-semibold text-white">#{{ selectedCustomer.id }}</span>
+          </p>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2">
-          <article class="rounded-2xl bg-[#FAF9F5] p-4">
-            <h3 class="text-xs font-bold uppercase text-[#7A866E]">Thông tin liên hệ</h3>
-            <dl class="mt-3 space-y-2 text-sm">
-              <div>
-                <dt class="text-[11px] text-[#7A866E]">Email</dt>
-                <dd class="break-all font-semibold text-[#2D3B1E]">{{ selectedCustomer.email || 'Chưa cập nhật' }}</dd>
-              </div>
-              <div>
-                <dt class="text-[11px] text-[#7A866E]">Số điện thoại</dt>
-                <dd class="font-semibold text-[#2D3B1E]">{{ selectedCustomer.phone || 'Chưa cập nhật' }}</dd>
-              </div>
-            </dl>
-          </article>
-          <article class="rounded-2xl bg-[#FAF9F5] p-4">
-            <h3 class="text-xs font-bold uppercase text-[#7A866E]">Hồ sơ thể trạng</h3>
-            <dl class="mt-3 space-y-2 text-sm">
-              <div>
-                <dt class="text-[11px] text-[#7A866E]">Chỉ số BMI</dt>
-                <dd class="font-semibold text-[#2D3B1E]">{{ selectedCustomer.bmi === null ? 'Chưa thiết lập' : formatNumber(selectedCustomer.bmi, 1) }}</dd>
-              </div>
-              <div>
-                <dt class="text-[11px] text-[#7A866E]">Chiều cao / Cân nặng</dt>
-                <dd class="font-semibold text-[#2D3B1E]">
-                  {{ formatNumber(selectedCustomer.heightCm) }} cm / {{ formatNumber(selectedCustomer.weightKg) }} kg
-                </dd>
-              </div>
-              <div>
-                <dt class="text-[11px] text-[#7A866E]">Mục tiêu dinh dưỡng</dt>
-                <dd class="font-semibold text-[#2D3B1E]">{{ formatNutritionGoal(selectedCustomer.nutritionGoal) }}</dd>
-              </div>
-            </dl>
-          </article>
-          <article class="rounded-2xl bg-[#FAF9F5] p-4">
-            <h3 class="text-xs font-bold uppercase text-[#7A866E]">Đơn hàng</h3>
-            <dl class="mt-3 space-y-2 text-sm">
-              <div>
-                <dt class="text-[11px] text-[#7A866E]">Tổng chi tiêu đơn hoàn tất</dt>
-                <dd class="font-semibold text-[#2D3B1E]">{{ formatMoney(selectedCustomer.totalSpent) }}</dd>
-              </div>
-              <div>
-                <dt class="text-[11px] text-[#7A866E]">Số đơn hàng</dt>
-                <dd class="font-semibold text-[#2D3B1E]">
-                  {{ selectedCustomer.orderCount }} đơn · {{ selectedCustomer.completedOrderCount }} đơn hoàn tất
-                </dd>
-              </div>
-            </dl>
-          </article>
-          <article class="rounded-2xl bg-[#FAF9F5] p-4">
-            <h3 class="text-xs font-bold uppercase text-[#7A866E]">Tương tác NutriBot · 30 ngày</h3>
-            <dl class="mt-3 space-y-2 text-sm">
-              <div>
-                <dt class="text-[11px] text-[#7A866E]">Tin nhắn khách gửi</dt>
-                <dd class="font-semibold text-[#2D3B1E]">{{ selectedCustomer.recentChatMessages }} tin nhắn</dd>
-              </div>
-              <div>
-                <dt class="text-[11px] text-[#7A866E]">Cuộc hội thoại</dt>
-                <dd class="font-semibold text-[#2D3B1E]">{{ selectedCustomer.recentChatConversations }}</dd>
-              </div>
-              <div>
-                <dt class="text-[11px] text-[#7A866E]">Tương tác gần nhất</dt>
-                <dd class="font-semibold text-[#2D3B1E]">{{ formatChatDate(selectedCustomer.lastChatAt) }}</dd>
-              </div>
-            </dl>
-          </article>
+        <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
+          <div class="grid grid-cols-3 gap-2.5">
+            <article class="rounded-2xl border border-[#E8ECE3] bg-[#FAF9F5] p-3">
+              <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#536124] shadow-xs">
+                <ShoppingBag class="h-3.5 w-3.5" />
+              </span>
+              <p class="mt-2 text-[10px] font-semibold text-[#7A866E] sm:text-[11px]">Tổng chi tiêu</p>
+              <p class="mt-0.5 truncate text-xs font-black text-[#2D3B1E] sm:text-sm">{{ formatMoney(selectedCustomer.totalSpent) }}</p>
+            </article>
+            <article class="rounded-2xl border border-[#E8ECE3] bg-[#FAF9F5] p-3">
+              <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#536124] shadow-xs">
+                <HeartPulse class="h-3.5 w-3.5" />
+              </span>
+              <p class="mt-2 text-[10px] font-semibold text-[#7A866E] sm:text-[11px]">Chỉ số BMI</p>
+              <p class="mt-0.5 truncate text-xs font-black text-[#2D3B1E] sm:text-sm">
+                {{ selectedCustomer.bmi === null ? 'Chưa có' : formatNumber(selectedCustomer.bmi, 1) }}
+              </p>
+            </article>
+            <article class="rounded-2xl border border-[#E8ECE3] bg-[#FAF9F5] p-3">
+              <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#536124] shadow-xs">
+                <MessageCircle class="h-3.5 w-3.5" />
+              </span>
+              <p class="mt-2 text-[10px] font-semibold text-[#7A866E] sm:text-[11px]">Tin nhắn NutriBot</p>
+              <p class="mt-0.5 truncate text-xs font-black text-[#2D3B1E] sm:text-sm">{{ selectedCustomer.recentChatMessages }}</p>
+            </article>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <article class="rounded-2xl border border-[#E8ECE3] bg-white p-3.5 sm:p-4">
+              <h3 class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#536124]">
+                <Mail class="h-4 w-4" /> Thông tin liên hệ
+              </h3>
+              <dl class="mt-3 space-y-3 text-sm">
+                <div class="flex gap-3">
+                  <Mail class="mt-0.5 h-4 w-4 shrink-0 text-[#9AA58B]" />
+                  <div class="min-w-0">
+                    <dt class="text-[11px] text-[#7A866E]">Email</dt>
+                    <dd class="mt-0.5 break-all font-semibold text-[#2D3B1E]">{{ selectedCustomer.email || 'Chưa cập nhật' }}</dd>
+                  </div>
+                </div>
+                <div class="flex gap-3">
+                  <Phone class="mt-0.5 h-4 w-4 shrink-0 text-[#9AA58B]" />
+                  <div>
+                    <dt class="text-[11px] text-[#7A866E]">Số điện thoại</dt>
+                    <dd class="mt-0.5 font-semibold text-[#2D3B1E]">{{ selectedCustomer.phone || 'Chưa cập nhật' }}</dd>
+                  </div>
+                </div>
+              </dl>
+            </article>
+            <article class="rounded-2xl border border-[#E8ECE3] bg-white p-3.5 sm:p-4">
+              <h3 class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#536124]">
+                <HeartPulse class="h-4 w-4" /> Hồ sơ thể trạng
+              </h3>
+              <dl class="mt-3 space-y-2.5 text-sm">
+                <div>
+                  <dt class="text-[11px] text-[#7A866E]">Chiều cao / Cân nặng</dt>
+                  <dd class="mt-0.5 font-semibold text-[#2D3B1E]">
+                    {{ formatNumber(selectedCustomer.heightCm) }} cm <span class="text-[#A3AC98]">/</span> {{ formatNumber(selectedCustomer.weightKg) }} kg
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-[11px] text-[#7A866E]">Mục tiêu dinh dưỡng</dt>
+                  <dd class="mt-0.5 font-semibold text-[#2D3B1E]">{{ formatNutritionGoal(selectedCustomer.nutritionGoal) }}</dd>
+                </div>
+              </dl>
+            </article>
+            <article class="rounded-2xl border border-[#E8ECE3] bg-white p-3.5 sm:p-4">
+              <h3 class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#536124]">
+                <ShoppingBag class="h-4 w-4" /> Lịch sử đơn hàng
+              </h3>
+              <dl class="mt-3 space-y-2.5 text-sm">
+                <div>
+                  <dt class="text-[11px] text-[#7A866E]">Số đơn hàng</dt>
+                  <dd class="mt-0.5 font-semibold text-[#2D3B1E]">{{ selectedCustomer.orderCount }} đơn</dd>
+                </div>
+                <div>
+                  <dt class="text-[11px] text-[#7A866E]">Đơn hoàn tất</dt>
+                  <dd class="mt-0.5 font-semibold text-[#2D3B1E]">{{ selectedCustomer.completedOrderCount }} đơn</dd>
+                </div>
+              </dl>
+            </article>
+            <article class="rounded-2xl border border-[#E8ECE3] bg-white p-3.5 sm:p-4">
+              <h3 class="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#536124]">
+                <Sparkles class="h-4 w-4" /> Tương tác NutriBot · 30 ngày
+              </h3>
+              <dl class="mt-3 space-y-2.5 text-sm">
+                <div>
+                  <dt class="text-[11px] text-[#7A866E]">Cuộc hội thoại</dt>
+                  <dd class="mt-0.5 font-semibold text-[#2D3B1E]">{{ selectedCustomer.recentChatConversations }}</dd>
+                </div>
+                <div>
+                  <dt class="text-[11px] text-[#7A866E]">Tương tác gần nhất</dt>
+                  <dd class="mt-0.5 font-semibold text-[#2D3B1E]">{{ formatChatDate(selectedCustomer.lastChatAt) }}</dd>
+                </div>
+              </dl>
+            </article>
+          </div>
         </div>
 
-        <div class="flex justify-end gap-2 border-t border-[#F0F3EC] pt-4">
+        <div class="flex shrink-0 flex-col-reverse gap-2 border-t border-[#F0F3EC] bg-[#FCFCFA] px-5 py-3 sm:flex-row sm:justify-end sm:px-7">
           <button
             type="button"
             @click="selectedCustomer = null"
-            class="rounded-xl border border-[#DEE5D4] px-4 py-2.5 text-sm font-semibold text-[#576449] hover:bg-[#FAF9F5]"
+            class="rounded-xl border border-[#DEE5D4] bg-white px-4 py-2.5 text-sm font-semibold text-[#576449] transition hover:bg-[#F4F7EF]"
           >
             Đóng
           </button>
           <button
             type="button"
             @click="openEditCustomer(selectedCustomer)"
-            class="inline-flex items-center gap-2 rounded-xl bg-[#536124] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#434F1D]"
+            class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#536124] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#434F1D] hover:shadow-md"
           >
             <Pencil class="h-4 w-4" />
-            Chỉnh sửa
+            Chỉnh sửa thông tin
           </button>
         </div>
       </section>
@@ -755,141 +819,244 @@ async function exportCsv() {
         aria-modal="true"
         aria-labelledby="admin-customer-form-title"
         @submit.prevent="submitCustomerForm"
-        class="my-auto w-full max-w-2xl space-y-5 rounded-3xl bg-white p-6 shadow-xl"
+        class="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-white/60 bg-white shadow-[0_24px_80px_rgba(16,24,16,0.28)]"
       >
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <h2 id="admin-customer-form-title" class="font-heading text-xl font-black text-[#2D3B1E]">
-              {{ editingCustomer ? 'Cập nhật khách hàng' : 'Thêm khách hàng mới' }}
-            </h2>
-            <p class="mt-1 text-sm text-[#7A866E]">
-              {{ editingCustomer ? `Mã khách hàng #${editingCustomer.id}` : 'Tạo tài khoản khách hàng và hồ sơ dinh dưỡng.' }}
-            </p>
+        <div class="flex shrink-0 items-start justify-between gap-4 bg-linear-to-r from-[#2D3B1E] to-[#647642] px-5 py-5 text-white sm:px-7">
+          <div class="flex min-w-0 items-center gap-3">
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15">
+              <Pencil v-if="editingCustomer" class="h-5 w-5" />
+              <Users v-else class="h-5 w-5" />
+            </span>
+            <div class="min-w-0">
+              <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-white/65">
+                {{ editingCustomer ? 'Cập nhật hồ sơ' : 'Quản lý khách hàng' }}
+              </p>
+              <h2 id="admin-customer-form-title" class="mt-0.5 truncate font-heading text-lg font-black sm:text-xl">
+                {{ editingCustomer ? 'Chỉnh sửa khách hàng' : 'Thêm khách hàng mới' }}
+              </h2>
+              <p class="mt-1 truncate text-xs text-white/75">
+                {{ editingCustomer ? `Mã khách hàng #${editingCustomer.id}` : 'Tạo tài khoản và hồ sơ dinh dưỡng.' }}
+              </p>
+            </div>
           </div>
           <button
             type="button"
             :disabled="isSaving"
             aria-label="Đóng biểu mẫu"
             @click="isFormOpen = false"
-            class="rounded-lg p-2 text-[#7A866E] hover:bg-[#F0F3EC] disabled:opacity-50"
+            class="shrink-0 rounded-xl p-2.5 text-white/75 transition hover:bg-white/15 hover:text-white disabled:opacity-50"
           >
             <X class="h-5 w-5" />
           </button>
         </div>
 
-        <p v-if="formError" role="alert" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {{ formError }}
-        </p>
+        <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-7">
+          <p v-if="formError" role="alert" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {{ formError }}
+          </p>
 
-        <div class="grid gap-4 sm:grid-cols-2">
-          <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
-            Họ và tên
-            <input
-              v-model="customerForm.fullName"
-              type="text"
-              maxlength="150"
-              required
-              autocomplete="name"
-              class="w-full rounded-xl border border-[#DEE5D4] px-3 py-2.5 font-normal outline-none focus:border-[#536124]"
-            />
-          </label>
-          <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
-            Email
-            <input
-              v-model="customerForm.email"
-              type="email"
-              maxlength="255"
-              required
-              autocomplete="email"
-              class="w-full rounded-xl border border-[#DEE5D4] px-3 py-2.5 font-normal outline-none focus:border-[#536124]"
-            />
-          </label>
-          <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
-            Số điện thoại
-            <input
-              v-model="customerForm.phone"
-              type="tel"
-              maxlength="20"
-              autocomplete="tel"
-              class="w-full rounded-xl border border-[#DEE5D4] px-3 py-2.5 font-normal outline-none focus:border-[#536124]"
-            />
-          </label>
-          <label v-if="!editingCustomer" class="space-y-1.5 text-sm font-semibold text-[#576449]">
-            Mật khẩu ban đầu
-            <input
-              v-model="customerForm.password"
-              type="password"
-              minlength="8"
-              maxlength="128"
-              required
-              autocomplete="new-password"
-              class="w-full rounded-xl border border-[#DEE5D4] px-3 py-2.5 font-normal outline-none focus:border-[#536124]"
-            />
-          </label>
-          <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
-            Chiều cao (cm)
-            <input
-              :value="customerForm.heightCm ?? ''"
-              type="number"
-              min="1"
-              max="300"
-              step="0.1"
-              @input="updateFormMeasurement('heightCm', $event)"
-              class="w-full rounded-xl border border-[#DEE5D4] px-3 py-2.5 font-normal outline-none focus:border-[#536124]"
-            />
-          </label>
-          <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
-            Cân nặng (kg)
-            <input
-              :value="customerForm.weightKg ?? ''"
-              type="number"
-              min="1"
-              max="700"
-              step="0.1"
-              @input="updateFormMeasurement('weightKg', $event)"
-              class="w-full rounded-xl border border-[#DEE5D4] px-3 py-2.5 font-normal outline-none focus:border-[#536124]"
-            />
-          </label>
-          <label class="space-y-1.5 text-sm font-semibold text-[#576449] sm:col-span-2">
-            Mục tiêu dinh dưỡng
-            <select
-              v-model="customerForm.nutritionGoal"
-              class="w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2.5 font-normal outline-none focus:border-[#536124]"
-            >
-              <option :value="null">Chưa thiết lập</option>
-              <option value="lose_weight">Giảm cân</option>
-              <option value="maintain_weight">Duy trì cân nặng</option>
-              <option value="gain_weight">Tăng cân</option>
-            </select>
-          </label>
+          <section>
+            <h3 class="text-xs font-bold uppercase tracking-wide text-[#536124]">Thông tin tài khoản</h3>
+            <div class="mt-3 grid gap-4 sm:grid-cols-2">
+              <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
+                Họ và tên
+                <input
+                  v-model="customerForm.fullName"
+                  type="text"
+                  maxlength="150"
+                  required
+                  autocomplete="name"
+                  class="w-full rounded-xl border border-[#DEE5D4] bg-[#FCFCFA] px-3.5 py-3 font-normal outline-none transition focus:border-[#536124] focus:bg-white focus:ring-2 focus:ring-[#536124]/10"
+                />
+              </label>
+              <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
+                Email
+                <input
+                  v-model="customerForm.email"
+                  type="email"
+                  maxlength="255"
+                  required
+                  autocomplete="email"
+                  class="w-full rounded-xl border border-[#DEE5D4] bg-[#FCFCFA] px-3.5 py-3 font-normal outline-none transition focus:border-[#536124] focus:bg-white focus:ring-2 focus:ring-[#536124]/10"
+                />
+              </label>
+              <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
+                Số điện thoại
+                <input
+                  v-model="customerForm.phone"
+                  type="tel"
+                  maxlength="20"
+                  autocomplete="tel"
+                  class="w-full rounded-xl border border-[#DEE5D4] bg-[#FCFCFA] px-3.5 py-3 font-normal outline-none transition focus:border-[#536124] focus:bg-white focus:ring-2 focus:ring-[#536124]/10"
+                />
+              </label>
+              <label v-if="!editingCustomer" class="space-y-1.5 text-sm font-semibold text-[#576449]">
+                Mật khẩu ban đầu
+                <input
+                  v-model="customerForm.password"
+                  type="password"
+                  minlength="8"
+                  maxlength="128"
+                  required
+                  autocomplete="new-password"
+                  class="w-full rounded-xl border border-[#DEE5D4] bg-[#FCFCFA] px-3.5 py-3 font-normal outline-none transition focus:border-[#536124] focus:bg-white focus:ring-2 focus:ring-[#536124]/10"
+                />
+              </label>
+            </div>
+          </section>
+
+          <section class="border-t border-[#F0F3EC] pt-5">
+            <h3 class="text-xs font-bold uppercase tracking-wide text-[#536124]">Hồ sơ dinh dưỡng</h3>
+            <div class="mt-3 grid gap-4 sm:grid-cols-2">
+              <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
+                Chiều cao (cm)
+                <input
+                  :value="customerForm.heightCm ?? ''"
+                  type="number"
+                  min="1"
+                  max="300"
+                  step="0.1"
+                  @input="updateFormMeasurement('heightCm', $event)"
+                  class="w-full rounded-xl border border-[#DEE5D4] bg-[#FCFCFA] px-3.5 py-3 font-normal outline-none transition focus:border-[#536124] focus:bg-white focus:ring-2 focus:ring-[#536124]/10"
+                />
+              </label>
+              <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
+                Cân nặng (kg)
+                <input
+                  :value="customerForm.weightKg ?? ''"
+                  type="number"
+                  min="1"
+                  max="700"
+                  step="0.1"
+                  @input="updateFormMeasurement('weightKg', $event)"
+                  class="w-full rounded-xl border border-[#DEE5D4] bg-[#FCFCFA] px-3.5 py-3 font-normal outline-none transition focus:border-[#536124] focus:bg-white focus:ring-2 focus:ring-[#536124]/10"
+                />
+              </label>
+              <label class="space-y-1.5 text-sm font-semibold text-[#576449] sm:col-span-2">
+                Mục tiêu dinh dưỡng
+                <select
+                  v-model="customerForm.nutritionGoal"
+                  class="w-full rounded-xl border border-[#DEE5D4] bg-white px-3.5 py-3 font-normal outline-none transition focus:border-[#536124] focus:ring-2 focus:ring-[#536124]/10"
+                >
+                  <option :value="null">Chưa thiết lập</option>
+                  <option value="lose_weight">Giảm cân</option>
+                  <option value="maintain_weight">Duy trì cân nặng</option>
+                  <option value="gain_weight">Tăng cân</option>
+                </select>
+              </label>
+            </div>
+          </section>
         </div>
 
-        <div class="flex flex-col-reverse justify-end gap-2 border-t border-[#F0F3EC] pt-4 sm:flex-row">
+        <div class="flex shrink-0 flex-col-reverse justify-end gap-2 border-t border-[#F0F3EC] bg-[#FCFCFA] px-5 py-4 sm:flex-row sm:px-7">
           <button
             type="button"
             :disabled="isSaving"
             @click="isFormOpen = false"
-            class="rounded-xl border border-[#DEE5D4] px-4 py-2.5 text-sm font-semibold text-[#576449] hover:bg-[#FAF9F5] disabled:opacity-50"
+            class="rounded-xl border border-[#DEE5D4] bg-white px-4 py-2.5 text-sm font-semibold text-[#576449] transition hover:bg-[#F4F7EF] disabled:opacity-50"
           >
             Hủy
           </button>
           <button
             type="submit"
             :disabled="isSaving"
-            class="rounded-xl bg-[#536124] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#434F1D] disabled:cursor-wait disabled:opacity-60"
+            class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#536124] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#434F1D] hover:shadow-md disabled:cursor-wait disabled:opacity-60"
           >
+            <Save class="h-4 w-4" />
             {{ isSaving ? 'Đang lưu…' : editingCustomer ? 'Lưu thay đổi' : 'Tạo khách hàng' }}
           </button>
         </div>
       </form>
     </div>
+
+    <div
+      v-if="pendingDeleteCustomer"
+      class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
+      @click.self="!isDeleting && (pendingDeleteCustomer = null)"
+    >
+      <section
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="admin-customer-delete-title"
+        aria-describedby="admin-customer-delete-description"
+        class="w-full max-w-md overflow-hidden rounded-3xl border border-white/60 bg-white shadow-[0_24px_80px_rgba(16,24,16,0.28)]"
+      >
+        <div class="flex items-start gap-4 px-5 pb-4 pt-6 sm:px-6">
+          <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
+            <AlertTriangle class="h-6 w-6" />
+          </span>
+          <div class="min-w-0 flex-1">
+            <h2 id="admin-customer-delete-title" class="font-heading text-lg font-black text-[#2D3B1E]">
+              Xóa khách hàng?
+            </h2>
+            <p class="mt-1 break-words text-sm font-semibold text-[#536124]">
+              {{ pendingDeleteCustomer.name || `Khách hàng #${pendingDeleteCustomer.id}` }}
+            </p>
+          </div>
+          <button
+            type="button"
+            :disabled="isDeleting"
+            aria-label="Đóng xác nhận xóa"
+            class="rounded-xl p-2 text-[#7A866E] transition hover:bg-[#F4F7EF] hover:text-[#2D3B1E] disabled:opacity-50"
+            @click="pendingDeleteCustomer = null"
+          >
+            <X class="h-5 w-5" />
+          </button>
+        </div>
+        <div class="px-5 pb-5 sm:px-6">
+          <p id="admin-customer-delete-description" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+            Thao tác này sẽ xóa tài khoản khách hàng và không thể hoàn tác. Chỉ khách hàng chưa có đơn hàng mới có thể xóa.
+          </p>
+          <p v-if="deleteError" role="alert" class="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {{ deleteError }}
+          </p>
+        </div>
+        <div class="flex flex-col-reverse gap-2 border-t border-[#F0F3EC] bg-[#FCFCFA] px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+          <button
+            type="button"
+            :disabled="isDeleting"
+            class="rounded-xl border border-[#DEE5D4] bg-white px-4 py-2.5 text-sm font-semibold text-[#576449] transition hover:bg-[#F4F7EF] disabled:opacity-50"
+            @click="pendingDeleteCustomer = null"
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            :disabled="isDeleting"
+            class="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-wait disabled:opacity-60"
+            @click="confirmRemoveCustomer"
+          >
+            <Trash2 class="h-4 w-4" />
+            {{ isDeleting ? 'Đang xóa…' : 'Xóa khách hàng' }}
+          </button>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.customer-row > td {
+  transition:
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.customer-row > td:nth-child(2) > div > span {
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
 .customer-row:hover > td,
 .customer-row:focus-visible > td {
   background-color: #ebf1e6;
+}
+
+.customer-row:hover > td:nth-child(2) > div > span,
+.customer-row:focus-visible > td:nth-child(2) > div > span {
+  transform: scale(1.06);
+  box-shadow: 0 3px 8px rgb(45 59 30 / 16%);
 }
 
 .customer-row.is-selected > td {

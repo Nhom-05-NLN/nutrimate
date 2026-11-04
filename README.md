@@ -64,6 +64,9 @@ cp .env.example .env
 #    Ví dụ tạo giá trị bằng Node.js: node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
 
 # 5. Tạo database PostgreSQL nutrimate_db và chạy server/db/schema.sql
+#    Chỉ với database đã tạo trước đó, áp dụng migration thông báo admin một lần:
+psql -v ON_ERROR_STOP=1 -f server/db/migrations/004_admin_notifications.sql
+psql -v ON_ERROR_STOP=1 -f server/db/migrations/007_admin_login_notifications.sql
 
 # 6. Khởi chạy dự án ở chế độ phát triển
 npm run dev
