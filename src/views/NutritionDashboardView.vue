@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { useCartStore } from '../stores/cartStore';
 import { useToastStore } from '../stores/toastStore';
 import { fetchCaloriePlan, fetchNutritionDiary, fetchProducts, postNutritionImage, postNutritionMeal, postNutritionWater } from '../services/api';
@@ -8,6 +9,7 @@ import { useAuthStore } from '../stores/authStore';
 import {
   Calendar,
   Camera,
+  ChevronDown,
   Plus,
   Upload,
   Scan,
@@ -19,6 +21,7 @@ import {
 } from 'lucide-vue-next';
 
 const cartStore = useCartStore();
+const router = useRouter();
 const toastStore = useToastStore();
 const authStore = useAuthStore();
 
@@ -295,6 +298,10 @@ function addRecommendedProduct(product: Product) {
   cartStore.addItem(product, 1, product.nutrition.servingSize || 'Mặc định');
 }
 
+function openRecommendedProduct(product: Product) {
+  void router.push(`/product/${encodeURIComponent(product.id)}`);
+}
+
 const isMealModalOpen = ref(false);
 const mealForm = ref<CreateNutritionDiaryMeal>({ date: selectedDate.value, mealType: 'breakfast', foodName: '', calories: 0, protein: 0, carbs: 0, fat: 0, sugar: 0 });
 function openMealForm(type: MealType = 'breakfast') {
@@ -362,7 +369,7 @@ async function addWater(amount: number) {
       <form class="w-full max-w-lg space-y-4 rounded-3xl bg-white p-6 shadow-xl" @submit.prevent="saveMeal">
         <div class="flex items-center justify-between"><h2 class="font-heading text-xl font-bold">Ghi món ăn</h2><button type="button" aria-label="Đóng" @click="isMealModalOpen = false">×</button></div>
         <label class="block text-sm">Tên món ăn<input v-model="mealForm.foodName" required maxlength="200" class="mt-1 w-full rounded-xl border p-3" /></label>
-        <label class="block text-sm">Bữa ăn<select v-model="mealForm.mealType" class="mt-1 w-full rounded-xl border p-3"><option v-for="meal in mealOptions" :key="meal.id" :value="meal.id">{{ meal.title }}</option></select></label>
+        <label class="block text-sm">Bữa ăn<span class="relative mt-1 block"><select v-model="mealForm.mealType" class="w-full appearance-none rounded-xl border p-3 pr-12"><option v-for="meal in mealOptions" :key="meal.id" :value="meal.id">{{ meal.title }}</option></select><ChevronDown class="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#536124]" aria-hidden="true" /></span></label>
         <div class="grid grid-cols-2 gap-3">
           <label v-for="field in (['calories','protein','carbs','fat','sugar'] as const)" :key="field" class="block text-sm">{{ field === 'calories' ? 'Calories (kcal)' : `${field} (g)` }}<input v-model.number="mealForm[field]" type="number" min="0" :max="field === 'calories' ? 10000 : 1000" step="0.1" required class="mt-1 w-full rounded-xl border p-3" /></label>
         </div>
@@ -665,13 +672,13 @@ async function addWater(amount: number) {
         <article v-for="meal in mealsByType" :key="meal.id" class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-4">
           <header class="flex items-start justify-between border-b border-[#F0F3EC] pb-3.5">
             <h3 class="font-heading text-sm font-bold">{{ meal.emoji }} {{ meal.title }}</h3>
-            <div class="text-right text-xs"><strong class="block">{{ meal.calories }} kcal</strong><span class="text-[#7A866E]">{{ meal.protein }}g Protein</span></div>
+            <div class="text-right text-xs"><strong>{{ meal.calories }} kcal</strong></div>
           </header>
           <p v-if="meal.items.length === 0" class="py-4 text-xs text-[#7A866E]">Chưa ghi nhận món ăn.</p>
           <ul v-else class="space-y-2 text-xs">
             <li v-for="item in meal.items" :key="item.id" class="rounded-xl bg-[#FAF9F5] p-3">
               <strong class="block">{{ item.foodName }}</strong>
-              <span class="text-[#7A866E]">{{ item.calories }} kcal · {{ item.protein }}g đạm · {{ item.carbs }}g carbs · {{ item.fat }}g fat</span>
+              <span class="text-[#7A866E]">{{ item.calories }} kcal · {{ item.protein }}g đạm · {{ item.carbs }}g carbs · {{ item.fat }}g fat · {{ item.sugar }}g sugar</span>
             </li>
           </ul>
           <button type="button" class="font-bold text-xs text-[#536124] hover:underline" @click="openMealForm(meal.id)">+ Thêm món</button>
@@ -773,12 +780,12 @@ async function addWater(amount: number) {
       <div class="flex items-center justify-between">
         <div>
           <h2 class="font-heading text-2xl font-black text-[#242424] flex items-center gap-2">
-            <span>🌱</span> Gợi ý Thực phẩm Bổ sung Thiếu hụt
+            Gợi ý Thực phẩm Bổ sung Thiếu hụt
           </h2>
           <p class="text-xs sm:text-sm text-[#7A866E] mt-1">{{ proteinSuggestionMessage }}</p>
         </div>
         <RouterLink to="/catalog" class="text-xs sm:text-sm font-bold text-[#536124] hover:underline">
-          Xem tất cả thực phẩm sạch &gt;
+          Xem tất cả thực phẩm sạch →
         </RouterLink>
       </div>
 
@@ -786,9 +793,11 @@ async function addWater(amount: number) {
         <p v-if="recommendationError" class="col-span-full rounded-2xl bg-white p-6 text-sm text-[#7A866E]">{{ recommendationError }}</p>
         <p v-else-if="rankedRecommendedProducts.length === 0" class="col-span-full rounded-2xl bg-white p-6 text-sm text-[#7A866E]">Hiện không có sản phẩm còn hàng phù hợp.</p>
         <article v-for="product in rankedRecommendedProducts" :key="product.id" class="flex items-center gap-5 rounded-3xl border border-[#E3E8DC] bg-white p-6">
-          <img v-if="product.image && !failedProductImages.includes(product.id)" :src="product.image" :alt="product.name" class="h-24 w-24 rounded-2xl object-cover" @error="markProductImageFailed(product.id)" />
-          <div v-else class="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-[#EBF7E5] p-2 text-center text-xs text-[#536124]">{{ product.name }}</div>
-          <div class="min-w-0 flex-1"><h3 class="truncate font-bold">{{ product.name }}</h3><p class="text-xs text-[#7A866E]">{{ product.nutrition.protein }}g Protein · {{ product.nutrition.carbs }}g Carbs · {{ product.nutrition.fat }}g Fat / {{ product.nutrition.servingSize }}</p><p class="font-bold">{{ product.price.toLocaleString("vi-VN") }} đ</p><button type="button" :disabled="product.stock <= 0" class="rounded-xl bg-[#536124] px-4 py-2 text-xs font-bold text-white disabled:opacity-50" @click="addRecommendedProduct(product)">Thêm vào giỏ</button></div>
+          <button type="button" class="shrink-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#536124]" :aria-label="`Xem chi tiết ${product.name}`" @click="openRecommendedProduct(product)">
+            <img v-if="product.image && !failedProductImages.includes(product.id)" :src="product.image" :alt="product.name" class="h-24 w-24 rounded-2xl object-cover" @error="markProductImageFailed(product.id)" />
+            <span v-else class="flex h-24 w-24 items-center justify-center rounded-2xl bg-[#EBF7E5] p-2 text-center text-xs text-[#536124]">{{ product.name }}</span>
+          </button>
+          <div class="min-w-0 flex-1"><h3 class="truncate font-bold"><button type="button" class="text-left hover:text-[#536124] hover:underline" @click="openRecommendedProduct(product)">{{ product.name }}</button></h3><p class="text-xs text-[#7A866E]">{{ product.nutrition.protein }}g Protein · {{ product.nutrition.carbs }}g Carbs · {{ product.nutrition.fat }}g Fat / {{ product.nutrition.servingSize }}</p><p class="font-bold">{{ product.price.toLocaleString("vi-VN") }} đ</p><button type="button" :disabled="product.stock <= 0" class="rounded-xl bg-[#536124] px-4 py-2 text-xs font-bold text-white disabled:opacity-50" @click="addRecommendedProduct(product)">Thêm vào giỏ</button></div>
         </article>
       </div>
     </div>
