@@ -105,7 +105,6 @@ async function handleCustomerLogout() {
           </RouterLink>
 
           <RouterLink
-            v-if="authStore.currentUser"
             to="/nutrition"
             active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
             class="py-1 hover:text-[#6B7A3A] transition-colors relative"
@@ -337,7 +336,6 @@ async function handleCustomerLogout() {
           Thực phẩm
         </RouterLink>
         <RouterLink
-          v-if="authStore.currentUser"
           to="/nutrition"
           @click="isMobileMenuOpen = false"
           class="px-4 py-2.5 rounded-xl text-sm font-semibold text-[#242424] hover:bg-[#EBF7E5]"
