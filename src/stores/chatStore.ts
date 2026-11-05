@@ -114,18 +114,11 @@ export const useChatStore = defineStore('chat', () => {
       if (!await prepareSession(token, active)) return;
       const list = await fetchChatConversations(token);
       if (active !== epoch) return;
-      const conversation = list.find(item => item.id === conversationId.value) || list[0] || await createChatConversation(token);
-      const history = await fetchChatHistory(conversation.id, token);
-      if (active !== epoch) return;
-      const savedRequests = new Set(history.map(message => message.requestId));
-      const unsent = conversationId.value === conversation.id ? messages.value.filter(message => message.failed && !savedRequests.has(message.requestId || '')) : [];
-      conversations.value = list.length ? list : [conversation];
-      conversationId.value = conversation.id;
       disposeImagePreviews();
-      const restored = history.map(display);
-      messages.value = [...(restored.length ? restored : [welcome()]), ...unsent];
-      restoreImagePreviews(history, restored, active);
-      hasEarlier.value = history.length === 50;
+      conversations.value = list;
+      conversationId.value = null;
+      messages.value = [welcome()];
+      hasEarlier.value = false;
     } catch (reason) { if (active === epoch) reportError(reason, 'Không tải được hội thoại.'); }
     finally { if (active === epoch) isThinking.value = false; }
   }
@@ -153,10 +146,10 @@ export const useChatStore = defineStore('chat', () => {
     error.value = '';
     try {
       if (!await prepareSession(auth.accessToken, active)) return;
-      const conversation = await createChatConversation(auth.accessToken);
+      const existingConversations = await fetchChatConversations(auth.accessToken);
       if (active !== epoch) return;
-      conversations.value = [conversation, ...conversations.value].slice(0, 50);
-      conversationId.value = conversation.id;
+      conversations.value = existingConversations;
+      conversationId.value = null;
       disposeImagePreviews();
       messages.value = [welcome()];
       hasEarlier.value = false;
@@ -174,6 +167,10 @@ export const useChatStore = defineStore('chat', () => {
     try {
       if (!sessionReady && !await prepareSession(auth.accessToken, active)) {
         throw new Error(error.value || 'KhÃ´ng thá»ƒ chuáº©n bá»‹ phiÃªn chat.');
+      }
+      if (!conversations.value.length) {
+        conversations.value = await fetchChatConversations(auth.accessToken);
+        if (active !== epoch) throw new Error('PhiÃªn chat Ä‘Ã£ thay Ä‘á»•i, vui lÃ²ng thá»­ láº¡i.');
       }
       const conversation = await createChatConversation(auth.accessToken);
       if (active !== epoch) throw new Error('PhiÃªn chat Ä‘Ã£ thay Ä‘á»•i, vui lÃ²ng thá»­ láº¡i.');
@@ -319,7 +316,7 @@ export const useChatStore = defineStore('chat', () => {
   function openChat() {
     if (isOpen.value) return;
     isOpen.value = true;
-    void newConversation();
+    void initialize();
   }
   function closeChat() { isOpen.value = false; }
   function toggleChat() { if (isOpen.value) closeChat(); else openChat(); }
