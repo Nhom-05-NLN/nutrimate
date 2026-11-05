@@ -209,6 +209,7 @@ export interface NutritionImagePrediction {
   predictedCarbs: number | null;
   predictedFat: number | null;
   predictedSugar: number | null;
+  labelFacts: { label: string; value: string }[];
 }
 
 export interface ApiResponse<T> {
