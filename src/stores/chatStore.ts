@@ -324,6 +324,34 @@ export const useChatStore = defineStore('chat', () => {
   }
   function closeChat() { isOpen.value = false; }
   function toggleChat() { if (isOpen.value) closeChat(); else openChat(); }
-  return { isOpen, isThinking, messages, error, requiresAuthentication, requiresImageAuthentication, guestSessionExpired, restartGuestSession, conversationId, conversations, hasEarlier, openChat, closeChat, toggleChat,
-    sendMessage, retryMessage, analyzeImage, initialize, selectConversation, newConversation, ensureCurrentConversation, loadEarlier };
+  function askAboutOrder(orderCode: string) {
+    openChat();
+    void sendMessage(`NutriBot ơi, kiểm tra giúp mình tiến độ đơn hàng #${orderCode} nhé!`);
+  }
+
+  return {
+    isOpen,
+    isThinking,
+    messages,
+    error,
+    requiresAuthentication,
+    requiresImageAuthentication,
+    guestSessionExpired,
+    restartGuestSession,
+    conversationId,
+    conversations,
+    hasEarlier,
+    openChat,
+    closeChat,
+    toggleChat,
+    sendMessage,
+    retryMessage,
+    analyzeImage,
+    initialize,
+    selectConversation,
+    newConversation,
+    ensureCurrentConversation,
+    loadEarlier,
+    askAboutOrder,
+  };
 });

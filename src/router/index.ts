@@ -20,6 +20,7 @@ import AdminProductsView from '../views/admin/AdminProductsView.vue';
 // import AdminInventoryView from '../views/admin/AdminInventoryView.vue';
 import AdminOrdersView from '../views/admin/AdminOrdersView.vue';
 import AdminCustomersView from '../views/admin/AdminCustomersView.vue';
+import AdminVouchersView from '../views/admin/AdminVouchersView.vue';
 import AdminKnowledgeBaseView from '../views/admin/AdminKnowledgeBaseView.vue';
 
 const routes: RouteRecordRaw[] = [
@@ -126,6 +127,16 @@ const routes: RouteRecordRaw[] = [
     name: 'admin-customers',
     component: AdminCustomersView,
     meta: { layout: 'admin' },
+  },
+  {
+    path: '/admin/vouchers',
+    name: 'admin-vouchers',
+    component: AdminVouchersView,
+    meta: { layout: 'admin' },
+  },
+  {
+    path: '/vouchers',
+    redirect: '/admin/vouchers',
   },
   {
     path: '/admin/knowledge-base',

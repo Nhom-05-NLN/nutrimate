@@ -48,6 +48,41 @@ export interface Category {
   count?: number;
 }
 
+export type VoucherDiscountType = 'fixed' | 'percent';
+export type VoucherTargetType = 'all' | 'first_order';
+
+export interface Voucher {
+  id: string;
+  code: string;
+  title: string;
+  description?: string;
+  discountType: VoucherDiscountType;
+  discountValue: number;
+  minOrderAmount: number;
+  maxDiscountAmount?: number;
+  targetType: VoucherTargetType;
+  usageLimit: number;
+  usedCount: number;
+  startDate?: string;
+  endDate: string;
+  isActive: boolean;
+  createdAt?: string;
+}
+
+export interface CreateVoucherPayload {
+  code: string;
+  title: string;
+  description?: string;
+  discountType: VoucherDiscountType;
+  discountValue: number;
+  minOrderAmount: number;
+  maxDiscountAmount?: number;
+  targetType?: VoucherTargetType;
+  usageLimit: number;
+  endDate: string;
+  isActive?: boolean;
+}
+
 export type OrderStatus = 'pending' | 'confirmed' | 'shipping' | 'delivered' | 'cancelled';
 export type PaymentMethod = 'cod' | 'vietqr' | 'momo';
 export type PaymentStatus = 'pending' | 'paid' | 'failed';
@@ -60,6 +95,7 @@ export interface OrderItem {
   quantity: number;
   calories: number;
   protein: number;
+  portion?: string;
   isAiRecommended?: boolean;
 }
 
@@ -68,6 +104,7 @@ export interface CustomerInfo {
   phone: string;
   email: string;
   address: string;
+  note?: string;
 }
 
 export interface Order {
@@ -80,6 +117,9 @@ export interface Order {
   totalCalories: number;
   totalProtein: number;
   shippingFee: number;
+  discountAmount?: number;
+  voucherCode?: string;
+  shippingMethod?: 'standard' | 'express_2h';
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   status: OrderStatus;
@@ -113,6 +153,8 @@ export interface CreateOrderPayload {
   customer: CustomerInfo;
   items: OrderItem[];
   paymentMethod: PaymentMethod;
+  shippingMethod?: 'standard' | 'express_2h';
+  voucherCode?: string;
   notes?: string;
 }
 
@@ -123,6 +165,14 @@ export interface KnowledgeBaseEntry {
   category: string | null;
   createdAt: Date | string | null;
   updatedAt: Date | string | null;
+}
+
+export interface ChatbotKnowledge {
+  id: number;
+  intentTag: string;
+  keywordPatterns: string[];
+  answerTemplate: string;
+  recommendedCategory?: DietCategory;
 }
 
 export interface ChatResponseData {
