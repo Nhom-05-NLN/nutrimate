@@ -9,6 +9,7 @@ router.post('/customer/login', authController.customerLogin);
 router.post('/admin/login', authController.adminLogin);
 router.get('/me', requireAuth, authController.me);
 router.put('/me', requireAuth, authController.updateMe);
+router.patch('/me/diet-preferences', requireAuth, authController.updateDietPreferences);
 router.get('/me/addresses', requireAuth, authController.listAddresses);
 router.post('/me/addresses', requireAuth, authController.createAddress);
 router.put('/me/addresses/:addressId', requireAuth, authController.editAddress);

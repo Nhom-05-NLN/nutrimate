@@ -40,6 +40,10 @@ export interface UpdateAvatarInput {
   avatarUrl: unknown;
 }
 
+export interface UpdateDietPreferencesInput {
+  dietPreferences: unknown;
+}
+
 export interface RegisteredUser {
   id: string;
   name: string;
@@ -47,6 +51,7 @@ export interface RegisteredUser {
   phone: string;
   role: "customer" | "admin";
   avatarUrl?: string | null;
+  dietPreferences: string[];
   defaultAddress?: authRepository.UserAddressRecord | null;
   addresses?: authRepository.UserAddressRecord[];
 }
@@ -164,6 +169,7 @@ export async function register(input: RegisterUserInput): Promise<AuthenticatedU
       phone: user.phone,
       accessToken: createAccessToken(user.id),
       role: 'customer',
+      dietPreferences: [],
     };
   } catch (err: unknown) {
     if (err instanceof DuplicateEmailError) {
@@ -215,6 +221,7 @@ export async function login(
     accessToken: createAccessToken(user.id),
     role: user.role,
     avatarUrl: user.avatarUrl,
+    dietPreferences: user.dietPreferences,
   };
 }
 
@@ -236,6 +243,7 @@ export async function getAuthenticatedUser(id: string): Promise<RegisteredUser |
     phone: user.phone,
     role: user.role,
     avatarUrl: user.avatarUrl,
+    dietPreferences: user.dietPreferences ?? [],
     defaultAddress: addresses.find((address) => address.isDefault) ?? addresses[0] ?? null,
     addresses,
   };
@@ -270,6 +278,43 @@ export async function updateAuthenticatedUserAvatar(
 
   const savedAvatarUrl = await authRepository.updateUserAvatar(id, avatarUrl);
   return savedAvatarUrl ?? null;
+}
+
+export async function updateAuthenticatedUserDietPreferences(
+  id: string,
+  input: UpdateDietPreferencesInput,
+): Promise<string[] | null> {
+  if (!isDbConnected()) {
+    throw new AuthServiceError("Máy chủ cơ sở dữ liệu hiện không khả dụng.", 503);
+  }
+  if (!Array.isArray(input.dietPreferences)) {
+    throw new AuthServiceError("Danh sách chế độ ăn không hợp lệ.", 400);
+  }
+
+  const preferences: string[] = [];
+  for (const preference of input.dietPreferences) {
+    if (typeof preference !== "string") {
+      throw new AuthServiceError("Danh sách chế độ ăn không hợp lệ.", 400);
+    }
+    preferences.push(preference);
+  }
+
+  const allowedPreferences = new Set([
+    "Low-Carb",
+    "Giàu Protein",
+    "Ít đường",
+    "Không bột ngọt",
+    "Keto chuẩn",
+  ]);
+  if (
+    preferences.length > allowedPreferences.size ||
+    preferences.some((preference) => !allowedPreferences.has(preference)) ||
+    new Set(preferences).size !== preferences.length
+  ) {
+    throw new AuthServiceError("Danh sách chế độ ăn không hợp lệ.", 400);
+  }
+
+  return authRepository.updateUserDietPreferences(id, preferences);
 }
 
 export async function updateAuthenticatedUser(
@@ -315,6 +360,7 @@ export async function updateAuthenticatedUser(
       email: user.email,
       phone: user.phone,
       role: existingUser.role,
+      dietPreferences: existingUser.dietPreferences,
       defaultAddress: addresses.find((address) => address.isDefault) ?? addresses[0] ?? null,
       addresses,
     };

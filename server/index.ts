@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { config } from './config.js';
-import { testDbConnection } from './db/index.js';
+import { ensureDietPreferencesColumn, testDbConnection } from './db/index.js';
 import apiRouter from './routes/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -47,7 +47,9 @@ async function bootstrap() {
   app.use(express.json({ limit: '2mb' }));
 
   // Test PostgreSQL connection
-  await testDbConnection();
+  if (await testDbConnection()) {
+    await ensureDietPreferencesColumn();
+  }
 
   // Mount API routes under /api
   app.use('/api', apiRouter);

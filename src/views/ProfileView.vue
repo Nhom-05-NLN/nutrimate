@@ -124,6 +124,7 @@ const availableDietPreferences = ['Low-Carb', 'Giàu Protein', 'Ít đường', 
 const dietPreferences = ref<string[]>([
   ...(authStore.currentUser?.dietPreferences ?? []),
 ]);
+const dietPreferencesSaving = ref(false);
 const currentDietLabel = computed(() => dietPreferences.value.join(' & ') || 'Chưa chọn');
 const suggestedFoodPackage = computed(() => ({
   title: dietPreferences.value.length
@@ -232,12 +233,23 @@ onMounted(() => {
   void loadAddresses();
 });
 
-function togglePreference(pref: string) {
+async function togglePreference(pref: string) {
+  if (dietPreferencesSaving.value) return;
   const updatedPreferences = dietPreferences.value.includes(pref)
     ? dietPreferences.value.filter((preference) => preference !== pref)
     : [...dietPreferences.value, pref];
-  dietPreferences.value = updatedPreferences;
-  authStore.updateDietPreferences(updatedPreferences);
+  dietPreferencesSaving.value = true;
+  try {
+    await authStore.updateDietPreferences(updatedPreferences);
+    dietPreferences.value = [...(authStore.currentUser?.dietPreferences ?? [])];
+  } catch (error: unknown) {
+    toastStore.show(
+      error instanceof Error ? error.message : 'Không thể lưu chế độ ăn. Vui lòng thử lại.',
+      'error',
+    );
+  } finally {
+    dietPreferencesSaving.value = false;
+  }
 }
 
 async function handleSave() {
@@ -664,6 +676,7 @@ async function handleAvatarChange(event: Event) {
                 :key="pref"
                 type="button"
                 @click="togglePreference(pref)"
+                :disabled="dietPreferencesSaving"
                 class="flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-colors cursor-pointer"
                 :class="
                   dietPreferences.includes(pref)

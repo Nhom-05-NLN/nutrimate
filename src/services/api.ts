@@ -137,6 +137,7 @@ export interface RegisteredUser {
   accessToken: string;
   role: 'customer' | 'admin';
   avatarUrl?: string | null;
+  dietPreferences: string[];
   defaultAddress?: {
     addressId: number;
     receiverName: string;
@@ -299,6 +300,22 @@ export async function updateCurrentUserAvatar(avatarUrl: string): Promise<string
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+export async function updateCurrentUserDietPreferences(
+  dietPreferences: string[],
+): Promise<string[]> {
+  const res = await fetchJson<ApiResponse<{ dietPreferences: string[] }>>(
+    '/auth/me/diet-preferences',
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ dietPreferences }),
+    },
+  );
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể cập nhật chế độ ăn.');
+  }
+  return res.data.dietPreferences;
 }
 
 export async function postLogout(): Promise<void> {

@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
     full_name VARCHAR(150) NOT NULL,
     phone VARCHAR(20),
     avt_url TEXT,
+    diet_preferences JSONB NOT NULL DEFAULT '[]'::jsonb
+        CHECK (jsonb_typeof(diet_preferences) = 'array'),
     role VARCHAR(20) DEFAULT 'customer' CHECK (role IN ('customer', 'admin')),
     height_cm NUMERIC(5, 1),
     weight_kg NUMERIC(5, 1),
@@ -29,6 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
 COMMENT ON TABLE users IS 'Lưu tài khoản, thông tin cá nhân và các mục tiêu dinh dưỡng cơ bản của người dùng.';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avt_url TEXT;
 ALTER TABLE users ALTER COLUMN avt_url TYPE TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS diet_preferences JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 -- 2. Bảng định danh khách hàng, liên kết một-một với tài khoản người dùng.
 CREATE TABLE IF NOT EXISTS customers (

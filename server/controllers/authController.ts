@@ -112,6 +112,41 @@ export async function updateMe(
   }
 }
 
+export async function updateDietPreferences(
+  req: Request<object, ApiResponse<{ dietPreferences: string[] }>, authService.UpdateDietPreferencesInput>,
+  res: Response<ApiResponse<{ dietPreferences: string[] }>, AuthLocals>
+): Promise<void> {
+  if (typeof req.body !== "object" || req.body === null || Array.isArray(req.body)) {
+    res.status(400).json({ success: false, message: "Danh sách chế độ ăn không hợp lệ." });
+    return;
+  }
+
+  try {
+    const dietPreferences = await authService.updateAuthenticatedUserDietPreferences(
+      res.locals.auth.sub,
+      req.body,
+    );
+    if (!dietPreferences) {
+      clearAuthCookie(res);
+      res.status(401).json({ success: false, message: "Phiên đăng nhập không còn hợp lệ." });
+      return;
+    }
+    res.status(200).json({
+      success: true,
+      message: "Đã lưu chế độ ăn.",
+      data: { dietPreferences },
+    });
+  } catch (err: unknown) {
+    if (err instanceof authService.AuthServiceError) {
+      res.status(err.statusCode).json({ success: false, message: err.message });
+      return;
+    }
+    const message = err instanceof Error ? err.message : "Unknown diet preferences update error";
+    console.error("[AuthController] Không thể cập nhật chế độ ăn:", message);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ khi cập nhật chế độ ăn." });
+  }
+}
+
 export async function listAddresses(
   _req: Request,
   res: Response<ApiResponse<authService.RegisteredUser["addresses"]>, AuthLocals>

@@ -44,6 +44,12 @@ function handleSearchSubmit() {
     router.push({ name: 'catalog' });
   }
 }
+
+async function handleCustomerLogout() {
+  await authStore.logout();
+  isUserDropdownOpen.value = false;
+  await router.replace({ name: 'home' });
+}
 </script>
 
 <template>
@@ -283,7 +289,7 @@ function handleSearchSubmit() {
               <div v-if="authStore.currentUser" class="border-t border-[#ECEFE7] p-2.5">
                 <button
                   type="button"
-                  @click="authStore.logout(); isUserDropdownOpen = false"
+                  @click="handleCustomerLogout"
                   class="w-full flex items-center gap-3 px-3 py-1 rounded-xl
                         text-rose-600 hover:bg-rose-50 transition-colors"
                 >
