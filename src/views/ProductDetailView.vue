@@ -226,7 +226,11 @@ function handleAddToCart() {
     ...product.value,
     price: currentPrice.value,
   };
-  cartStore.addItem(productToAdd, quantity.value, selectedPortion.value);
+  cartStore.addItem(
+    route.query.source === 'ai' ? { ...productToAdd, isAiRecommended: true } : productToAdd,
+    quantity.value,
+    selectedPortion.value,
+  );
   toastStore.show('Đã thêm vào giỏ hàng', 'success', `${product.value.name} (${selectedPortion.value})`);
 }
 

@@ -58,6 +58,7 @@ async function handlePlaceOrder() {
         quantity: i.quantity,
         calories: i.product.nutrition.calories,
         protein: i.product.nutrition.protein,
+        isAiRecommended: i.product.isAiRecommended === true,
       })),
       paymentMethod: paymentMethod.value,
       notes: notes.value.trim(),
