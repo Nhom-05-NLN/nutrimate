@@ -60,6 +60,7 @@ export interface OrderItem {
   quantity: number;
   calories: number;
   protein: number;
+  isAiRecommended?: boolean;
 }
 
 export interface CustomerInfo {

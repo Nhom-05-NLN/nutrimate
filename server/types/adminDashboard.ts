@@ -13,6 +13,8 @@ export interface AdminDashboardData {
   weeklySales: {
     date: string;
     revenue: number;
+    productRevenue: number;
+    aiRecommendedRevenue: number;
     orders: number;
   }[];
   categories: {

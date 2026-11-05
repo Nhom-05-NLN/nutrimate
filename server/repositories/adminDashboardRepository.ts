@@ -17,7 +17,8 @@ interface SummaryRow {
 
 interface WeeklySalesRow {
   date: string;
-  revenue: string;
+  product_revenue: string;
+  ai_recommended_revenue: string;
   orders: string;
 }
 
@@ -94,8 +95,13 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
     ),
     pool.query<WeeklySalesRow>(
       `SELECT to_char(days.day, 'YYYY-MM-DD') AS date,
-              COALESCE(SUM(orders.total_amount) FILTER (WHERE orders.status = 'delivered'), 0)::text AS revenue,
-              COUNT(orders.id)::text AS orders
+              COALESCE(SUM(order_items.subtotal) FILTER (
+                WHERE orders.status = 'delivered' AND NOT order_items.is_ai_recommended
+              ), 0)::text AS product_revenue,
+              COALESCE(SUM(order_items.subtotal) FILTER (
+                WHERE orders.status = 'delivered' AND order_items.is_ai_recommended
+              ), 0)::text AS ai_recommended_revenue,
+              COUNT(DISTINCT orders.id) FILTER (WHERE orders.status <> 'cancelled')::text AS orders
        FROM generate_series(
          CURRENT_DATE - INTERVAL '6 days',
          CURRENT_DATE,
@@ -105,6 +111,7 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
          ON orders.created_at >= days.day
         AND orders.created_at < days.day + INTERVAL '1 day'
         AND orders.status <> 'cancelled'
+       LEFT JOIN order_items ON order_items.order_id = orders.id
        GROUP BY days.day
        ORDER BY days.day`,
     ),
@@ -192,7 +199,9 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
     },
     weeklySales: weeklySalesResult.rows.map((row) => ({
       date: row.date,
-      revenue: toNumber(row.revenue),
+      revenue: toNumber(row.product_revenue) + toNumber(row.ai_recommended_revenue),
+      productRevenue: toNumber(row.product_revenue),
+      aiRecommendedRevenue: toNumber(row.ai_recommended_revenue),
       orders: toNumber(row.orders),
     })),
     categories,
