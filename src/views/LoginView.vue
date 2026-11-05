@@ -26,6 +26,24 @@ const password = ref('');
 const showPassword = ref(false);
 const rememberMe = ref(true);
 
+function getCustomerRedirect(): string {
+  const redirect = route.query.redirect;
+  if (typeof redirect !== 'string' || !redirect.startsWith('/') || redirect.startsWith('//')) {
+    return '/profile';
+  }
+
+  const destination = router.resolve(redirect);
+  if (
+    destination.path.startsWith('/admin') ||
+    destination.path === '/login' ||
+    destination.path === '/register'
+  ) {
+    return '/profile';
+  }
+
+  return destination.fullPath;
+}
+
 async function handleLogin() {
   try {
     const payload = {
@@ -40,7 +58,7 @@ async function handleLogin() {
       throw new Error('Vai trò tài khoản không phù hợp với trang đăng nhập này.');
     }
     authStore.login(user, user.accessToken, rememberMe.value);
-    await router.push(isAdminLogin.value ? '/admin' : '/profile');
+    await router.push(isAdminLogin.value ? '/admin' : getCustomerRedirect());
   } catch (err: unknown) {
     toastStore.show(
       err instanceof Error ? err.message : 'Không thể đăng nhập. Vui lòng thử lại.',

@@ -181,7 +181,7 @@ function handleSubscribe() {
               </a>
             </li>
 
-            <li v-if="authStore.currentUser?.role === 'customer'">
+            <li v-if="authStore.currentUser">
               <RouterLink to="/nutrition" class="hover:text-black transition-colors">
                 Hướng dẫn sử dụng NutriBot
               </RouterLink>

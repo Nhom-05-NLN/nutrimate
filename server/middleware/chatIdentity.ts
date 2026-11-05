@@ -61,7 +61,7 @@ export function createChatIdentity(findCustomer = async (id: number): Promise<st
     const userId = verifyCustomerJwt(authorization.slice(7), config.chat.jwtSecret);
     const role = await findCustomer(userId);
     if (!role) throw new ChatError(401, 'Tài khoản không còn tồn tại.');
-    if (role !== 'customer') throw new ChatError(403, 'Chức năng này dành cho Customer.');
+    if (role !== 'customer' && role !== 'admin') throw new ChatError(403, 'Tài khoản không có quyền sử dụng NutriBot.');
     return { userId, guestHash: null };
   }
   let guestToken = req.headers.cookie?.split(';').map(part => part.trim()).find(part => part.startsWith('nutrimate_guest='))?.slice(16);

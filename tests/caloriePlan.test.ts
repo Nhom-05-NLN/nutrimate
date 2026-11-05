@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { calculateCaloriePlan } from '../server/services/caloriePlanService.js';
+import { calculateBmi, calculateCaloriePlan } from '../server/services/caloriePlanService.js';
 import { CalorieProfile } from '../server/types/caloriePlan.js';
 
 const baseProfile: CalorieProfile = {
@@ -67,4 +67,10 @@ test('calorie plan is unavailable until required profile fields are complete', (
     calculateCaloriePlan({ ...baseProfile, activityLevel: 'invalid' as never }),
     null,
   );
+});
+
+test('BMI is available without activity level or nutrition goal', () => {
+  const profile = { ...baseProfile, activityLevel: null, nutritionGoal: null };
+  assert.equal(calculateBmi(profile), 17.6);
+  assert.equal(calculateCaloriePlan(profile), null);
 });

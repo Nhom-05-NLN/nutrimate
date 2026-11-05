@@ -183,11 +183,21 @@ test('another Customer cannot read or send to the owner conversation; list is is
   const list = await request('/conversations', undefined, jwt('2'));
   assert.ok(!(await list.json()).data.some((row: Conversation) => row.id === id));
 });
-test('invalid/expired JWT is rejected, never downgraded to Guest; Admin is forbidden', async () => {
+test('admin can use chat while conversation ownership stays isolated by account', async () => {
+  const adminConversationId = await create(jwt('9'));
+  const customerConversationId = await create(jwt('1'));
+  assert.notEqual(adminConversationId, customerConversationId);
+  assert.equal((await request('/ask', {
+    conversationId: adminConversationId,
+    requestId: randomUUID(),
+    message: 'Tư vấn dinh dưỡng',
+  }, jwt('9'))).status, 200);
+  assert.equal((await request(`/conversations/${adminConversationId}/messages`, undefined, jwt('1'))).status, 404);
+});
+test('invalid/expired JWT is rejected, never downgraded to Guest', async () => {
   for (const token of ['bad', jwt('1', 1), jwt('1', Math.floor(Date.now() / 1000) + 60, 'wrong')]) {
     assert.equal((await request('/conversations', {}, token)).status, 401);
   }
-  assert.equal((await request('/conversations', {}, jwt('9'))).status, 403);
   assert.equal((await request('/conversations', {}, jwt('100'))).status, 401);
   assert.throws(() => verifyCustomerJwt(jwt(), ''), ChatError);
 });

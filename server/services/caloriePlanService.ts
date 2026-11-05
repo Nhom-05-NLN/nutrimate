@@ -8,6 +8,18 @@ export class CaloriePlanError extends Error {
   }
 }
 
+export function calculateBmi(profile: Pick<CalorieProfile, 'heightCm' | 'weightKg'>): number | null {
+  const { heightCm, weightKg } = profile;
+  if (
+    heightCm === null || weightKg === null ||
+    !Number.isFinite(heightCm) || heightCm < 80 || heightCm > 250 ||
+    !Number.isFinite(weightKg) || weightKg < 20 || weightKg > 400
+  ) {
+    return null;
+  }
+  return Math.round((weightKg / ((heightCm / 100) ** 2)) * 10) / 10;
+}
+
 const activityFactors: Record<ActivityLevel, number> = {
   sedentary: 1.2,
   light: 1.375,
@@ -23,16 +35,14 @@ const goalAdjustments: Record<NutritionGoal, number> = {
 
 export function calculateCaloriePlan(profile: CalorieProfile): CaloriePlan | null {
   const { heightCm, weightKg, age, gender, activityLevel, nutritionGoal } = profile;
-  const hasMissingRequiredFields = (
+  if (
     heightCm == null ||
     weightKg == null ||
     age == null ||
     gender == null ||
     activityLevel == null ||
     nutritionGoal == null
-  );
-
-  if (hasMissingRequiredFields) {
+  ) {
     return null;
   }
 
@@ -60,7 +70,9 @@ export function calculateCaloriePlan(profile: CalorieProfile): CaloriePlan | nul
   const targetCalories = Math.max(1200, requestedTargetCalories);
   return {
     ...profile,
-    bmi: Math.round((weightKg / ((heightCm / 100) ** 2)) * 10) / 10,
+    activityLevel,
+    nutritionGoal,
+    bmi: calculateBmi(profile)!,
     bmrKcal,
     tdeeKcal,
     adjustmentKcal: targetCalories - tdeeKcal,
@@ -93,29 +105,33 @@ function validateProfile(input: unknown): CalorieProfile {
   if (gender !== 'male' && gender !== 'female' && gender !== 'other') {
     throw new CaloriePlanError('Vui lòng chọn giới tính hợp lệ.', 400);
   }
-  if (activityLevel !== 'sedentary' && activityLevel !== 'light' && activityLevel !== 'moderate' && activityLevel !== 'high') {
+  if (activityLevel !== null && activityLevel !== undefined &&
+      activityLevel !== 'sedentary' && activityLevel !== 'light' && activityLevel !== 'moderate' && activityLevel !== 'high') {
     throw new CaloriePlanError('Vui lòng chọn mức độ hoạt động hợp lệ.', 400);
   }
-  if (nutritionGoal !== 'lose_weight' && nutritionGoal !== 'maintain_weight' && nutritionGoal !== 'gain_weight') {
+  if (nutritionGoal !== null && nutritionGoal !== undefined &&
+      nutritionGoal !== 'lose_weight' && nutritionGoal !== 'maintain_weight' && nutritionGoal !== 'gain_weight') {
     throw new CaloriePlanError('Vui lòng chọn mục tiêu dinh dưỡng.', 400);
   }
 
-  return { heightCm, weightKg, age, gender, activityLevel, nutritionGoal };
+  return {
+    heightCm, weightKg, age, gender,
+    activityLevel: activityLevel ?? null,
+    nutritionGoal: nutritionGoal ?? null,
+  };
 }
 
-export async function getPlan(userId: string): Promise<{ profile: CalorieProfile; plan: CaloriePlan | null }> {
+export async function getPlan(userId: string): Promise<{ profile: CalorieProfile & { bmi: number | null }; plan: CaloriePlan | null }> {
   const profile = await caloriePlanRepository.getCalorieProfile(userId);
   if (!profile) throw new CaloriePlanError('Không tìm thấy hồ sơ khách hàng.', 404);
-  return { profile, plan: calculateCaloriePlan(profile) };
+  return { profile: { ...profile, bmi: calculateBmi(profile) }, plan: calculateCaloriePlan(profile) };
 }
 
-export async function updateProfile(userId: string, input: unknown): Promise<{ profile: CalorieProfile; plan: CaloriePlan }> {
+export async function updateProfile(userId: string, input: unknown): Promise<{ profile: CalorieProfile & { bmi: number | null }; plan: CaloriePlan | null }> {
   const profile = validateProfile(input);
   const plan = calculateCaloriePlan(profile);
-  if (!plan) throw new CaloriePlanError('Hồ sơ chưa đủ để tính lộ trình.', 400);
-  const savedProfile = await caloriePlanRepository.saveCalorieProfile(userId, profile, plan.targetCalories);
+  const savedProfile = await caloriePlanRepository.saveCalorieProfile(userId, profile, plan?.targetCalories ?? null);
   if (!savedProfile) throw new CaloriePlanError('Không tìm thấy hồ sơ khách hàng.', 404);
   const savedPlan = calculateCaloriePlan(savedProfile);
-  if (!savedPlan) throw new CaloriePlanError('Không thể tạo lộ trình từ hồ sơ đã lưu.', 500);
-  return { profile: savedProfile, plan: savedPlan };
+  return { profile: { ...savedProfile, bmi: calculateBmi(savedProfile) }, plan: savedPlan };
 }

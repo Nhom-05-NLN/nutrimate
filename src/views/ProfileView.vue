@@ -92,6 +92,7 @@ watch(
 
 const caloriePlanData = ref<CaloriePlanResponse | null>(null);
 const caloriePlan = computed(() => caloriePlanData.value?.plan ?? null);
+const bmi = computed(() => caloriePlanData.value?.profile.bmi ?? null);
 const planLoading = ref(true);
 const planSaving = ref(false);
 const planError = ref('');
@@ -114,11 +115,10 @@ const activityOptions: { value: ActivityLevel; label: string }[] = [
   { value: 'high', label: 'Vận động nhiều' },
 ];
 const bmiCategory = computed(() => {
-  const bmi = caloriePlan.value?.bmi;
-  if (bmi === undefined) return 'Chưa đủ dữ liệu';
-  if (bmi < 18.5) return 'Thiếu cân';
-  if (bmi < 23) return 'Bình thường';
-  if (bmi < 25) return 'Thừa cân';
+  if (bmi.value === null) return 'Chưa đủ dữ liệu';
+  if (bmi.value < 18.5) return 'Thiếu cân';
+  if (bmi.value < 23) return 'Bình thường';
+  if (bmi.value < 25) return 'Thừa cân';
   return 'Béo phì';
 });
 const availableDietPreferences = ['Low-Carb', 'Giàu Protein', 'Ít đường', 'Không bột ngọt', 'Keto chuẩn'];
@@ -170,21 +170,6 @@ async function saveCaloriePlan() {
     planError.value = 'Vui lòng nhập đầy đủ chiều cao, cân nặng, tuổi và giới tính.';
     return;
   }
-  if (activityLevel.value === null) {
-    planError.value = 'Vui lòng chọn mức độ hoạt động.';
-    const activitySelector = document.getElementById('profile-activity-level');
-    activitySelector?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    activitySelector?.focus({ preventScroll: true });
-    return;
-  }
-  if (selectedGoal.value === null) {
-    planError.value = 'Hãy chọn mục tiêu thể chất trong phần “Mục tiêu dinh dưỡng” bên dưới.';
-    const goalSelector = document.getElementById('profile-goals');
-    goalSelector?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    goalSelector?.focus({ preventScroll: true });
-    return;
-  }
-
   const payload: CalorieProfileInput = {
     heightCm: profile.value.heightCm,
     weightKg: profile.value.weightKg,
@@ -199,7 +184,12 @@ async function saveCaloriePlan() {
   try {
     applyCaloriePlan(await saveCalorieProfile(payload));
     isEditing.value = false;
-    toastStore.show('Đã lưu hồ sơ và cập nhật lộ trình Calories.', 'success');
+    toastStore.show(
+      caloriePlan.value
+        ? 'Đã lưu hồ sơ và cập nhật lộ trình Calories.'
+        : 'Đã lưu hồ sơ và cập nhật BMI. Chọn mức hoạt động và mục tiêu để tính lộ trình Calories.',
+      'success',
+    );
   } catch (error: unknown) {
     planError.value = error instanceof Error ? error.message : 'Không thể lưu lộ trình Calories.';
   } finally {
@@ -585,11 +575,11 @@ async function handleAvatarChange(event: Event) {
             <div class="flex items-start justify-between gap-4">
               <div>
                 <span class="text-xs text-[#7A866E] uppercase font-bold block">Chỉ số khối cơ thể (BMI)</span>
-                <span class="mt-1 block font-heading text-4xl font-black text-[#242424]">{{ caloriePlan?.bmi ?? '—' }} <span class="text-sm font-normal text-[#7A866E]">kg/m²</span></span>
+                <span class="mt-1 block font-heading text-4xl font-black text-[#242424]">{{ bmi ?? '—' }} <span class="text-sm font-normal text-[#7A866E]">kg/m²</span></span>
               </div>
               <div class="text-right">
                 <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#4D6A34] text-white text-xs font-bold shadow-2xs">
-                  {{ caloriePlan ? `✓ ${bmiCategory}` : bmiCategory }}
+                  {{ bmi !== null ? `✓ ${bmiCategory}` : bmiCategory }}
                 </span>
                 <span class="text-xs text-[#4D6A34] block font-semibold mt-2">{{ caloriePlan ? 'Chỉ số tham khảo theo BMI' : 'Bổ sung hồ sơ để xem phân tích' }}</span>
               </div>
@@ -599,7 +589,7 @@ async function handleAvatarChange(event: Event) {
             <div class="space-y-2.5 pt-1">
               <div class="flex justify-between text-xs text-[#7A866E]">
                 <span>Thước đo phân vùng chuẩn WHO</span>
-                <span class="font-bold text-[#4D6A34]">Điểm rơi: {{ caloriePlan?.bmi ?? '—' }}</span>
+                <span class="font-bold text-[#4D6A34]">Điểm rơi: {{ bmi ?? '—' }}</span>
               </div>
 
               <!-- Thanh phân vùng -->

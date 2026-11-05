@@ -32,7 +32,7 @@ export function createNutritionImageController(
       try {
         checkSameOrigin(req);
         const owner = await identity(req, res);
-        if (owner.userId === null) throw new ChatError(401, 'Đăng nhập Customer để phân tích ảnh thực phẩm.');
+        if (owner.userId === null) throw new ChatError(401, 'Đăng nhập để phân tích ảnh thực phẩm.');
         res.locals.nutritionImageUserId = owner.userId;
         next();
       } catch (error) {
@@ -47,7 +47,7 @@ export function createNutritionImageController(
       res.setHeader('Cache-Control', 'no-store');
       try {
         const userId = res.locals.nutritionImageUserId;
-        if (typeof userId !== 'number' || !Number.isSafeInteger(userId)) throw new ChatError(401, 'Đăng nhập Customer để phân tích ảnh thực phẩm.');
+        if (typeof userId !== 'number' || !Number.isSafeInteger(userId)) throw new ChatError(401, 'Đăng nhập để phân tích ảnh thực phẩm.');
         const saveToChat = req.get('x-chat-save-history') !== 'false';
         const conversationId = req.get('x-chat-conversation-id') ?? '';
         const requestId = req.get('x-chat-request-id') ?? '';
@@ -76,7 +76,7 @@ export function createNutritionImageController(
       res.setHeader('X-Content-Type-Options', 'nosniff');
       try {
         const userId = res.locals.nutritionImageUserId;
-        if (typeof userId !== 'number' || !Number.isSafeInteger(userId)) throw new ChatError(401, 'Đăng nhập Customer để xem ảnh đã tải lên.');
+        if (typeof userId !== 'number' || !Number.isSafeInteger(userId)) throw new ChatError(401, 'Đăng nhập để xem ảnh đã tải lên.');
         const result = await service.getImage(userId, req.params.filename);
         res.type(result.mimeType).send(result.image);
       } catch (error) {
