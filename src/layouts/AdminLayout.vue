@@ -342,7 +342,7 @@ onUnmounted(() => {
 const navItems = [
   { path: '/admin', label: 'Tổng quan', icon: LayoutDashboard },
   { path: '/admin/products', label: 'Sản phẩm & Kho', icon: Package },
-  { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart, badge: '12 mới' },
+  { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
   { path: '/admin/customers', label: 'Khách hàng', icon: Users },
   { path: '/admin/knowledge-base', label: 'AI Knowledge Base', icon: Bot, badge: 'v2.5' },
 ];
