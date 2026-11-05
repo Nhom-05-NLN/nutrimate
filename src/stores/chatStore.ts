@@ -21,6 +21,7 @@ export const useChatStore = defineStore('chat', () => {
   const messages = ref<ChatMessage[]>([welcome()]);
   let epoch = 0;
   let sessionReady = false;
+  let initializedForIdentity = false;
 
   function display(message: ChatHistoryMessage): ChatMessage {
     const content = message.role === 'assistant'
@@ -63,6 +64,7 @@ export const useChatStore = defineStore('chat', () => {
   function resetIdentity() {
     epoch++;
     sessionReady = false;
+    initializedForIdentity = false;
     requiresAuthentication.value = false;
     requiresImageAuthentication.value = false;
     guestSessionExpired.value = false;
@@ -119,6 +121,7 @@ export const useChatStore = defineStore('chat', () => {
       conversationId.value = null;
       messages.value = [welcome()];
       hasEarlier.value = false;
+      initializedForIdentity = true;
     } catch (reason) { if (active === epoch) reportError(reason, 'Không tải được hội thoại.'); }
     finally { if (active === epoch) isThinking.value = false; }
   }
@@ -153,6 +156,7 @@ export const useChatStore = defineStore('chat', () => {
       disposeImagePreviews();
       messages.value = [welcome()];
       hasEarlier.value = false;
+      initializedForIdentity = true;
     } catch (reason) { if (active === epoch) reportError(reason, 'Không tạo được hội thoại.'); }
     finally { if (active === epoch) isThinking.value = false; }
   }
@@ -316,7 +320,7 @@ export const useChatStore = defineStore('chat', () => {
   function openChat() {
     if (isOpen.value) return;
     isOpen.value = true;
-    void initialize();
+    if (!initializedForIdentity) void initialize();
   }
   function closeChat() { isOpen.value = false; }
   function toggleChat() { if (isOpen.value) closeChat(); else openChat(); }

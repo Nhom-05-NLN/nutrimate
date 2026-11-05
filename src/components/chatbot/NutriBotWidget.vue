@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue';
+import { useRouter } from 'vue-router';
 import { useChatStore } from '../../stores/chatStore';
 import { useCartStore } from '../../stores/cartStore';
-import { useProductStore } from '../../stores/productStore';
 import { ChatSuggestedProduct, Product } from '../../types';
 import { useAuthStore } from '../../stores/authStore';
 import { useToastStore } from '../../stores/toastStore';
@@ -19,10 +19,10 @@ import {
 
 const chatStore = useChatStore();
 const authStore = useAuthStore();
+const router = useRouter();
 const toastStore = useToastStore();
 const chatBlocked = computed(() => chatStore.isThinking || chatStore.requiresAuthentication || chatStore.guestSessionExpired);
 const cartStore = useCartStore();
-const productStore = useProductStore();
 
 const inputText = ref('');
 const messagesContainer = ref<HTMLDivElement | null>(null);
@@ -123,7 +123,7 @@ function hasNutritionFacts(product: ChatSuggestedProduct): product is Product {
 }
 
 function openSuggestedProduct(product: ChatSuggestedProduct) {
-  if (hasNutritionFacts(product)) productStore.selectProduct(product);
+  void router.push(`/product/${encodeURIComponent(product.id)}`);
 }
 </script>
 
