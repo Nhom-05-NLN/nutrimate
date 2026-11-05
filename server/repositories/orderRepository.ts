@@ -31,6 +31,7 @@ interface OrderItemRow {
   quantity: number;
   calories: string;
   protein: string;
+  is_ai_recommended: boolean;
 }
 
 export async function getAllOrders(): Promise<Order[]> {
@@ -53,7 +54,7 @@ export async function getAllOrders(): Promise<Order[]> {
       const orderIds = ordersResult.rows.map((r) => r.id);
       const itemsSql = `
         SELECT order_id, product_id, product_name, product_image,
-               unit_price, quantity, calories, protein
+               unit_price, quantity, calories, protein, is_ai_recommended
         FROM order_items
         WHERE order_id = ANY($1::int[])
       `;
@@ -70,6 +71,7 @@ export async function getAllOrders(): Promise<Order[]> {
           quantity: itemRow.quantity,
           calories: parseFloat(itemRow.calories),
           protein: parseFloat(itemRow.protein),
+          isAiRecommended: itemRow.is_ai_recommended,
         });
         itemsByOrderId.set(String(itemRow.order_id), list);
       }
@@ -120,7 +122,7 @@ export async function getOrderById(id: string): Promise<Order | null> {
 
       const itemsSql = `
         SELECT order_id, product_id, product_name, product_image,
-               unit_price, quantity, calories, protein
+               unit_price, quantity, calories, protein, is_ai_recommended
         FROM order_items
         WHERE order_id = $1
       `;
@@ -133,6 +135,7 @@ export async function getOrderById(id: string): Promise<Order | null> {
         quantity: itemRow.quantity,
         calories: parseFloat(itemRow.calories),
         protein: parseFloat(itemRow.protein),
+        isAiRecommended: itemRow.is_ai_recommended,
       }));
 
       return {
@@ -204,8 +207,8 @@ export async function createOrder(order: Order): Promise<Order> {
         const itemSql = `
           INSERT INTO order_items (
             order_id, product_name, product_image,
-            unit_price, quantity, calories, protein, subtotal
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            unit_price, quantity, calories, protein, subtotal, is_ai_recommended
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         `;
         const subtotal = item.price * item.quantity;
         await client.query(itemSql, [
@@ -217,6 +220,7 @@ export async function createOrder(order: Order): Promise<Order> {
           item.calories,
           item.protein,
           subtotal,
+          item.isAiRecommended === true,
         ]);
       }
 

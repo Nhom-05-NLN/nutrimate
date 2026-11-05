@@ -71,6 +71,7 @@ psql -v ON_ERROR_STOP=1 -f server/db/migrations/007_admin_login_notifications.sq
 #    Backend cũng tự thêm cột diet_preferences nếu chưa có khi khởi động.
 psql -v ON_ERROR_STOP=1 -f server/db/migrations/008_user_diet_preferences.sql
 #    Backend tự áp dụng thay đổi cần thiết cho hồ sơ sức khỏe và nhật ký cá nhân khi khởi động.
+psql -v ON_ERROR_STOP=1 -f server/db/migrations/010_ai_recommended_order_items.sql
 
 # 6. Khởi chạy dự án ở chế độ phát triển
 npm run dev

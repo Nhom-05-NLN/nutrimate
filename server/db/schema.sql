@@ -162,7 +162,8 @@ CREATE TABLE IF NOT EXISTS order_items (
     quantity INT NOT NULL CHECK (quantity > 0),
     calories NUMERIC(6, 1) NOT NULL,
     protein NUMERIC(6, 1) NOT NULL,
-    subtotal NUMERIC(12, 2) NOT NULL
+    subtotal NUMERIC(12, 2) NOT NULL,
+    is_ai_recommended BOOLEAN NOT NULL DEFAULT FALSE
 );
 COMMENT ON TABLE order_items IS 'Lưu các sản phẩm, số lượng và giá trị dinh dưỡng tại thời điểm đặt hàng.';
 

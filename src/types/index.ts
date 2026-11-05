@@ -48,6 +48,7 @@ export interface Product {
   soldCount?: number;
   badges: string[];
   isFeatured?: boolean;
+  isAiRecommended?: boolean;
   bestFor: string;
   traceability?: string;
 }
@@ -82,6 +83,7 @@ export interface OrderItem {
   quantity: number;
   calories: number;
   protein: number;
+  isAiRecommended?: boolean;
   portion?: string;
 }
 
@@ -144,6 +146,8 @@ export interface AdminDashboardData {
   weeklySales: {
     date: string;
     revenue: number;
+    productRevenue: number;
+    aiRecommendedRevenue: number;
     orders: number;
   }[];
   categories: {
@@ -472,7 +476,7 @@ export interface AdminDashboardOverview {
   weeklyRevenueData: {
     day: string;
     regularRevenue: number;
-    aiComboRevenue: number;
+    aiRecommendedRevenue: number;
     isPeak?: boolean;
   }[];
   categoryShares: {

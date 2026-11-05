@@ -295,7 +295,11 @@ function chooseMealProduct(product: Product) {
 }
 
 function addRecommendedProduct(product: Product) {
-  cartStore.addItem(product, 1, product.nutrition.servingSize || 'Mặc định');
+  cartStore.addItem(
+    { ...product, isAiRecommended: true },
+    1,
+    product.nutrition.servingSize || 'Mặc định',
+  );
 }
 
 function openRecommendedProduct(product: Product) {
