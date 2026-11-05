@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useCartStore } from '../../stores/cartStore';
 import { useProductStore } from '../../stores/productStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -13,17 +13,31 @@ import {
   X,
   LogOut,
   ChevronDown,
+  UserRoundPen,
+  MapPin,
+  Settings,
+  ChevronRight,
   ShieldCheck,
 } from 'lucide-vue-next';
 
 const router = useRouter();
+const route = useRoute();
 const cartStore = useCartStore();
 const productStore = useProductStore();
 const authStore = useAuthStore();
+const nextTierPoints = 500;
 
 const searchInput = ref('');
 const isMobileMenuOpen = ref(false);
 const isUserDropdownOpen = ref(false);
+
+const currentPoints = computed(() =>
+  Math.max(0, Number(authStore.currentUser?.nutriPoints ?? 0))
+);
+
+const pointsProgress = computed(() =>
+  Math.min((currentPoints.value / nextTierPoints) * 100, 100)
+);
 
 function handleSearchSubmit() {
   if (searchInput.value.trim()) {
@@ -31,30 +45,36 @@ function handleSearchSubmit() {
     router.push({ name: 'catalog' });
   }
 }
+
+async function handleCustomerLogout() {
+  await authStore.logout();
+  isUserDropdownOpen.value = false;
+  await router.replace({ name: 'home' });
+}
 </script>
 
 <template>
   <header class="sticky top-0 z-40 bg-[#FEFDF8] border-b border-[#E8E7DD] transition-all">
     <div class="max-w-[1316px] mx-auto px-4 sm:px-8">
       <div class="flex items-center justify-between h-[82px] gap-4">
-        <!-- 1. BRAND LOGO -->
+        <!-- BRAND LOGO -->
         <RouterLink
           to="/"
-          class="flex items-center gap-3 group shrink-0 focus-visible:outline-none"
+          class="flex items-center shrink-0 focus-visible:outline-none
+                transition-transform duration-200 hover:scale-[1.03]"
         >
-          <div class="w-10 h-10 rounded-2xl bg-[#6B7A3A] flex items-center justify-center text-white shadow-2xs transition-transform group-hover:scale-105">
-            <Leaf class="w-5 h-5 text-[#EBF7E5]" />
-          </div>
-          <span class="font-heading text-2xl font-black tracking-tight text-[#242424]">
-            NutriMate
-          </span>
+          <img
+            src="../../public/logo_nutrimate.png"
+            alt="NutriMate"
+            class="h-14 sm:h-15 w-auto max-w-[220px] object-contain"
+          />
         </RouterLink>
 
-        <!-- 2. SEARCH BAR (Oval Green Tint Pill) -->
+        <!-- SEARCH BAR -->
         <div class="hidden md:flex flex-1 max-w-xs lg:max-w-sm mx-4">
           <form
             @submit.prevent="handleSearchSubmit"
-            class="w-full flex items-center bg-[#EBF7E5] hover:bg-[#E2F0DC] focus-within:bg-white rounded-full px-4 py-2 border border-[#C8D7BE] focus-within:border-[#6B7A3A] focus-within:ring-2 focus-within:ring-[#6B7A3A]/20 transition-all shadow-2xs"
+            class="w-full flex items-center bg-[#EBF7E5] hover:bg-[#E2F0DC] focus-within:bg-white rounded-[8px] px-4 py-2 border border-[#C8D7BE] focus-within:border-[#6B7A3A] focus-within:ring-2 focus-within:ring-[#6B7A3A]/20 transition-all shadow-2xs"
           >
             <Search class="w-4 h-4 text-[#6B7A3A] mr-2.5 shrink-0" />
             <input
@@ -66,7 +86,7 @@ function handleSearchSubmit() {
           </form>
         </div>
 
-        <!-- 3. MAIN NAVIGATION MENU LINKS -->
+        <!-- MAIN NAVIGATION MENU LINKS -->
         <nav class="hidden lg:flex items-center gap-8 text-sm font-bold text-[#333333]">
           <RouterLink
             to="/"
@@ -81,11 +101,10 @@ function handleSearchSubmit() {
             active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
             class="py-1 hover:text-[#6B7A3A] transition-colors relative"
           >
-            Thực phẩm
+            Sản phẩm
           </RouterLink>
 
           <RouterLink
-            v-if="authStore.currentUser?.role === 'customer'"
             to="/nutrition"
             active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
             class="py-1 hover:text-[#6B7A3A] transition-colors relative"
@@ -100,17 +119,9 @@ function handleSearchSubmit() {
           >
             Đơn hàng
           </RouterLink>
-
-          <RouterLink
-            to="/profile"
-            active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
-            class="py-1 hover:text-[#6B7A3A] transition-colors relative"
-          >
-            Tài khoản
-          </RouterLink>
         </nav>
 
-        <!-- 4. RIGHT SIDE UTILITIES -->
+        <!-- RIGHT SIDE UTILITIES -->
         <div class="flex items-center gap-3.5 shrink-0">
           <!-- Cart Icon Button with Red Badge (Figma Style & Drawer Trigger) -->
           <button
@@ -146,74 +157,151 @@ function handleSearchSubmit() {
             <!-- Dropdown Menu -->
             <div
               v-if="isUserDropdownOpen"
-              class="absolute right-0 mt-2 w-56 bg-white rounded-3xl shadow-xl border border-[#E3E8DC] py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
+              class="absolute right-0 mt-3 w-[300px] sm:w-[280px]
+                    bg-white rounded-xl shadow-[0_12px_40px_rgba(35,50,25,0.14)]
+                    border border-[#E8EBDD] overflow-hidden z-50
+                    animate-in fade-in slide-in-from-top-2 duration-200"
             >
-              <div v-if="authStore.currentUser" class="px-4 py-3 border-b border-[#ECEFE7]">
-                <p class="text-xs text-[#7A866E]">Tài khoản cá nhân</p>
-                <p class="text-sm font-bold text-[#242424] truncate">{{ authStore.currentUser.name }}</p>
-                <span class="inline-block px-2 py-0.5 mt-1 rounded-full bg-[#EBF7E5] text-[10px] font-bold text-[#6B7A3A]">
-                  {{ authStore.currentUser.membershipTier }} Member • {{ authStore.currentUser.nutriPoints }} pts
-                </span>
+              <!-- User Information -->
+              <div v-if="authStore.currentUser" class="p-5 space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] font-bold tracking-wider text-[#8A927E] uppercase">
+                    Tài khoản cá nhân
+                  </span>
+                </div>
+
+                <div class="flex items-center gap-3">
+                  <div class="w-12 h-12 rounded-full bg-[#EDF3E5] flex items-center justify-center shrink-0">
+                    <img
+                      v-if="authStore.currentUser?.avatar"
+                      :src="authStore.currentUser.avatar"
+                      alt="Avatar"
+                      class="w-full h-full rounded-full object-cover border border-[#D0D3BE]"
+                    />
+
+                    <div v-else class="w-7 h-7 rounded-full bg-[#EDF3E5] flex items-center justify-center">
+                      <User class="w-4 h-4 text-[#6B7A3A]" />
+                    </div>
+                  </div>
+
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-bold text-[#242424] truncate">
+                      {{ authStore.currentUser.name }}
+                    </p>
+
+                    <p class="text-xs text-[#8A927E] mt-1">
+                      {{ authStore.currentUser.email}}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <RouterLink
-                to="/profile"
-                @click="isUserDropdownOpen = false"
-                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#242424] hover:bg-[#F6F8F3] transition-colors"
-              >
-                <User class="w-4 h-4 text-[#6B7A3A]" />
-                Hồ sơ & Thể trạng BMI
-              </RouterLink>
+              <!-- GUEST INFORMATION -->
+              <div v-else class="p-5">
+                <p class="text-sm font-bold text-[#242424]">
+                  Chào mừng đến với NutriMate!
+                </p>
+                <p class="text-xs text-[#8A927E] mt-1">
+                  Đăng nhập để trải nghiệm đầy đủ các tính năng.
+                </p>
+              </div>
 
-              <RouterLink
-                v-if="authStore.currentUser?.role === 'customer'"
-                to="/nutrition"
-                @click="isUserDropdownOpen = false"
-                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#242424] hover:bg-[#F6F8F3] transition-colors"
-              >
-                <Leaf class="w-4 h-4 text-[#6B7A3A]" />
-                Nhật ký Dinh dưỡng & Calo
-              </RouterLink>
+              <div class="border-t border-[#ECEFE7]"></div>
 
-              <RouterLink
-                to="/orders"
-                @click="isUserDropdownOpen = false"
-                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#242424] hover:bg-[#F6F8F3] transition-colors"
-              >
-                <ShoppingBag class="w-4 h-4 text-[#6B7A3A]" />
-                Đơn hàng & Vận chuyển
-              </RouterLink>
+              <!-- Account Actions -->
+              <div v-if="authStore.currentUser" class="p-2.5 space-y-1">
 
-              <RouterLink
-                v-if="authStore.currentUser?.role === 'admin'"
-                to="/admin"
-                @click="isUserDropdownOpen = false"
-                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#6B7A3A] hover:bg-[#EBF7E5] transition-colors"
-              >
-                <ShieldCheck class="w-4 h-4 text-[#6B7A3A]" />
-                Trang Quản trị
-              </RouterLink>
+                <RouterLink
+                  v-if="authStore.currentUser"
+                  to="/profile"
+                  @click="isUserDropdownOpen = false"
+                  class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#F4F7EF] transition-colors group"
+                >
+                  <UserRoundPen class="w-[19px] h-[19px] text-[#71813B]" />
 
-              <div class="my-1 border-t border-[#ECEFE7]"></div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[13px] font-semibold text-[#333333]">
+                      Hồ sơ cá nhân
+                    </p>
+                  </div>
 
-              <button
-                v-if="authStore.currentUser"
-                type="button"
-                @click="authStore.logout(); isUserDropdownOpen = false"
-                class="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
-              >
-                <LogOut class="w-4 h-4" />
-                Đăng xuất
-              </button>
+                  <ChevronRight
+                    class="w-4 h-4 text-[#A3AA98] group-hover:text-[#71813B]"
+                  />
+                </RouterLink>
 
-              <RouterLink
-                v-else
-                to="/login"
-                @click="isUserDropdownOpen = false"
-                class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-[#6B7A3A] hover:bg-[#EBF7E5]"
-              >
-                Đăng nhập / Đăng ký
-              </RouterLink>
+                <RouterLink
+                  v-if="authStore.currentUser?.role === 'admin'"
+                  to="/admin"
+                  @click="isUserDropdownOpen = false"
+                  class="flex items-center gap-3 rounded-xl bg-[#F4F7EF] px-3 py-3 transition-colors group hover:bg-[#EBF7E5]"
+                >
+                  <ShieldCheck class="h-[19px] w-[19px] text-[#536124]" />
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[13px] font-bold text-[#2D3B1E]">Về trang quản trị</p>
+                    <p class="mt-0.5 text-[11px] text-[#7A866E]">Mở bảng điều khiển admin</p>
+                  </div>
+                  <ChevronRight class="h-4 w-4 text-[#A3AA98] group-hover:text-[#536124]" />
+                </RouterLink>
+
+                <RouterLink v-if="authStore.currentUser" to="/nutrition" @click="isUserDropdownOpen = false" class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#F4F7EF] transition-colors group">
+                  <Leaf class="w-[19px] h-[19px] text-[#71813B]" />
+
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[13px] font-semibold text-[#333333]">
+                      Nhật ký Dinh dưỡng & Calo
+                    </p>
+                  </div>
+
+                  <ChevronRight
+                    class="w-4 h-4 text-[#A3AA98] group-hover:text-[#71813B]"
+                  />
+                </RouterLink>
+
+                <RouterLink  to="/orders" @click="isUserDropdownOpen = false" class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#F4F7EF] transition-colors group">
+                  <ShoppingBag class="w-[19px] h-[19px] text-[#71813B]" />
+
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[13px] font-semibold text-[#333333]">
+                       Đơn hàng & Vận chuyển
+                    </p>
+                  </div>
+
+                  <ChevronRight
+                    class="w-4 h-4 text-[#A3AA98] group-hover:text-[#71813B]"
+                  />
+                </RouterLink>
+              </div>
+
+              <!-- Login -->
+              <div v-else class="p-3">
+                <RouterLink
+                  :to="{ name: 'login', query: { redirect: route.fullPath } }"
+                  @click="isUserDropdownOpen = false"
+                  class="flex items-center justify-center gap-2 w-full
+                        py-3 rounded-xl bg-[#71813B] text-white
+                        text-sm font-bold hover:bg-[#5F6D32] transition-colors"
+                >
+                  <User class="w-4 h-4" />
+                  Đăng nhập / Đăng ký
+                </RouterLink>
+              </div>
+
+              <!-- Logout -->
+              <div v-if="authStore.currentUser" class="border-t border-[#ECEFE7] p-2.5">
+                <button
+                  type="button"
+                  @click="handleCustomerLogout"
+                  class="w-full flex items-center gap-3 px-3 py-1 rounded-xl
+                        text-rose-600 hover:bg-rose-50 transition-colors"
+                >
+                  <LogOut class="w-[19px] h-[19px]" />
+
+                  <span class="text-[13px] font-semibold">
+                    Đăng xuất
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -250,7 +338,6 @@ function handleSearchSubmit() {
           Thực phẩm
         </RouterLink>
         <RouterLink
-          v-if="authStore.currentUser?.role === 'customer'"
           to="/nutrition"
           @click="isMobileMenuOpen = false"
           class="px-4 py-2.5 rounded-xl text-sm font-semibold text-[#242424] hover:bg-[#EBF7E5]"
@@ -265,19 +352,13 @@ function handleSearchSubmit() {
           Đơn hàng
         </RouterLink>
         <RouterLink
-          to="/profile"
-          @click="isMobileMenuOpen = false"
-          class="px-4 py-2.5 rounded-xl text-sm font-semibold text-[#242424] hover:bg-[#EBF7E5]"
-        >
-          Tài khoản
-        </RouterLink>
-        <RouterLink
           v-if="authStore.currentUser?.role === 'admin'"
           to="/admin"
           @click="isMobileMenuOpen = false"
-          class="px-4 py-2.5 rounded-xl text-sm font-bold text-[#6B7A3A] bg-[#EBF7E5]"
+          class="mx-2 flex items-center gap-2 rounded-xl bg-[#536124] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#434F1D]"
         >
-          Trang Quản trị
+          <ShieldCheck class="h-4 w-4" />
+          Về trang quản trị
         </RouterLink>
       </div>
     </div>

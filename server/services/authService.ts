@@ -1,8 +1,9 @@
-import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { createHmac, scrypt, timingSafeEqual } from 'node:crypto';
 import { isDbConnected } from '../db/index.js';
 import { config } from '../config.js';
 import * as authRepository from '../repositories/authRepository.js';
 import { DuplicateEmailError } from '../repositories/authRepository.js';
+import { hashPassword } from '../utils/password.js';
 
 export interface RegisterUserInput {
   fullName: unknown;
@@ -39,6 +40,10 @@ export interface UpdateAvatarInput {
   avatarUrl: unknown;
 }
 
+export interface UpdateDietPreferencesInput {
+  dietPreferences: unknown;
+}
+
 export interface RegisteredUser {
   id: string;
   name: string;
@@ -46,6 +51,7 @@ export interface RegisteredUser {
   phone: string;
   role: "customer" | "admin";
   avatarUrl?: string | null;
+  dietPreferences: string[];
   defaultAddress?: authRepository.UserAddressRecord | null;
   addresses?: authRepository.UserAddressRecord[];
 }
@@ -59,21 +65,6 @@ export class AuthServiceError extends Error {
     super(message);
     this.name = 'AuthServiceError';
   }
-}
-
-function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16);
-
-  return new Promise((resolve, reject) => {
-    scrypt(password, salt, 64, (err, derivedKey) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
-      resolve(`scrypt$${salt.toString('hex')}$${derivedKey.toString('hex')}`);
-    });
-  });
 }
 
 function verifyPassword(password: string, passwordHash: string): Promise<boolean> {
@@ -178,6 +169,7 @@ export async function register(input: RegisterUserInput): Promise<AuthenticatedU
       phone: user.phone,
       accessToken: createAccessToken(user.id),
       role: 'customer',
+      dietPreferences: [],
     };
   } catch (err: unknown) {
     if (err instanceof DuplicateEmailError) {
@@ -187,7 +179,10 @@ export async function register(input: RegisterUserInput): Promise<AuthenticatedU
   }
 }
 
-export async function login(input: LoginUserInput): Promise<AuthenticatedUser> {
+export async function login(
+  input: LoginUserInput,
+  expectedRole: "customer" | "admin",
+): Promise<AuthenticatedUser> {
   if (config.chat.jwtSecret.length < 32) {
     throw new AuthServiceError('Máy chủ chưa được cấu hình xác thực an toàn.', 503);
   }
@@ -209,9 +204,13 @@ export async function login(input: LoginUserInput): Promise<AuthenticatedUser> {
     throw new AuthServiceError('Máy chủ cơ sở dữ liệu hiện không khả dụng.', 503);
   }
 
-  const user = await authRepository.findUserForLogin(identifier);
+  const user = await authRepository.findUserForLogin(identifier, expectedRole);
   if (!user?.passwordHash || !(await verifyPassword(input.password, user.passwordHash))) {
     throw new AuthServiceError('Email, số điện thoại hoặc mật khẩu không chính xác.', 401);
+  }
+
+  if (user.role === 'customer') {
+    await authRepository.createCustomerLoginNotification(user);
   }
 
   return {
@@ -222,6 +221,7 @@ export async function login(input: LoginUserInput): Promise<AuthenticatedUser> {
     accessToken: createAccessToken(user.id),
     role: user.role,
     avatarUrl: user.avatarUrl,
+    dietPreferences: user.dietPreferences,
   };
 }
 
@@ -243,6 +243,7 @@ export async function getAuthenticatedUser(id: string): Promise<RegisteredUser |
     phone: user.phone,
     role: user.role,
     avatarUrl: user.avatarUrl,
+    dietPreferences: user.dietPreferences ?? [],
     defaultAddress: addresses.find((address) => address.isDefault) ?? addresses[0] ?? null,
     addresses,
   };
@@ -277,6 +278,43 @@ export async function updateAuthenticatedUserAvatar(
 
   const savedAvatarUrl = await authRepository.updateUserAvatar(id, avatarUrl);
   return savedAvatarUrl ?? null;
+}
+
+export async function updateAuthenticatedUserDietPreferences(
+  id: string,
+  input: UpdateDietPreferencesInput,
+): Promise<string[] | null> {
+  if (!isDbConnected()) {
+    throw new AuthServiceError("Máy chủ cơ sở dữ liệu hiện không khả dụng.", 503);
+  }
+  if (!Array.isArray(input.dietPreferences)) {
+    throw new AuthServiceError("Danh sách chế độ ăn không hợp lệ.", 400);
+  }
+
+  const preferences: string[] = [];
+  for (const preference of input.dietPreferences) {
+    if (typeof preference !== "string") {
+      throw new AuthServiceError("Danh sách chế độ ăn không hợp lệ.", 400);
+    }
+    preferences.push(preference);
+  }
+
+  const allowedPreferences = new Set([
+    "Low-Carb",
+    "Giàu Protein",
+    "Ít đường",
+    "Không bột ngọt",
+    "Keto chuẩn",
+  ]);
+  if (
+    preferences.length > allowedPreferences.size ||
+    preferences.some((preference) => !allowedPreferences.has(preference)) ||
+    new Set(preferences).size !== preferences.length
+  ) {
+    throw new AuthServiceError("Danh sách chế độ ăn không hợp lệ.", 400);
+  }
+
+  return authRepository.updateUserDietPreferences(id, preferences);
 }
 
 export async function updateAuthenticatedUser(
@@ -322,6 +360,7 @@ export async function updateAuthenticatedUser(
       email: user.email,
       phone: user.phone,
       role: existingUser.role,
+      dietPreferences: existingUser.dietPreferences,
       defaultAddress: addresses.find((address) => address.isDefault) ?? addresses[0] ?? null,
       addresses,
     };

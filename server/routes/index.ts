@@ -9,6 +9,9 @@ import healthRoutes from './healthRoutes.js';
 import caloriePlanRoutes from './caloriePlanRoutes.js';
 import authRoutes from './authRoutes.js';
 import nutritionDiaryRoutes from './nutritionDiaryRoutes.js';
+import adminCustomerRoutes from './adminCustomerRoutes.js';
+import adminNotificationRoutes from './adminNotificationRoutes.js';
+import adminDashboardRoutes from './adminDashboardRoutes.js';
 
 const apiRouter = Router();
 
@@ -22,5 +25,8 @@ apiRouter.use('/chat', chatRoutes);
 apiRouter.use('/calorie-plan', caloriePlanRoutes);
 apiRouter.use('/nutrition-diary', nutritionDiaryRoutes);
 apiRouter.use('/knowledge', knowledgeRoutes);
+apiRouter.use('/admin/customers', adminCustomerRoutes);
+apiRouter.use('/admin/notifications', adminNotificationRoutes);
+apiRouter.use('/admin/dashboard', adminDashboardRoutes);
 
 export default apiRouter;

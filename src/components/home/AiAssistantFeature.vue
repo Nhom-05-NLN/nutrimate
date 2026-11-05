@@ -37,6 +37,7 @@ function handleAddAiCombo() {
       rating: 5.0,
       reviewCount: 42,
       badges: ['AI Recommended', '140 kcal'],
+      isAiRecommended: true,
       bestFor: 'Ăn xế văn phòng',
     },
     1,
@@ -106,7 +107,7 @@ function handleAddAiCombo() {
                     </span>
                   </div>
                 </div>
-                <span class="text-[10px] text-[#7A866E]">Phiên bản 2.4</span>
+                <span class="text-[10px] text-[#7A866E]">Phiên bản 2.5</span>
               </div>
 
               <!-- Body messages -->

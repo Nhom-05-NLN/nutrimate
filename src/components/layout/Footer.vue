@@ -1,8 +1,19 @@
+
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useToastStore } from '../../stores/toastStore';
 import { useAuthStore } from '../../stores/authStore';
-import { Leaf, PhoneCall, ShieldCheck, ArrowRight } from 'lucide-vue-next';
+import {
+  Leaf,
+  ArrowRight,
+  ShieldCheck,
+  Mail,
+  MapPin,
+  Phone,
+  Facebook,
+  Instagram,
+  Github
+} from 'lucide-vue-next';
 
 const toastStore = useToastStore();
 const authStore = useAuthStore();
@@ -10,103 +21,228 @@ const email = ref('');
 
 function handleSubscribe() {
   if (email.value.trim()) {
-    toastStore.show('Đăng ký bản tin thành công!', 'success', 'Mã giảm giá 10% đã gửi vào email của bạn.');
+    toastStore.show(
+      'Đăng ký bản tin thành công!',
+      'success',
+      'Mã giảm giá 10% đã gửi vào email của bạn.'
+    );
     email.value = '';
   }
 }
 </script>
 
 <template>
-  <footer class="bg-[#C0C59F] text-[#242424] pt-14 pb-8 border-t border-[#B0B68E] transition-colors">
+  <footer class="bg-[#C0C59F] text-[#242424] pt-8 pb-5 border-t border-[#B0B68E]">
     <div class="max-w-[1316px] mx-auto px-4 sm:px-8">
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 pb-12 border-b border-[#AFB58C]">
-        <!-- Cột 1: Thương hiệu & Giới thiệu -->
-        <div class="space-y-4">
-          <div class="flex items-center gap-2.5">
-            <div class="w-9 h-9 rounded-2xl bg-[#4D6A34] text-white flex items-center justify-center">
-              <Leaf class="w-5 h-5 text-[#EBF7E5]" />
+      <!-- MAIN FOOTER -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-5 pb-7 border-b border-[#AFB58C]">
+        <!-- COLUMN 1: BRAND & CONTACT -->
+        <div class="space-y-3">
+          <RouterLink to="/" class="inline-flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-[#4D6A34] flex items-center justify-center">
+              <Leaf class="w-5 h-5 text-white" />
             </div>
-            <span class="font-heading text-2xl font-black tracking-tight text-[#242424]">
+
+            <span class="font-heading text-xl font-black tracking-tight text-[#242424]">
               NutriMate
             </span>
-          </div>
+          </RouterLink>
+
           <p class="text-xs text-[#3E4A2E] leading-relaxed">
             Nền tảng dinh dưỡng thông minh và thực phẩm sạch hàng đầu Việt Nam. Tối ưu năng lượng, bảo vệ sức khỏe gia đình bằng giải pháp khoa học và công nghệ AI.
           </p>
-          <div class="pt-2">
-            <span class="text-[11px] font-bold text-[#556345] uppercase tracking-wider block">Hotline chăm sóc dinh dưỡng:</span>
-            <a href="tel:19008899" class="font-heading text-xl font-black text-[#242424] hover:text-[#4D6A34] flex items-center gap-2 mt-0.5">
-              <PhoneCall class="w-4 h-4 text-[#4D6A34]" />
-              1900 8899
+
+          <!-- CONTACT INFORMATION -->
+          <div class="space-y-2 pt-1">
+            <div
+              class="flex items-center gap-2 text-xs
+                     text-[#3E4A2E]"
+            >
+              <Phone class="w-4 h-4 text-[#4D6A34] shrink-0" />
+              <span>Hotline: 1900 6767</span>
+            </div>
+            <a
+              href="mailto:contact@nutrimate.vn"
+              class="flex items-center gap-2 text-xs
+                     text-[#3E4A2E] hover:text-[#4D6A34]
+                     transition-colors"
+            >
+              <Mail class="w-4 h-4 text-[#4D6A34] shrink-0" />
+              contact@nutrimate.vn
             </a>
+
+            <div
+              class="flex items-center gap-2 text-xs
+                     text-[#3E4A2E]"
+            >
+              <MapPin class="w-4 h-4 text-[#4D6A34] shrink-0" />
+              <span>Đại học Cần Thơ, 3/2, Ninh Kiều, Cần Thơ.</span>
+            </div>
+
+          </div>
+
+          <!-- SOCIAL MEDIA -->
+          <div class="pt-1">
+            <div class="flex items-center gap-2">
+              <a
+                href="https://www.facebook.com/your-page"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Facebook"
+                class="w-8 h-8 rounded-full bg-[#E9EDD9]
+                       flex items-center justify-center
+                       text-[#4D6A34] hover:bg-[#4D6A34]
+                       hover:text-white transition-all"
+              >
+                <Facebook class="w-4 h-4" />
+              </a>
+
+              <a
+                href="https://www.instagram.com/your-page"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Instagram"
+                class="w-8 h-8 rounded-full bg-[#E9EDD9]
+                       flex items-center justify-center
+                       text-[#4D6A34] hover:bg-[#4D6A34]
+                       hover:text-white transition-all"
+              >
+                <Instagram class="w-4 h-4" />
+              </a>
+
+              <a
+                href="https://www.youtube.com/@your-channel"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="YouTube"
+                class="w-8 h-8 rounded-full bg-[#E9EDD9]
+                       flex items-center justify-center
+                       text-[#4D6A34] hover:bg-[#4D6A34]
+                       hover:text-white transition-all"
+              >
+                <Github class="w-4 h-4" />
+              </a>
+
+            </div>
           </div>
         </div>
 
-        <!-- Cột 2: Về NutriMate -->
+        <!-- COLUMN 2: ABOUT -->
         <div class="space-y-3">
-          <h4 class="font-heading text-sm font-bold text-[#242424] uppercase tracking-wider">
+          <h4 class="text-sm font-bold text-[#242424] uppercase tracking-wider">
             Về NutriMate
           </h4>
+
           <ul class="space-y-2 text-xs text-[#3E4A2E] font-medium">
-            <li><RouterLink to="/" class="hover:text-black transition-colors">Về NutriMate</RouterLink></li>
-            <li><RouterLink to="/catalog" class="hover:text-black transition-colors">Tiêu chuẩn kiểm định</RouterLink></li>
-            <li><RouterLink to="/blogs" class="hover:text-black transition-colors">Kiến thức dinh dưỡng</RouterLink></li>
-            <li><RouterLink to="/profile" class="hover:text-black transition-colors">Hệ thống đối tác</RouterLink></li>
-            <li><a href="#" class="hover:text-black transition-colors">Tuyển dụng</a></li>
+
+            <li>
+              <RouterLink to="/" class="hover:text-black transition-colors">
+                Trang chủ
+              </RouterLink>
+            </li>
+
+            <li>
+              <RouterLink to="/catalog" class="hover:text-black transition-colors">
+                Sản phẩm
+              </RouterLink>
+            </li>
+
+            <li>
+              <RouterLink to="/blogs" class="hover:text-black transition-colors">
+                Kiến thức dinh dưỡng
+              </RouterLink>
+            </li>
+
+            <li>
+              <RouterLink to="#" class="hover:text-black transition-colors">
+                Hệ thống đối tác
+              </RouterLink>
+            </li>
           </ul>
         </div>
 
-        <!-- Cột 3: Chính sách & Hỗ trợ -->
+        <!-- COLUMN 3: SUPPORT -->
         <div class="space-y-3">
-          <h4 class="font-heading text-sm font-bold text-[#242424] uppercase tracking-wider">
-            Chính sách & Hỗ trợ
+          <h4 class="text-sm font-bold text-[#242424] uppercase tracking-wider" >
+            Hỗ trợ khách hàng
           </h4>
+
           <ul class="space-y-2 text-xs text-[#3E4A2E] font-medium">
-            <li><a href="#" class="hover:text-black transition-colors">Chính sách đổi trả & bảo hành</a></li>
-            <li><a href="#" class="hover:text-black transition-colors">Chính sách bảo mật</a></li>
-            <li v-if="authStore.currentUser?.role === 'customer'"><RouterLink to="/nutrition" class="hover:text-black transition-colors">Hướng dẫn tư vấn NutriBot</RouterLink></li>
-            <li><RouterLink to="/orders" class="hover:text-black transition-colors">Trung tâm trợ giúp</RouterLink></li>
+
+            <li>
+              <a href="#" class="hover:text-black transition-colors">
+                Chính sách đổi trả
+              </a>
+            </li>
+
+            <li>
+              <a href="#" class="hover:text-black transition-colors">
+                Chính sách bảo mật
+              </a>
+            </li>
+
+            <li v-if="authStore.currentUser">
+              <RouterLink to="/nutrition" class="hover:text-black transition-colors">
+                Hướng dẫn sử dụng NutriBot
+              </RouterLink>
+            </li>
+
+            <li>
+              <RouterLink to="/orders" class="hover:text-black transition-colors">
+                Trung tâm trợ giúp
+              </RouterLink>
+            </li>
+
           </ul>
         </div>
 
-        <!-- Cột 4: Bản tin Dinh Dưỡng -->
+        <!-- COLUMN 4: NEWSLETTER -->
         <div class="space-y-3">
-          <h4 class="font-heading text-sm font-bold text-[#242424] uppercase tracking-wider">
-            Bản tin Dinh Dưỡng
+          <h4 class="text-sm font-bold text-[#242424] uppercase tracking-wider">
+            Bản tin dinh dưỡng
           </h4>
-          <p class="text-xs text-[#3E4A2E]">
-            Nhận thực đơn mẫu và mã ưu đãi 10% cho đơn hàng đầu tiên.
+
+          <p class="text-xs text-[#3E4A2E] leading-relaxed">
+            Nhận thực đơn mẫu, kiến thức dinh dưỡng
+            và những ưu đãi mới nhất từ NutriMate.
           </p>
-          <form @submit.prevent="handleSubscribe" class="space-y-2.5">
-            <div class="relative">
-              <input
-                type="email"
-                v-model="email"
-                placeholder="Email của bạn..."
-                required
-                class="w-full px-4 py-2.5 rounded-2xl bg-white border border-[#A6AC82] text-xs text-[#242424] placeholder-[#7A866E] focus:outline-none focus:ring-2 focus:ring-[#4D6A34]"
-              />
-            </div>
+
+          <form @submit.prevent="handleSubscribe" class="space-y-2">
+
+            <input
+              type="email"
+              v-model="email"
+              placeholder="Email của bạn..."
+              required
+              class="w-full px-3.5 py-2.5 rounded-xl
+                     bg-white border border-[#A6AC82]
+                     text-xs text-[#242424]
+                     placeholder-[#7A866E]
+                     focus:outline-none
+                     focus:ring-2 focus:ring-[#4D6A34]"
+            />
+
             <button
               type="submit"
-              class="w-full py-2.5 px-4 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] active:bg-[#2D3B1E] text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 min-h-[40px]"
+              class="w-full py-2.5 px-4 rounded-xl
+                     bg-[#4D6A34] hover:bg-[#3B4E24]
+                     text-white text-xs font-bold
+                     transition-all flex items-center
+                     justify-center gap-2"
             >
-              <span>Đăng ký ngay</span>
+              Đăng ký ngay
               <ArrowRight class="w-3.5 h-3.5" />
             </button>
+
           </form>
         </div>
       </div>
 
-      <!-- Bottom Bar -->
-      <div class="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#3E4A2E]">
-        <p>© 2024 NutriMate - Nền tảng dinh dưỡng thông minh và thực phẩm sạch hàng đầu Việt Nam. Mọi quyền được bảo lưu.</p>
-        <div class="flex items-center gap-4">
-          <span class="flex items-center gap-1 font-medium">
-            <ShieldCheck class="w-4 h-4 text-[#4D6A34]" />
-            Tiêu chuẩn GMP • HACCP • ISO 22000
-          </span>
-        </div>
+      <!-- BOTTOM FOOTER -->
+      <div class="pt-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-[#3E4A2E]">
+        <p class="text-center sm:text-left">
+          © 2026 NutriMate. All rights reserved.
+        </p>
       </div>
     </div>
   </footer>

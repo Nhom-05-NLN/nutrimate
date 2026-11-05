@@ -27,6 +27,7 @@
 - **Tiện ích mở rộng:** Nhập chỉ số chiều cao/cân nặng để tính toán lộ trình calo cá nhân hóa; Quét nhãn dinh dưỡng qua camera; Nhật ký nạp dinh dưỡng và nước uống hàng ngày.
 
 ### 2. Quản Trị Viên (Admin)
+- **Trải nghiệm khách hàng:** Admin cũng có thể mua sắm, quản lý hồ sơ, theo dõi dinh dưỡng và sử dụng NutriBot bằng dữ liệu riêng của tài khoản.
 - **Quản lý sản phẩm & danh mục:** Thêm, sửa, xóa, quản lý tồn kho và cập nhật chỉ số dinh dưỡng.
 - **Quản lý đơn hàng:** Theo dõi và chuyển đổi trạng thái (Chờ xác nhận, Đang giao, Đã giao, Đã hủy).
 - **Quản lý khách hàng & dữ liệu tri thức AI:** Cập nhật thông tin FAQ/dinh dưỡng để tối ưu phản hồi của bot.
@@ -64,6 +65,13 @@ cp .env.example .env
 #    Ví dụ tạo giá trị bằng Node.js: node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
 
 # 5. Tạo database PostgreSQL nutrimate_db và chạy server/db/schema.sql
+#    Với database đã tạo trước đó, áp dụng các migration một lần:
+psql -v ON_ERROR_STOP=1 -f server/db/migrations/004_admin_notifications.sql
+psql -v ON_ERROR_STOP=1 -f server/db/migrations/007_admin_login_notifications.sql
+#    Backend cũng tự thêm cột diet_preferences nếu chưa có khi khởi động.
+psql -v ON_ERROR_STOP=1 -f server/db/migrations/008_user_diet_preferences.sql
+#    Backend tự áp dụng thay đổi cần thiết cho hồ sơ sức khỏe và nhật ký cá nhân khi khởi động.
+psql -v ON_ERROR_STOP=1 -f server/db/migrations/010_ai_recommended_order_items.sql
 
 # 6. Khởi chạy dự án ở chế độ phát triển
 npm run dev

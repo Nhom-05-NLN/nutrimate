@@ -4,7 +4,7 @@ import * as caloriePlanService from '../services/caloriePlanService.js';
 import { ApiResponse } from '../types/index.js';
 import { CaloriePlan, CalorieProfile } from '../types/caloriePlan.js';
 
-type PlanData = { profile: CalorieProfile; plan: CaloriePlan | null };
+type PlanData = { profile: CalorieProfile & { bmi: number | null }; plan: CaloriePlan | null };
 
 export async function getPlan(
   _req: Request,

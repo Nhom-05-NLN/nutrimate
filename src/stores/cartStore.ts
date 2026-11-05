@@ -242,6 +242,7 @@ export const useCartStore = defineStore('cart', () => {
 
     if (existing) {
       existing.quantity += quantity;
+      if (product.isAiRecommended) existing.product.isAiRecommended = true;
     } else {
       items.value.push({
         product,

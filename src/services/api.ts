@@ -1,5 +1,7 @@
 import {
   ApiResponse,
+  AdminCustomerListResponse,
+  AdminDashboardData,
   Category,
   ChatSuggestedProduct,
   CreateOrderPayload,
@@ -10,6 +12,7 @@ import {
   NutritionImagePrediction,
   Order,
   OrderStatus,
+  PaginatedProductResult,
   PaymentStatus,
   Product,
   ProductFilterQuery,
@@ -24,6 +27,14 @@ const API_BASE = '/api';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
+}
+
+export async function fetchAdminDashboard(): Promise<AdminDashboardData> {
+  const res = await fetchJson<ApiResponse<AdminDashboardData>>('/admin/dashboard');
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể tải dữ liệu dashboard.');
+  }
+  return res.data;
 }
 
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
@@ -70,7 +81,7 @@ export async function fetchCategories(): Promise<Category[]> {
   return res.data || [];
 }
 
-export async function fetchProducts(filter: ProductFilterQuery = {}): Promise<Product[]> {
+export async function fetchProducts(filter: ProductFilterQuery = {}): Promise<PaginatedProductResult> {
   const query = new URLSearchParams();
   if (filter.category && filter.category !== 'all') {
     query.set('category', filter.category);
@@ -87,11 +98,27 @@ export async function fetchProducts(filter: ProductFilterQuery = {}): Promise<Pr
   if (filter.minProtein && filter.minProtein > 0) {
     query.set('minProtein', String(filter.minProtein));
   }
+  if (filter.page && filter.page > 0) {
+    query.set('page', String(filter.page));
+  }
+  if (filter.limit && filter.limit > 0) {
+    query.set('limit', String(filter.limit));
+  }
+  if (filter.sort) {
+    query.set('sort', filter.sort);
+  }
 
   const qs = query.toString();
   const endpoint = qs ? `/products?${qs}` : '/products';
   const res = await fetchJson<ApiResponse<Product[]>>(endpoint);
-  return res.data || [];
+  const items = res.data || [];
+  return {
+    products: items,
+    total: res.total !== undefined ? res.total : items.length,
+    page: res.page || filter.page || 1,
+    limit: res.limit || filter.limit || 12,
+    totalPages: res.totalPages || Math.ceil((res.total || items.length) / (res.limit || filter.limit || 12)) || 1,
+  };
 }
 
 export async function fetchProductById(id: string): Promise<Product> {
@@ -180,6 +207,7 @@ export interface RegisteredUser {
   accessToken: string;
   role: 'customer' | 'admin';
   avatarUrl?: string | null;
+  dietPreferences: string[];
   defaultAddress?: {
     addressId: number;
     receiverName: string;
@@ -266,12 +294,23 @@ export interface LoginPayload {
 }
 
 export async function postLogin(payload: LoginPayload): Promise<RegisteredUser> {
-  const res = await fetchJson<ApiResponse<RegisteredUser>>('/auth/login', {
+  const res = await fetchJson<ApiResponse<RegisteredUser>>('/auth/customer/login', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
   if (!res.data) {
     throw new Error(res.message || 'Không thể đăng nhập');
+  }
+  return res.data;
+}
+
+export async function postAdminLogin(payload: LoginPayload): Promise<RegisteredUser> {
+  const res = await fetchJson<ApiResponse<RegisteredUser>>('/auth/admin/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể đăng nhập quản trị viên');
   }
   return res.data;
 }
@@ -333,6 +372,22 @@ export async function updateCurrentUserAvatar(avatarUrl: string): Promise<string
   }
 }
 
+export async function updateCurrentUserDietPreferences(
+  dietPreferences: string[],
+): Promise<string[]> {
+  const res = await fetchJson<ApiResponse<{ dietPreferences: string[] }>>(
+    '/auth/me/diet-preferences',
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ dietPreferences }),
+    },
+  );
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể cập nhật chế độ ăn.');
+  }
+  return res.data.dietPreferences;
+}
+
 export async function postLogout(): Promise<void> {
   await fetchJson<ApiResponse<never>>('/auth/logout', {
     method: 'POST',
@@ -373,6 +428,7 @@ export interface ChatHistoryMessage {
   createdAt: string;
   requestId: string;
   suggestedProducts: ChatSuggestedProduct[];
+  imageUrl?: string | null;
 }
 function chatHeaders(token?: string | null): Record<string, string> {
   return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
@@ -490,14 +546,20 @@ async function prepareNutritionImage(image: File): Promise<File> {
   }
 }
 
-export async function postNutritionImage(image: File, token: string): Promise<NutritionImagePrediction> {
+export async function postNutritionImage(image: File, token: string, conversationId = '', requestId = '', question = '', saveToChat = true): Promise<NutritionImagePrediction> {
+  if (saveToChat && (!conversationId || !requestId)) throw new Error('Thiáº¿u thÃ´ng tin há»™i thoáº¡i Ä‘á»ƒ lÆ°u áº£nh vÃ o lá»‹ch sá»­ chat.');
   const preparedImage = await prepareNutritionImage(image);
+  const questionBytes = new TextEncoder().encode(question.trim());
+  let questionBinary = '';
+  for (const byte of questionBytes) questionBinary += String.fromCharCode(byte);
   const response = await fetch(`${API_BASE}/chat/nutrition-images`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: {
       'Content-Type': preparedImage.type || 'application/octet-stream',
       Authorization: `Bearer ${token}`,
+      ...(saveToChat ? { 'X-Chat-Conversation-Id': conversationId, 'X-Chat-Request-Id': requestId } : { 'X-Chat-Save-History': 'false' }),
+      'X-Chat-Question': btoa(questionBinary),
     },
     body: preparedImage,
   });
@@ -511,6 +573,18 @@ export async function postNutritionImage(image: File, token: string): Promise<Nu
   if (!response.ok) throw new ApiError(response.status, result.message || `Lỗi mạng HTTP ${response.status}`);
   if (!result.data) throw new Error('Không nhận được kết quả phân tích ảnh.');
   return result.data;
+}
+
+export async function fetchNutritionChatImage(imageUrl: string, token: string): Promise<Blob> {
+  if (!/^\/api\/chat\/nutrition-images\/[0-9a-f-]{36}\.(?:jpg|png|webp)$/i.test(imageUrl)) {
+    throw new Error('Đường dẫn ảnh trong lịch sử không hợp lệ.');
+  }
+  const response = await fetch(imageUrl, {
+    credentials: 'same-origin',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new ApiError(response.status, 'Không thể tải ảnh trong lịch sử chat.');
+  return response.blob();
 }
 
 export async function fetchHealth(): Promise<{ status: string; service: string }> {
@@ -583,4 +657,156 @@ export async function saveCalorieProfile(profile: CalorieProfileInput): Promise<
   });
   if (!response.data) throw new Error(response.message || 'Không thể lưu hồ sơ Calories.');
   return response.data;
+}
+
+export interface AdminCustomerQuery {
+  search?: string;
+  segment?: 'all' | 'frequent';
+  nutritionGoal?: 'all' | 'lose_weight' | 'maintain_weight' | 'gain_weight' | 'unset';
+  bmiProfile?: 'all' | 'set' | 'unset';
+  orders?: 'all' | 'has_orders' | 'no_orders';
+  includeAvatars?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+export interface AdminCustomerMutationInput {
+  fullName: string;
+  email: string;
+  phone: string;
+  password?: string;
+  heightCm: number | null;
+  weightKg: number | null;
+  nutritionGoal: 'lose_weight' | 'maintain_weight' | 'gain_weight' | null;
+}
+
+export interface AdminNotification {
+  id: string;
+  type: 'customer_registered' | 'customer_logged_in';
+  title: string;
+  message: string;
+  customerId: string | null;
+  createdAt: string;
+  readAt: string | null;
+}
+
+export interface AdminNotificationList {
+  notifications: AdminNotification[];
+  unreadCount: number;
+}
+
+export async function fetchAdminNotifications(): Promise<AdminNotificationList> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetchJson<ApiResponse<AdminNotificationList>>('/admin/notifications', {
+      signal: controller.signal,
+    });
+    if (!response.data) {
+      throw new Error(response.message || 'Không thể tải thông báo quản trị.');
+    }
+    return response.data;
+  } catch (error: unknown) {
+    if (controller.signal.aborted) {
+      throw new Error('Máy chủ không phản hồi API thông báo. Hãy khởi động lại backend rồi thử lại.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export async function markAdminNotificationsRead(): Promise<void> {
+  const response = await fetchJson<ApiResponse<{ updated: boolean }>>('/admin/notifications/read-all', {
+    method: 'PATCH',
+  });
+  if (!response.data?.updated) {
+    throw new Error(response.message || 'Không thể cập nhật trạng thái thông báo.');
+  }
+}
+
+export async function markAdminNotificationRead(id: string): Promise<void> {
+  const response = await fetchJson<ApiResponse<{ updated: boolean }>>(
+    `/admin/notifications/${encodeURIComponent(id)}/read`,
+    { method: 'PATCH' },
+  );
+  if (!response.data?.updated) {
+    throw new Error(response.message || 'Không thể cập nhật trạng thái thông báo.');
+  }
+}
+
+export async function deleteAdminNotification(id: string): Promise<void> {
+  const response = await fetchJson<ApiResponse<{ deleted: boolean }>>(
+    `/admin/notifications/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+  );
+  if (!response.data?.deleted) {
+    throw new Error(response.message || 'Không thể xóa thông báo.');
+  }
+}
+
+export async function deleteAllAdminNotifications(): Promise<void> {
+  const response = await fetchJson<ApiResponse<{ deleted: boolean }>>('/admin/notifications', {
+    method: 'DELETE',
+  });
+  if (!response.data?.deleted) {
+    throw new Error(response.message || 'Không thể xóa tất cả thông báo.');
+  }
+}
+
+function notifyAdminCustomerCountChanged(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('admin-customers-changed'));
+  }
+}
+
+export async function fetchAdminCustomers(
+  filters: AdminCustomerQuery = {},
+): Promise<AdminCustomerListResponse> {
+  const query = new URLSearchParams();
+  if (filters.search?.trim()) query.set('search', filters.search.trim());
+  if (filters.segment && filters.segment !== 'all') query.set('segment', filters.segment);
+  if (filters.nutritionGoal && filters.nutritionGoal !== 'all') query.set('nutritionGoal', filters.nutritionGoal);
+  if (filters.bmiProfile && filters.bmiProfile !== 'all') query.set('bmiProfile', filters.bmiProfile);
+  if (filters.orders && filters.orders !== 'all') query.set('orders', filters.orders);
+  if (filters.includeAvatars === false) query.set('includeAvatars', 'false');
+  if (filters.page && filters.page > 1) query.set('page', String(filters.page));
+  if (filters.limit) query.set('limit', String(filters.limit));
+  const queryString = query.toString();
+  const response = await fetchJson<ApiResponse<AdminCustomerListResponse>>(
+    `/admin/customers${queryString ? `?${queryString}` : ''}`,
+  );
+  if (!response.data) {
+    throw new Error(response.message || 'Không thể tải danh sách khách hàng.');
+  }
+  return response.data;
+}
+
+export async function createAdminCustomer(input: AdminCustomerMutationInput): Promise<string> {
+  const response = await fetchJson<ApiResponse<{ id: string }>>('/admin/customers', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (!response.data) throw new Error(response.message || 'Không thể tạo khách hàng.');
+  notifyAdminCustomerCountChanged();
+  return response.data.id;
+}
+
+export async function updateAdminCustomer(
+  id: string,
+  input: AdminCustomerMutationInput,
+): Promise<void> {
+  const response = await fetchJson<ApiResponse<{ updated: boolean }>>(`/admin/customers/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+  if (!response.data?.updated) throw new Error(response.message || 'Không thể cập nhật khách hàng.');
+}
+
+export async function deleteAdminCustomer(id: string): Promise<void> {
+  const response = await fetchJson<ApiResponse<{ deleted: boolean }>>(`/admin/customers/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!response.data?.deleted) throw new Error(response.message || 'Không thể xóa khách hàng.');
+  notifyAdminCustomerCountChanged();
 }

@@ -96,6 +96,7 @@ export interface OrderItem {
   calories: number;
   protein: number;
   portion?: string;
+  isAiRecommended?: boolean;
 }
 
 export interface CustomerInfo {
@@ -130,10 +131,12 @@ export interface ProductFilterQuery {
   diet?: string;
   search?: string;
   maxCalories?: number;
+  maxCarbs?: number;
+  maxSugar?: number;
   minProtein?: number;
   page?: number;
   limit?: number;
-  sort?: 'price_asc' | 'price_desc' | 'calories_asc' | 'calories_desc' | 'rating_desc' | 'newest';
+  sort?: 'price_asc' | 'price_desc' | 'calories_asc' | 'calories_desc' | 'protein_desc' | 'carbs_asc' | 'sugar_asc' | 'rating_desc' | 'newest';
 }
 
 export interface PaginatedProductResponse {

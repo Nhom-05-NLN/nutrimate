@@ -20,16 +20,14 @@
 
 @layer base {
   body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
     background-color: #f7f3e8;
     color: #242424;
     line-height: 1.5;
   }
-
   h1, h2, h3, h4, h5, h6, .font-heading {
-    font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-family: 'Be Vietnam Pro', system-ui, sans-serif;
   }
-
   .font-display {
     font-family: 'Playfair Display', Georgia, serif;
   }
@@ -42,4 +40,26 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+.auth-page-enter-active,
+.auth-page-leave-active {
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+
+.auth-page-enter-from {
+  opacity: 0;
+  transform: translateY(12px) scale(0.99);
+}
+
+.auth-page-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.99);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-page-enter-active,
+  .auth-page-leave-active {
+    transition: none;
+  }
 }

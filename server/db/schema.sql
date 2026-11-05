@@ -12,6 +12,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- 1. CỤM NGƯỜI DÙNG & HỒ SƠ THỂ TRẠNG (User, Customer, Admin, HealthProfile, Address)
 -- ================================================================
 
+-- 1. Bảng tài khoản và thông tin thể trạng cơ bản của người dùng.
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -19,6 +20,8 @@ CREATE TABLE IF NOT EXISTS users (
     full_name VARCHAR(150) NOT NULL,
     phone VARCHAR(20),
     avt_url TEXT,
+    diet_preferences JSONB NOT NULL DEFAULT '[]'::jsonb
+        CHECK (jsonb_typeof(diet_preferences) = 'array'),
     role VARCHAR(20) DEFAULT 'customer' CHECK (role IN ('customer', 'admin')),
     height_cm NUMERIC(5, 1),
     weight_kg NUMERIC(5, 1),
@@ -33,16 +36,39 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+COMMENT ON TABLE users IS 'Lưu tài khoản, thông tin cá nhân và các mục tiêu dinh dưỡng cơ bản của người dùng.';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avt_url TEXT;
 ALTER TABLE users ALTER COLUMN avt_url TYPE TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS diet_preferences JSONB NOT NULL DEFAULT '[]'::jsonb;
 
+-- 2. Bảng định danh khách hàng, liên kết một-một với tài khoản người dùng.
 CREATE TABLE IF NOT EXISTS customers (
     user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE
 );
+COMMENT ON TABLE customers IS 'Đánh dấu tài khoản người dùng có vai trò khách hàng.';
 
+-- 3. Bảng định danh quản trị viên, liên kết một-một với tài khoản người dùng.
 CREATE TABLE IF NOT EXISTS admins (
     user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE
 );
+COMMENT ON TABLE admins IS 'Đánh dấu tài khoản người dùng có vai trò quản trị viên.';
+
+-- 3a. Thông báo dành cho quản trị viên.
+CREATE TABLE IF NOT EXISTS admin_notifications (
+    id BIGSERIAL PRIMARY KEY,
+    type VARCHAR(40) NOT NULL CHECK (type IN ('customer_registered', 'customer_logged_in')),
+    title VARCHAR(180) NOT NULL,
+    message TEXT NOT NULL,
+    customer_id INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    read_at TIMESTAMP WITH TIME ZONE
+);
+CREATE INDEX IF NOT EXISTS idx_admin_notifications_created
+    ON admin_notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_notifications_unread
+    ON admin_notifications(created_at DESC)
+    WHERE read_at IS NULL;
+COMMENT ON TABLE admin_notifications IS 'Lưu thông báo hoạt động mới dành cho quản trị viên.';
 
 CREATE TABLE IF NOT EXISTS addresses (
     address_id SERIAL PRIMARY KEY,
@@ -79,6 +105,7 @@ CREATE TABLE IF NOT EXISTS health_profiles (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+COMMENT ON TABLE health_profiles IS 'Lưu hồ sơ sức khỏe, chỉ số cơ thể và mục tiêu calo của khách hàng.';
 
 -- ================================================================
 -- 2. CỤM SẢN PHẨM & DINH DƯỠNG (Category, Product, NutritionFact, ProductVariant, Inventory, ProductReview)
@@ -94,6 +121,7 @@ CREATE TABLE IF NOT EXISTS categories (
     sort_order INT DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+COMMENT ON TABLE categories IS 'Lưu danh mục sản phẩm và loại chế độ ăn tương ứng.';
 
 CREATE TABLE IF NOT EXISTS products (
     product_id SERIAL PRIMARY KEY,
@@ -254,8 +282,11 @@ CREATE TABLE IF NOT EXISTS order_items (
     calories NUMERIC(6, 1) DEFAULT 0 CHECK (calories >= 0),
     protein NUMERIC(6, 1) DEFAULT 0 CHECK (protein >= 0),
     subtotal NUMERIC(12, 2) NOT NULL CHECK (subtotal >= 0),
+    is_ai_recommended BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+COMMENT ON TABLE orders IS 'Lưu thông tin đơn hàng, khách nhận hàng, thanh toán và trạng thái giao hàng.';
+COMMENT ON TABLE order_items IS 'Lưu các sản phẩm, số lượng và giá trị dinh dưỡng tại thời điểm đặt hàng.';
 
 CREATE TABLE IF NOT EXISTS payments (
     payment_id SERIAL PRIMARY KEY,
@@ -289,6 +320,7 @@ CREATE TABLE IF NOT EXISTS vouchers (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+COMMENT ON TABLE products IS 'Lưu thông tin sản phẩm, giá bán, tồn kho và thành phần dinh dưỡng.';
 
 CREATE INDEX IF NOT EXISTS idx_vouchers_code ON vouchers(code);
 CREATE INDEX IF NOT EXISTS idx_vouchers_active ON vouchers(is_active);
@@ -306,11 +338,11 @@ CREATE TABLE IF NOT EXISTS chatbot_knowledge (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-
+COMMENT ON TABLE chatbot_knowledge IS 'Cơ sở tri thức trả lời tự động cho NutriBot.';
 -- 6. Nhật ký dinh dưỡng chuẩn hóa trong nutrition_diary và diary_entries.
 CREATE TABLE IF NOT EXISTS nutrition_diary (
     diary_id SERIAL PRIMARY KEY,
-    customer_id INT REFERENCES customers(user_id) ON DELETE CASCADE,
+    customer_id INT REFERENCES users(id) ON DELETE CASCADE,
     date DATE NOT NULL,
     total_calories DOUBLE PRECISION DEFAULT 0,
     total_protein DOUBLE PRECISION DEFAULT 0,
@@ -333,18 +365,20 @@ CREATE TABLE IF NOT EXISTS diary_entries (
     fat DOUBLE PRECISION NOT NULL DEFAULT 0,
     sugar DOUBLE PRECISION NOT NULL DEFAULT 0
 );
+COMMENT ON TABLE nutrition_logs IS 'Ghi nhận thực phẩm và lượng dinh dưỡng người dùng tiêu thụ theo ngày.';
 ALTER TABLE diary_entries ADD COLUMN IF NOT EXISTS food_name VARCHAR(200);
 
--- 7. Bảng Theo dõi lượng nước uống (Water Intake Logs)
+-- 10. Bảng nhật ký lượng nước uống.
 CREATE TABLE IF NOT EXISTS water_logs (
     water_log_id SERIAL PRIMARY KEY,
-    customer_id INT REFERENCES customers(user_id) ON DELETE CASCADE,
+    customer_id INT REFERENCES users(id) ON DELETE CASCADE,
     recorded_date DATE NOT NULL,
     amount_ml INT NOT NULL CHECK (amount_ml > 0),
     logged_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+COMMENT ON TABLE water_logs IS 'Ghi nhận lượng nước người dùng đã uống theo ngày.';
 
--- 8. Bảng Cơ sở tri thức Chatbot NutriBot
+-- 11. Bảng cơ sở tri thức của chatbot NutriBot.
 CREATE TABLE IF NOT EXISTS knowledge_base (
     knowledge_id SERIAL PRIMARY KEY,
     question TEXT,
@@ -353,7 +387,7 @@ CREATE TABLE IF NOT EXISTS knowledge_base (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-
+COMMENT ON TABLE knowledge_base IS 'Lưu câu hỏi, câu trả lời và chủ đề kiến thức dinh dưỡng cho chatbot.';
 -- 9. Dự đoán dinh dưỡng từ ảnh (NutritionImage)
 CREATE TABLE IF NOT EXISTS nutrition_images (
     image_id SERIAL PRIMARY KEY,
@@ -368,6 +402,7 @@ CREATE TABLE IF NOT EXISTS nutrition_images (
     predicted_fat DOUBLE PRECISION,
     predicted_sugar DOUBLE PRECISION
 );
+COMMENT ON TABLE nutrition_images IS 'Lưu ảnh thực phẩm đã tải lên, trạng thái xử lý OCR và kết quả dinh dưỡng dự đoán.';
 CREATE INDEX IF NOT EXISTS idx_nutrition_images_customer_date ON nutrition_images(customer_id, upload_date DESC);
 
 -- ================================================================
