@@ -1,6 +1,7 @@
 import {
   ApiResponse,
   AdminCustomerListResponse,
+  AdminDashboardData,
   Category,
   ChatSuggestedProduct,
   CreateOrderPayload,
@@ -22,6 +23,14 @@ const API_BASE = '/api';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
+}
+
+export async function fetchAdminDashboard(): Promise<AdminDashboardData> {
+  const res = await fetchJson<ApiResponse<AdminDashboardData>>('/admin/dashboard');
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể tải dữ liệu dashboard.');
+  }
+  return res.data;
 }
 
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
