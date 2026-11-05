@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useProductStore, FIGMA_SEED_PRODUCTS } from '../stores/productStore';
 import { useCartStore } from '../stores/cartStore';
 import { useToastStore } from '../stores/toastStore';
-import { Product } from '../types';
+import { fetchProductById } from '../services/api';
+import { Product, ProductPortionOption } from '../types';
+import ProductReviewModal from '../components/catalog/ProductReviewModal.vue';
 import {
   ChevronRight,
   Star,
@@ -13,71 +16,218 @@ import {
   ShoppingBag,
   Plus,
   Minus,
-  Heart,
   Check,
-  Sparkles,
+  ArrowLeft,
+  AlertCircle,
+  ThumbsUp,
+  MessageSquare,
 } from 'lucide-vue-next';
 
 const route = useRoute();
 const router = useRouter();
+const productStore = useProductStore();
 const cartStore = useCartStore();
 const toastStore = useToastStore();
 
-const isLiked = ref(false);
+const product = ref<Product | null>(null);
+const isLoading = ref<boolean>(true);
+const errorMessage = ref<string | null>(null);
+
 const quantity = ref(1);
-const selectedPortion = ref('Hũ 500g');
+const selectedPortion = ref<string>('');
 const activeTab = ref<'desc' | 'traceability' | 'reviews'>('desc');
 const activeImageIndex = ref(0);
 
-const gallery = [
-  'https://images.unsplash.com/photo-1517673132405-a56a62b18caf?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&w=800&q=80',
-  'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80',
-];
+// Trạng thái modal đánh giá
+const showReviewModal = ref(false);
 
-const portions = [
-  { label: 'Hũ 500g', price: 185000, desc: 'Tiêu chuẩn' },
-  { label: 'Hũ 250g', price: 105000, desc: 'Dùng thử' },
-  { label: 'Túi refill 1000g', price: 330000, desc: 'Tiết kiệm 15%' },
-];
+// Danh sách đánh giá mẫu phong phú cho sản phẩm
+interface ReviewItem {
+  id: string;
+  author: string;
+  rating: number;
+  date: string;
+  content: string;
+  verified: boolean;
+  likes: number;
+}
 
+const reviewsList = ref<ReviewItem[]>([
+  {
+    id: 'rev-1',
+    author: 'Trần Tường Vy',
+    rating: 5,
+    date: '2 ngày trước',
+    content: 'Hạt rất giòn và thơm tự nhiên, vị ngọt thanh vừa phải không gắt đường. Mình thường ăn chung với sữa chua Hy Lạp buổi sáng cực kỳ tiện lợi và no lâu!',
+    verified: true,
+    likes: 12,
+  },
+  {
+    id: 'rev-2',
+    author: 'Lê Hoàng Nam (Gym Coach)',
+    rating: 5,
+    date: '1 tuần trước',
+    content: 'Chỉ số Macro in rất rõ ràng, hàm lượng protein cao đúng như cam kết. Ăn trước tập 30 phút cung cấp năng lượng tốt, không bị nặng bụng.',
+    verified: true,
+    likes: 8,
+  },
+  {
+    id: 'rev-3',
+    author: 'Nguyễn Bích Ngọc',
+    rating: 4,
+    date: '2 tuần trước',
+    content: 'Đóng gói chắc chắn, giao hàng hỏa tốc trong 2h rất ưng. Hũ 500g ăn được gần 2 tuần, sẽ ủng hộ dài dài.',
+    verified: true,
+    likes: 5,
+  },
+]);
+
+// Danh sách hình ảnh động
+const gallery = computed<string[]>(() => {
+  if (product.value?.galleryImages && product.value.galleryImages.length > 0) {
+    return product.value.galleryImages;
+  }
+  if (product.value?.image) {
+    return [
+      product.value.image,
+      'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80',
+    ];
+  }
+  return ['https://images.unsplash.com/photo-1517673132405-a56a62b18caf?auto=format&fit=crop&w=800&q=80'];
+});
+
+// Danh sách quy cách sản phẩm
+const portions = computed<ProductPortionOption[]>(() => {
+  if (product.value?.portions && product.value.portions.length > 0) {
+    return product.value.portions;
+  }
+  const basePrice = product.value?.price || 185000;
+  const servingSize = product.value?.nutrition?.servingSize || '500g';
+
+  return [
+    { label: `Hũ ${servingSize}`, price: basePrice, weight: servingSize, inStock: true, savingBadge: 'Tiêu chuẩn' },
+    { label: 'Hũ nhỏ 250g', price: Math.round((basePrice * 0.6) / 1000) * 1000, weight: '250g', inStock: true, savingBadge: 'Dùng thử' },
+    { label: 'Túi refill 1kg', price: Math.round((basePrice * 1.8) / 1000) * 1000, weight: '1000g', inStock: true, savingBadge: 'Tiết kiệm 15%' },
+  ];
+});
+
+// Giá tính toán theo phân loại đang chọn
 const currentPrice = computed(() => {
-  const p = portions.find((x) => x.label === selectedPortion.value);
-  return p ? p.price : 185000;
+  if (!product.value) return 0;
+  const matched = portions.value.find((p) => p.label === selectedPortion.value);
+  return matched ? matched.price : product.value.price;
+});
+
+// Tính phần trăm giảm giá
+const discountPercent = computed(() => {
+  if (!product.value?.originalPrice || product.value.originalPrice <= currentPrice.value) return 0;
+  return Math.round(((product.value.originalPrice - currentPrice.value) / product.value.originalPrice) * 100);
+});
+
+// Sản phẩm liên quan: chỉ hiển thị các sản phẩm CÙNG DANH MỤC
+const relatedProducts = computed<Product[]>(() => {
+  const all = productStore.products.length > 0 ? productStore.products : FIGMA_SEED_PRODUCTS;
+  if (!product.value) return [];
+
+  return all
+    .filter((p) => p.id !== product.value?.id && p.category === product.value?.category)
+    .slice(0, 4);
+});
+
+// Điểm đánh giá hiển thị (được cập nhật động theo sản phẩm hoặc danh sách review)
+const displayRating = computed(() => {
+  if (product.value?.rating) {
+    return Number(product.value.rating.toFixed(1));
+  }
+  if (reviewsList.value.length > 0) {
+    const sum = reviewsList.value.reduce((acc, r) => acc + r.rating, 0);
+    return Number((sum / reviewsList.value.length).toFixed(1));
+  }
+  return 5.0;
+});
+
+// Số lượt đánh giá hiển thị
+const displayReviewCount = computed(() => {
+  if (product.value?.reviewCount !== undefined && product.value.reviewCount > 0) {
+    return product.value.reviewCount;
+  }
+  return reviewsList.value.length;
 });
 
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
-function handleAddToCart() {
-  const prod: Product = {
-    id: 'prod-granola',
-    code: 'NM-GRN-01',
-    name: `Granola Yến Mạch Hạt Dinh Dưỡng Siêu Hạt (${selectedPortion.value})`,
-    category: 'snacks-nuts',
-    categoryName: 'Hạt dinh dưỡng',
-    price: currentPrice.value,
-    image: gallery[0],
-    description: 'Granola nướng mật ong tự nhiên không đường tinh luyện.',
-    ingredients: ['Yến mạch Úc (45%)', 'Hạnh nhân Mỹ (15%)', 'Quả óc chó Chile (10%)', 'Hạt điều Bình Phước (10%)'],
-    nutrition: {
-      servingSize: '40g',
-      calories: 152,
-      protein: 14,
-      carbs: 18,
-      fat: 6,
-      sugar: 3,
-    },
-    stock: 142,
-    rating: 4.9,
-    reviewCount: 128,
-    badges: ['Top 1 Bán Chạy'],
-    bestFor: 'Bữa sáng & Ăn xế',
-  };
+// Chuẩn hóa danh sách chuỗi
+function normalizeTextList(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === 'string' ? item.trim() : String(item).trim()))
+      .filter((item) => item.length > 0);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => (typeof item === 'string' ? item.trim() : String(item).trim()))
+          .filter((item) => item.length > 0);
+      }
+    } catch {
+    }
+    return trimmed
+      .split(/[,;\n]+/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+  return [];
+}
 
-  cartStore.addItem(prod, quantity.value, selectedPortion.value);
+const normalizedIngredients = computed<string[]>(() => {
+  return normalizeTextList(product.value?.ingredients);
+});
+
+// Lấy thông tin sản phẩm từ API
+async function loadProductDetail(productId: string) {
+  isLoading.value = true;
+  errorMessage.value = null;
+  activeImageIndex.value = 0;
+  quantity.value = 1;
+
+  try {
+    const data = await fetchProductById(productId);
+    product.value = data;
+  } catch {
+    const found =
+      productStore.products.find((p) => p.id === productId) ||
+      FIGMA_SEED_PRODUCTS.find((p) => p.id === productId);
+
+    if (found) {
+      product.value = found;
+    } else {
+      errorMessage.value = 'Không tìm thấy thông tin sản phẩm yêu cầu.';
+    }
+  } finally {
+    if (product.value) {
+      selectedPortion.value = portions.value[0]?.label || 'Tiêu chuẩn';
+    }
+    isLoading.value = false;
+  }
+}
+
+function handleAddToCart() {
+  if (!product.value) return;
+  const productToAdd: Product = {
+    ...product.value,
+    price: currentPrice.value,
+  };
+  cartStore.addItem(productToAdd, quantity.value, selectedPortion.value);
+  toastStore.show('Đã thêm vào giỏ hàng', 'success', `${product.value.name} (${selectedPortion.value})`);
 }
 
 function handleBuyNow() {
@@ -85,549 +235,677 @@ function handleBuyNow() {
   router.push('/cart');
 }
 
-function addComboItem(name: string, price: number, kcal: number, protein: number) {
-  cartStore.addItem(
-    {
-      id: `combo-${Date.now()}`,
-      code: 'NM-CMB',
-      name,
-      category: 'snacks-nuts',
-      categoryName: 'Món mua cùng',
-      price,
-      image: gallery[2],
-      description: 'Món ăn kèm hoàn hảo cho bữa sáng lành mạnh.',
-      ingredients: ['Thành phần organic'],
-      nutrition: {
-        servingSize: '1 phần',
-        calories: kcal,
-        protein,
-        carbs: 10,
-        fat: 5,
-        sugar: 1,
-      },
-      stock: 50,
-      rating: 4.9,
-      reviewCount: 30,
-      badges: ['Combo'],
-      bestFor: 'Ăn kèm bữa phụ',
-    },
-    1,
-    'Món ăn kèm'
-  );
+function goToProduct(targetId: string) {
+  router.push(`/product/${targetId}`);
 }
+
+function handleReviewSubmit(payload: { author: string; rating: number; content: string }) {
+  reviewsList.value.unshift({
+    id: `rev-${Date.now()}`,
+    author: payload.author,
+    rating: payload.rating,
+    date: 'Vừa xong',
+    content: payload.content,
+    verified: true,
+    likes: 0,
+  });
+
+  if (product.value) {
+    const prevCount = product.value.reviewCount || (reviewsList.value.length - 1);
+    const prevRating = product.value.rating || 5.0;
+    const newCount = prevCount + 1;
+    // Tính lại điểm trung bình có trọng số từ đánh giá mới
+    const newRating = Number(((prevRating * prevCount + payload.rating) / newCount).toFixed(1));
+
+    product.value.reviewCount = newCount;
+    product.value.rating = newRating;
+  }
+
+  toastStore.show('Cảm ơn bạn đã gửi đánh giá!', 'success');
+}
+
+onMounted(() => {
+  if (productStore.products.length === 0) {
+    productStore.loadProducts();
+  }
+  const id = String(route.params.id || 'prod-granola');
+  loadProductDetail(id);
+});
+
+watch(
+  () => route.params.id,
+  (newId) => {
+    if (newId) {
+      loadProductDetail(String(newId));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+);
 </script>
 
 <template>
-  <div class="max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-12">
-    <!-- Breadcrumb -->
-    <nav class="flex items-center gap-2 text-sm font-medium text-[#7E8B73]">
-      <RouterLink to="/" class="hover:text-[#242424]">Trang chủ</RouterLink>
-      <ChevronRight class="w-4 h-4" />
-      <RouterLink to="/catalog" class="hover:text-[#242424]">Thực phẩm</RouterLink>
-      <ChevronRight class="w-4 h-4" />
-      <span class="hover:text-[#242424]">Hạt dinh dưỡng</span>
-      <ChevronRight class="w-4 h-4" />
-      <span class="text-[#242424] font-bold truncate max-w-xs sm:max-w-md">Granola Yến Mạch Hạt Dinh Dưỡng Siêu Hạt 500g</span>
-    </nav>
-
-    <!-- Product Main Top Grid (2 Columns) -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
-      <!-- Cột Trái: Gallery Ảnh & Thumbnails -->
-      <div class="lg:col-span-5 space-y-4">
-        <!-- Ảnh Chính -->
-        <div class="relative aspect-square w-full rounded-3xl overflow-hidden border border-[#E3E8DC] bg-white shadow-xs">
-          <img
-            :src="gallery[activeImageIndex]"
-            alt="Granola Yến Mạch Hạt Dinh Dưỡng"
-            class="w-full h-full object-cover"
-          />
-
-          <!-- Badges -->
-          <div class="absolute top-4 left-4 flex flex-col gap-2">
-            <span class="px-3.5 py-1 rounded-full text-xs font-bold bg-[#FAF9F5]/95 backdrop-blur-xs text-[#242424] border border-[#CCD7BC] shadow-2xs">
-              ★ Bán chạy nhất #1
-            </span>
-            <span class="px-3.5 py-1 rounded-full text-xs font-bold bg-[#FAF9F5]/95 backdrop-blur-xs text-[#242424] border border-[#CCD7BC] shadow-2xs">
-              🌱 100% Tự Nhiên
-            </span>
-          </div>
-
-          <!-- Favorite -->
-          <button
-            type="button"
-            @click="isLiked = !isLiked"
-            class="absolute top-4 right-4 w-11 h-11 rounded-full bg-white/95 backdrop-blur-xs border border-[#CCD7BC] flex items-center justify-center text-[#7A866E] hover:text-rose-500 shadow-xs transition-colors"
-            aria-label="Yêu thích"
-          >
-            <Heart class="w-5 h-5" :class="{ 'fill-rose-500 text-rose-500': isLiked }" />
-          </button>
-        </div>
-
-        <!-- Thumbnails 4 ảnh -->
-        <div class="grid grid-cols-4 gap-3.5">
-          <button
-            v-for="(img, idx) in gallery"
-            :key="idx"
-            type="button"
-            @click="activeImageIndex = idx"
-            class="aspect-square rounded-2xl overflow-hidden border-2 transition-all cursor-pointer"
-            :class="activeImageIndex === idx ? 'border-[#4D6A34] shadow-md scale-102' : 'border-[#E3E8DC] opacity-75 hover:opacity-100'"
-          >
-            <img :src="img" alt="thumb" class="w-full h-full object-cover" />
-          </button>
-        </div>
-      </div>
-
-      <!-- Cột Phải: Thông Tin Mua Hàng & Giá -->
-      <div class="lg:col-span-7 space-y-7">
-        <div class="space-y-3">
-          <h1 class="font-heading text-2xl sm:text-3xl lg:text-[34px] font-black text-[#242424] leading-snug">
-            Granola Yến Mạch Hạt Dinh Dưỡng Siêu Hạt 500g - Vị Mật Ong & Vani Tự Nhiên
-          </h1>
-
-          <div class="flex flex-wrap items-center gap-4 text-sm font-semibold text-[#68725F]">
-            <div class="flex items-center gap-1.5 font-bold text-[#E8A020]">
-              <Star v-for="i in 5" :key="i" class="w-4 h-4 fill-[#E8A020]" />
-              <span class="text-[#242424] ml-1 font-bold">4.9</span>
-              <span class="text-[#7A866E] font-medium">(128 đánh giá)</span>
-            </div>
-            <span>•</span>
-            <span class="font-bold text-[#242424]">Đã bán 2.4k</span>
-            <span>•</span>
-            <span class="text-[#4D6A34] font-bold flex items-center gap-1.5">
-              <ShieldCheck class="w-4 h-4 text-[#4D6A34]" /> Cam kết chính hãng
-            </span>
+  <div class="max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-10">
+    <!-- TRẠNG THÁI 1: LOADING SKELETON -->
+    <div v-if="isLoading" class="animate-pulse space-y-12">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14">
+        <div class="lg:col-span-5 space-y-4">
+          <div class="aspect-square bg-[#E8ECE2] rounded-3xl"></div>
+          <div class="grid grid-cols-4 gap-3.5">
+            <div v-for="i in 4" :key="i" class="aspect-square bg-[#E8ECE2] rounded-2xl"></div>
           </div>
         </div>
-
-        <!-- Giá tiền lớn -->
-        <div class="flex items-baseline gap-4 p-5 rounded-2xl bg-[#F6F8F3] border border-[#E8ECE2]">
-          <span class="font-heading text-3xl sm:text-4xl font-black text-[#242424]">
-            {{ formatVnd(currentPrice) }}
-          </span>
-          <span class="text-xs font-bold text-[#4D6A34] bg-[#EBF7E5] px-3 py-1 rounded-full border border-[#CCD7BC]">
-            Đã bao gồm thuế VAT
-          </span>
-        </div>
-
-        <!-- Tóm tắt dinh dưỡng nổi bật 4 ô (Figma Style Căn Giữa Hoàn Toàn) -->
-        <div class="space-y-2.5">
-          <span class="text-sm font-bold text-[#242424] block">
-            Tóm tắt dinh dưỡng nổi bật (trên 100g)
-          </span>
-          <div class="grid grid-cols-4 gap-3 text-center">
-            <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex flex-col items-center justify-center shadow-2xs">
-              <span class="text-xs text-[#7A866E] block font-medium">Năng lượng</span>
-              <span class="font-heading text-xl font-black text-[#242424] mt-1">380 <span class="text-xs font-normal">kcal</span></span>
-            </div>
-            <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex flex-col items-center justify-center shadow-2xs">
-              <span class="text-xs text-[#7A866E] block font-medium">Chất đạm</span>
-              <span class="font-heading text-xl font-black text-[#4D6A34] mt-1">14 <span class="text-xs font-normal">g</span></span>
-            </div>
-            <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex flex-col items-center justify-center shadow-2xs">
-              <span class="text-xs text-[#7A866E] block font-medium">Đường tự nhiên</span>
-              <span class="font-heading text-xl font-black text-[#4D6A34] mt-1">3 <span class="text-xs font-normal">g</span></span>
-            </div>
-            <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex flex-col items-center justify-center shadow-2xs">
-              <span class="text-xs text-[#7A866E] block font-medium">Chất xơ</span>
-              <span class="font-heading text-xl font-black text-[#4D6A34] mt-1">8 <span class="text-xs font-normal">g</span></span>
-            </div>
+        <div class="lg:col-span-7 space-y-6">
+          <div class="h-8 bg-[#E8ECE2] rounded-xl w-3/4"></div>
+          <div class="h-5 bg-[#E8ECE2] rounded-lg w-1/3"></div>
+          <div class="h-20 bg-[#E8ECE2] rounded-2xl w-full"></div>
+          <div class="grid grid-cols-4 gap-3">
+            <div v-for="i in 4" :key="i" class="h-20 bg-[#E8ECE2] rounded-2xl"></div>
           </div>
-        </div>
-
-        <!-- Phân loại & Trọng lượng (Figma Style CĂN GIỮA HOÀN TOÀN) -->
-        <div class="space-y-3">
-          <div class="flex items-center justify-between text-sm">
-            <span class="font-bold text-[#242424]">Phân loại & Trọng lượng</span>
-            <span class="text-[#4D6A34] font-bold">Hũ 500g tiết kiệm 15%</span>
-          </div>
-
-          <div class="grid grid-cols-3 gap-3.5">
-            <button
-              v-for="p in portions"
-              :key="p.label"
-              type="button"
-              @click="selectedPortion = p.label"
-              class="py-4 px-3 rounded-2xl border flex flex-col items-center justify-center text-center transition-all relative cursor-pointer"
-              :class="
-                selectedPortion === p.label
-                  ? 'border-2 border-[#536124] bg-[#EAEFE3] shadow-xs'
-                  : 'border border-[#E3E8DC] bg-white hover:border-[#CCD7BC]'
-              "
-            >
-              <!-- Checkmark badge ở góc trên phải nổi đè lên viền -->
-              <div
-                v-if="selectedPortion === p.label"
-                class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[#536124] text-white flex items-center justify-center border-2 border-white shadow-xs"
-              >
-                <Check class="w-3 h-3 stroke-[3]" />
-              </div>
-
-              <!-- Dòng 1: Tên phân loại (căn giữa) -->
-              <span class="font-heading text-base font-bold text-[#242424] text-center block">
-                {{ p.label }}
-              </span>
-
-              <!-- Dòng 2: Giá (căn giữa) -->
-              <span
-                class="text-sm font-bold text-center mt-1 block"
-                :class="selectedPortion === p.label ? 'text-[#4D6A34]' : 'text-[#7A866E]'"
-              >
-                {{ formatVnd(p.price) }}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Bộ chọn số lượng & Trạng thái tồn kho -->
-        <div class="flex items-center gap-6 pt-2">
-          <div class="flex items-center border border-[#CCD7BC] rounded-2xl bg-white p-1 shadow-2xs">
-            <button
-              type="button"
-              @click="quantity = Math.max(1, quantity - 1)"
-              class="w-9 h-9 rounded-xl flex items-center justify-center text-[#576449] hover:bg-[#FAF9F5] transition-colors"
-            >
-              <Minus class="w-4 h-4 stroke-[2.5]" />
-            </button>
-            <span class="w-12 text-center font-black text-base text-[#242424]">{{ quantity }}</span>
-            <button
-              type="button"
-              @click="quantity++"
-              class="w-9 h-9 rounded-xl flex items-center justify-center text-[#576449] hover:bg-[#FAF9F5] transition-colors"
-            >
-              <Plus class="w-4 h-4 stroke-[2.5]" />
-            </button>
-          </div>
-
-          <span class="text-sm font-semibold text-[#242424] flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-            Còn hàng (142 sản phẩm có sẵn)
-          </span>
-        </div>
-
-        <!-- 2 Nút Mua hàng to (Figma Style) -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-          <button
-            type="button"
-            @click="handleAddToCart"
-            class="py-4 px-6 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] active:bg-[#2D3B1E] text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-md transition-all min-h-[48px]"
-          >
-            <ShoppingBag class="w-5 h-5 stroke-[2]" />
-            <span>Thêm vào giỏ hàng</span>
-          </button>
-
-          <button
-            type="button"
-            @click="handleBuyNow"
-            class="py-4 px-6 rounded-2xl bg-[#232722] hover:bg-black active:bg-slate-900 text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-md transition-all min-h-[48px]"
-          >
-            <Zap class="w-5 h-5 text-amber-400 fill-amber-400" />
-            <span>Mua ngay</span>
-          </button>
-        </div>
-
-        <!-- 3 Cam kết dịch vụ -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-[#E3E8DC] text-xs text-[#576449]">
-          <div class="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-[#F0F3EC]">
-            <Zap class="w-4 h-4 text-[#4D6A34] shrink-0" />
-            <div>
-              <span class="font-bold text-[#242424] block text-xs">Giao 2H Siêu Tốc</span>
-              <span class="text-[11px] text-[#7A866E]">Tại TP.HCM & Hà Nội</span>
-            </div>
-          </div>
-          <div class="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-[#F0F3EC]">
-            <ShieldCheck class="w-4 h-4 text-[#4D6A34] shrink-0" />
-            <div>
-              <span class="font-bold text-[#242424] block text-xs">Hoàn tiền 200%</span>
-              <span class="text-[11px] text-[#7A866E]">Nếu phát hiện hàng giả</span>
-            </div>
-          </div>
-          <div class="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-[#F0F3EC]">
-            <RefreshCw class="w-4 h-4 text-[#4D6A34] shrink-0" />
-            <div>
-              <span class="font-bold text-[#242424] block text-xs">Đổi trả 7 ngày</span>
-              <span class="text-[11px] text-[#7A866E]">Miễn phí nếu lỗi NSX</span>
-            </div>
-          </div>
+          <div class="h-14 bg-[#E8ECE2] rounded-2xl w-full"></div>
         </div>
       </div>
     </div>
 
-    <!-- Tabs Section & Nutrition Facts Table -->
-    <div class="pt-10 border-t border-[#E3E8DC]">
-      <!-- Tab Header Buttons -->
-      <div class="flex items-center gap-8 border-b border-[#E3E8DC] mb-8 overflow-x-auto no-scrollbar">
+    <!-- TRẠNG THÁI 2: LỖI / KHÔNG TÌM THẤY SẢN PHẨM -->
+    <div
+      v-else-if="errorMessage || !product"
+      class="text-center py-20 px-4 bg-white rounded-3xl border border-[#E3E8DC] shadow-sm space-y-5"
+    >
+      <div class="w-16 h-16 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center mx-auto">
+        <AlertCircle class="w-8 h-8" />
+      </div>
+      <div class="space-y-2">
+        <h2 class="text-2xl font-black text-[#242424] font-heading">Không tìm thấy sản phẩm</h2>
+        <p class="text-sm text-[#7A866E] max-w-md mx-auto">
+          {{ errorMessage || 'Sản phẩm bạn đang tìm kiếm có thể đã bị xóa hoặc tạm ngưng kinh doanh.' }}
+        </p>
+      </div>
+      <div class="pt-2">
         <button
           type="button"
-          @click="activeTab = 'desc'"
-          class="pb-3.5 text-base font-bold transition-all relative shrink-0 cursor-pointer"
-          :class="activeTab === 'desc' ? 'text-[#242424] border-b-[3px] border-[#4D6A34]' : 'text-[#7A866E] hover:text-[#242424]'"
+          @click="router.push('/catalog')"
+          class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#4D6A34] text-white font-bold hover:bg-[#3B4E24] transition-colors cursor-pointer"
         >
-          Mô tả sản phẩm & Hướng dẫn
-        </button>
-        <button
-          type="button"
-          @click="activeTab = 'traceability'"
-          class="pb-3.5 text-base font-bold transition-all relative shrink-0 cursor-pointer"
-          :class="activeTab === 'traceability' ? 'text-[#242424] border-b-[3px] border-[#4D6A34]' : 'text-[#7A866E] hover:text-[#242424]'"
-        >
-          Nguồn gốc nguyên liệu (Traceability)
-        </button>
-        <button
-          type="button"
-          @click="activeTab = 'reviews'"
-          class="pb-3.5 text-base font-bold transition-all relative shrink-0 cursor-pointer"
-          :class="activeTab === 'reviews' ? 'text-[#242424] border-b-[3px] border-[#4D6A34]' : 'text-[#7A866E] hover:text-[#242424]'"
-        >
-          Đánh giá khách hàng (128)
+          <ArrowLeft class="w-4 h-4" />
+          <span>Quay lại Thực đơn</span>
         </button>
       </div>
+    </div>
 
-      <!-- Tab Content Grid (Left Details + Right Nutrition Facts Box) -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-        <!-- Cột Trái: Nội dung mô tả / nguồn gốc / đánh giá -->
+    <!-- TRẠNG THÁI 3: NỘI DUNG CHI TIẾT SẢN PHẨM HOÀN CHỈNH -->
+    <div v-else class="space-y-12">
+      <!-- Product Main Top Grid (2 Columns) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
+        <!-- Cột Trái: Gallery Ảnh & Thumbnails -->
+        <div class="lg:col-span-5 space-y-4">
+          <!-- Ảnh Chính -->
+          <div class="relative aspect-square w-full rounded-3xl overflow-hidden border border-[#E3E8DC] bg-white shadow-xs group">
+            <img
+              :src="gallery[activeImageIndex] || product.image"
+              :alt="product.name"
+              class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          </div>
+
+          <!-- Thumbnails ảnh -->
+          <div v-if="gallery.length > 1" class="grid grid-cols-4 gap-3.5">
+            <button
+              v-for="(img, idx) in gallery"
+              :key="idx"
+              type="button"
+              @click="activeImageIndex = idx"
+              class="aspect-square rounded-2xl overflow-hidden border-2 transition-all cursor-pointer"
+              :class="activeImageIndex === idx ? 'border-[#4D6A34] shadow-md scale-102 ring-2 ring-[#4D6A34]/20' : 'border-[#E3E8DC] opacity-75 hover:opacity-100'"
+            >
+              <img :src="img" :alt="`Thumb ${idx + 1}`" class="w-full h-full object-cover" />
+            </button>
+          </div>
+        </div>
+
+        <!-- Cột Phải: Thông Tin Mua Hàng & Giá -->
         <div class="lg:col-span-7 space-y-7">
-          <div v-if="activeTab === 'desc'" class="space-y-6 text-sm sm:text-base text-[#4E5C3E] leading-relaxed">
-            <div>
-              <h3 class="font-heading text-xl font-bold text-[#242424] mb-2.5">
-                Khởi đầu ngày mới tràn đầy năng lượng thanh sạch
-              </h3>
-              <p>
-                Granola NutriMate Yến Mạch Hạt Dinh Dưỡng Siêu Hạt được chế biến theo công thức độc quyền: nướng chậm ở nhiệt độ thấp giúp giữ trọn vẹn dưỡng chất, hàm lượng vitamin E, omega-3 và vi khoáng từ các loại hạt thượng hạng. Chúng tôi tuyệt đối không sử dụng đường tinh luyện hay dầu cọ, vị ngọt thanh tự nhiên đến từ mật ong hoa nhãn nguyên chất và quả mọng sấy lạnh.
-              </p>
+          <div class="space-y-3">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-[#4D6A34] bg-[#EBF7E5] px-3 py-1 rounded-full border border-[#CCD7BC]">
+                {{ product.categoryName || 'Dinh dưỡng sạch' }}
+              </span>
+              <span class="text-xs text-[#7A866E] font-medium">Mã SKU: {{ product.code }}</span>
             </div>
 
-            <!-- 3 Feature Cards -->
+            <h1 class="font-heading text-2xl sm:text-3xl lg:text-[32px] font-black text-[#242424] leading-snug">
+              {{ product.name }}
+            </h1>
+
+            <div class="flex flex-wrap items-center gap-4 text-sm font-semibold text-[#68725F]">
+              <div
+                class="flex items-center gap-1.5 font-bold text-[#E8A020] cursor-pointer hover:opacity-80 transition-opacity"
+                @click="activeTab = 'reviews'"
+              >
+                <div class="flex text-[#E8A020]">
+                  <Star
+                    v-for="i in 5"
+                    :key="i"
+                    class="w-4 h-4"
+                    :class="i <= Math.round(displayRating) ? 'fill-[#E8A020] text-[#E8A020]' : 'text-stone-300'"
+                  />
+                </div>
+                <span class="text-[#242424] ml-1 font-bold">{{ displayRating }}</span>
+                <span class="text-[#7A866E] font-medium underline">({{ displayReviewCount }} đánh giá)</span>
+              </div>
+              <span>•</span>
+              <span class="font-bold text-[#242424]">Đã bán {{ product.soldCount || '0' }}</span>
+              <span>•</span>
+              <span class="text-[#4D6A34] font-bold flex items-center gap-1.5">
+                <ShieldCheck class="w-4 h-4 text-[#4D6A34]" /> Cam kết chính hãng
+              </span>
+            </div>
+          </div>
+
+          <!-- Giá tiền & Khuyến mãi -->
+          <div class="p-5 rounded-2xl bg-[#F6F8F3] border border-[#E8ECE2] space-y-2">
+            <div class="flex flex-wrap items-baseline gap-4">
+              <span class="font-heading text-3xl sm:text-4xl font-black text-[#242424]">
+                {{ formatVnd(currentPrice) }}
+              </span>
+              <span
+                v-if="product.originalPrice && product.originalPrice > currentPrice"
+                class="text-base font-bold text-[#7A866E] line-through"
+              >
+                {{ formatVnd(product.originalPrice) }}
+              </span>
+              <span
+                v-if="discountPercent > 0"
+                class="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-500 text-white shadow-2xs"
+              >
+                -{{ discountPercent }}%
+              </span>
+            </div>
+          </div>
+
+          <!-- Tóm tắt dinh dưỡng nổi bật -->
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between text-sm">
+              <span class="font-bold text-[#242424]">
+                Tóm tắt dinh dưỡng nổi bật
+              </span>
+              <span class="text-xs text-[#7A866E]">
+                Khẩu phần: <strong class="text-[#242424]">{{ product.nutrition?.servingSize || '100g' }}</strong>
+              </span>
+            </div>
+            <div class="grid grid-cols-4 gap-3 text-center">
+              <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex flex-col items-center justify-center shadow-2xs">
+                <span class="text-xs text-[#7A866E] block font-medium">Năng lượng</span>
+                <span class="font-heading text-xl font-black text-[#242424] mt-1">
+                  {{ product.nutrition?.calories || 0 }} <span class="text-xs font-normal">kcal</span>
+                </span>
+              </div>
+              <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex flex-col items-center justify-center shadow-2xs">
+                <span class="text-xs text-[#7A866E] block font-medium">Chất đạm</span>
+                <span class="font-heading text-xl font-black text-[#4D6A34] mt-1">
+                  {{ product.nutrition?.protein || 0 }} <span class="text-xs font-normal">g</span>
+                </span>
+              </div>
+              <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex flex-col items-center justify-center shadow-2xs">
+                <span class="text-xs text-[#7A866E] block font-medium">Đường</span>
+                <span class="font-heading text-xl font-black text-[#4D6A34] mt-1">
+                  {{ product.nutrition?.sugar || 0 }} <span class="text-xs font-normal">g</span>
+                </span>
+              </div>
+              <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] flex flex-col items-center justify-center shadow-2xs">
+                <span class="text-xs text-[#7A866E] block font-medium">Tinh bột</span>
+                <span class="font-heading text-xl font-black text-[#4D6A34] mt-1">
+                  {{ product.nutrition?.carbs || 0 }} <span class="text-xs font-normal">g</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Phân loại & Trọng lượng -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between text-sm">
+              <span class="font-bold text-[#242424]">Phân loại & Trọng lượng</span>
+              <span class="text-[#4D6A34] font-bold text-xs sm:text-sm">
+                {{ portions.find((p) => p.label === selectedPortion)?.savingBadge || 'Chính hãng' }}
+              </span>
+            </div>
+
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-              <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] space-y-1">
-                <span class="text-xs font-bold text-[#242424] block">Yến mạch nguyên cám</span>
-                <p class="text-xs text-[#7A866E] leading-relaxed">Giàu chất xơ Beta-glucan hỗ trợ ổn định đường huyết.</p>
-              </div>
-              <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] space-y-1">
-                <span class="text-xs font-bold text-[#242424] block">Tỷ lệ hạt tới 55%</span>
-                <p class="text-xs text-[#7A866E] leading-relaxed">Hạnh nhân Mỹ, óc chó Chile, hạt điều Bình Phước.</p>
-              </div>
-              <div class="p-4 rounded-2xl bg-white border border-[#E3E8DC] space-y-1">
-                <span class="text-xs font-bold text-[#242424] block">Giàu chất béo tốt</span>
-                <p class="text-xs text-[#7A866E] leading-relaxed">Chất béo không bão hòa đơn và đa tốt cho tim mạch.</p>
-              </div>
-            </div>
+              <button
+                v-for="p in portions"
+                :key="p.label"
+                type="button"
+                @click="selectedPortion = p.label"
+                class="py-4 px-3 rounded-2xl border flex flex-col items-center justify-center text-center transition-all relative cursor-pointer"
+                :class="
+                  selectedPortion === p.label
+                    ? 'border-2 border-[#536124] bg-[#EAEFE3] shadow-xs'
+                    : 'border border-[#E3E8DC] bg-white hover:border-[#CCD7BC]'
+                "
+              >
+                <!-- Checkmark badge ở góc trên phải -->
+                <div
+                  v-if="selectedPortion === p.label"
+                  class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[#536124] text-white flex items-center justify-center border-2 border-white shadow-xs"
+                >
+                  <Check class="w-3 h-3 stroke-[3]" />
+                </div>
 
-            <!-- 3 Cách thưởng thức -->
-            <div class="space-y-3">
-              <h4 class="font-heading text-base font-bold text-[#242424]">
-                3 Cách thưởng thức dinh dưỡng mỗi ngày:
-              </h4>
-              <ul class="space-y-2.5 text-xs sm:text-sm text-[#4E5C3E]">
-                <li class="flex items-start gap-2.5">
-                  <span class="w-6 h-6 rounded-full bg-[#EBF7E5] text-[#4D6A34] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">1</span>
-                  <span><strong>Ăn liền trực tiếp:</strong> Dùng ngay như một món snack bổ dưỡng trong giờ làm việc hoặc trước buổi tập gym 30 phút.</span>
-                </li>
-                <li class="flex items-start gap-2.5">
-                  <span class="w-6 h-6 rounded-full bg-[#EBF7E5] text-[#4D6A34] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">2</span>
-                  <span><strong>Kết hợp Sữa chua Hy Lạp:</strong> Cho 40g Granola vào 1 hũ sữa chua Hy Lạp không đường, thêm một vài lát dâu tây hoặc chuối cho bữa sáng hoàn hảo 20g protein.</span>
-                </li>
-                <li class="flex items-start gap-2.5">
-                  <span class="w-6 h-6 rounded-full bg-[#EBF7E5] text-[#4D6A34] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">3</span>
-                  <span><strong>Topping sinh tố & Smoothie Bowl:</strong> Rắc granola lên bề mặt smoothie bơ chuối để tăng cảm giác giòn rụm và kéo dài cảm giác no.</span>
-                </li>
-              </ul>
-            </div>
-
-            <!-- Thành phần -->
-            <div class="p-5 rounded-2xl bg-[#FAF9F5] border border-[#E3E8DC] text-xs sm:text-sm space-y-1.5">
-              <span class="font-bold text-[#242424] block">Thành phần nguyên liệu chi tiết:</span>
-              <p class="text-[#576449]">Yến mạch Úc nguyên cám (45%), Hạnh nhân Mỹ (15%), Quả óc chó Chile (10%), Hạt điều Bình Phước (10%), Hạt bí xanh (10%), Nho khô vàng & Việt quất sấy lạnh (8%), Mật ong hoa nhãn nguyên chất, Bột vani tự nhiên Madagascar.</p>
+                <span class="font-heading text-base font-bold text-[#242424] text-center block">
+                  {{ p.label }}
+                </span>
+                <span
+                  class="text-sm font-bold text-center mt-1 block"
+                  :class="selectedPortion === p.label ? 'text-[#4D6A34]' : 'text-[#7A866E]'"
+                >
+                  {{ formatVnd(p.price) }}
+                </span>
+              </button>
             </div>
           </div>
 
-          <div v-else-if="activeTab === 'traceability'" class="space-y-4 text-sm sm:text-base text-[#4E5C3E]">
-            <h3 class="font-heading text-lg font-bold text-[#242424]">Truy xuất nguồn gốc nguyên liệu sạch 100%</h3>
-            <p>Toàn bộ nguyên liệu đều được thu hoạch từ các nông trại đạt tiêu chuẩn Organic USDA và GlobalGAP:</p>
-            <div class="space-y-2 text-sm text-[#576449]">
-              <p>• <strong>Yến mạch:</strong> Nhập khẩu chính ngạch từ Victoria, Úc.</p>
-              <p>• <strong>Hạt điều:</strong> Thu hoạch organic tại thủ phủ điều Bù Đăng, Bình Phước.</p>
-              <p>• <strong>Hạt óc chó & Hạnh nhân:</strong> Nhập khẩu từ vùng nông trại California, Mỹ.</p>
-              <p>• <strong>Mật ong:</strong> Mật ong hoa nhãn nguyên chất Sông Mã, Sơn La.</p>
+          <!-- Bộ chọn số lượng & Trạng thái tồn kho -->
+          <div class="flex items-center gap-6 pt-2">
+            <div class="flex items-center border border-[#CCD7BC] rounded-2xl bg-white p-1 shadow-2xs">
+              <button
+                type="button"
+                @click="quantity = Math.max(1, quantity - 1)"
+                class="w-9 h-9 rounded-xl flex items-center justify-center text-[#576449] hover:bg-[#FAF9F5] transition-colors cursor-pointer"
+              >
+                <Minus class="w-4 h-4 stroke-[2.5]" />
+              </button>
+              <span class="w-12 text-center font-black text-base text-[#242424]">{{ quantity }}</span>
+              <button
+                type="button"
+                @click="quantity++"
+                class="w-9 h-9 rounded-xl flex items-center justify-center text-[#576449] hover:bg-[#FAF9F5] transition-colors cursor-pointer"
+              >
+                <Plus class="w-4 h-4 stroke-[2.5]" />
+              </button>
             </div>
+
+            <span class="text-sm font-semibold flex items-center gap-2">
+              <span
+                class="w-2.5 h-2.5 rounded-full"
+                :class="product.stock > 0 ? 'bg-emerald-500' : 'bg-rose-500'"
+              ></span>
+              <span v-if="product.stock > 0" class="text-[#242424]">Còn hàng ({{ product.stock }} sản phẩm có sẵn)</span>
+              <span v-else class="text-rose-600 font-bold">Tạm hết hàng</span>
+            </span>
           </div>
 
-          <div v-else class="space-y-4 text-sm sm:text-base text-[#4E5C3E]">
-            <h3 class="font-heading text-lg font-bold text-[#242424]">Đánh giá từ khách hàng đã mua (128)</h3>
-            <div class="space-y-3">
-              <div class="p-5 rounded-2xl bg-white border border-[#E3E8DC] space-y-2">
-                <div class="flex items-center justify-between">
-                  <span class="font-bold text-[#242424]">Trần Tường Vy</span>
+          <!-- 2 Nút Mua hàng to -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <button
+              type="button"
+              :disabled="product.stock <= 0"
+              @click="handleAddToCart"
+              class="py-4 px-6 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] active:bg-[#2D3B1E] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-md transition-all min-h-[48px] cursor-pointer"
+            >
+              <ShoppingBag class="w-5 h-5 stroke-[2]" />
+              <span>Thêm vào giỏ hàng</span>
+            </button>
+
+            <button
+              type="button"
+              :disabled="product.stock <= 0"
+              @click="handleBuyNow"
+              class="py-4 px-6 rounded-2xl bg-[#232722] hover:bg-black active:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-md transition-all min-h-[48px] cursor-pointer"
+            >
+              <Zap class="w-5 h-5 text-amber-400 fill-amber-400" />
+              <span>Mua ngay</span>
+            </button>
+          </div>
+
+          <!-- 3 Cam kết dịch vụ -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-[#E3E8DC] text-xs text-[#576449]">
+            <div class="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-[#F0F3EC]">
+              <Zap class="w-4 h-4 text-[#4D6A34] shrink-0" />
+              <div>
+                <span class="font-bold text-[#242424] block text-xs">Giao 2H Siêu Tốc</span>
+                <span class="text-[11px] text-[#7A866E]">Nội thành nhanh chóng</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-[#F0F3EC]">
+              <ShieldCheck class="w-4 h-4 text-[#4D6A34] shrink-0" />
+              <div>
+                <span class="font-bold text-[#242424] block text-xs">Hoàn tiền 200%</span>
+                <span class="text-[11px] text-[#7A866E]">Nếu phát hiện hàng giả</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-[#F0F3EC]">
+              <RefreshCw class="w-4 h-4 text-[#4D6A34] shrink-0" />
+              <div>
+                <span class="font-bold text-[#242424] block text-xs">Đổi trả 7 ngày</span>
+                <span class="text-[11px] text-[#7A866E]">Miễn phí nếu lỗi nhà sản xuất</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabs Section & Nutrition Facts Table -->
+      <div class="pt-10 border-t border-[#E3E8DC]">
+        <!-- Tab Header Buttons -->
+        <div class="flex items-center gap-8 border-b border-[#E3E8DC] mb-8 overflow-x-auto no-scrollbar">
+          <button
+            type="button"
+            @click="activeTab = 'desc'"
+            class="pb-3.5 text-base font-bold transition-all relative shrink-0 cursor-pointer"
+            :class="activeTab === 'desc' ? 'text-[#242424] border-b-[3px] border-[#4D6A34]' : 'text-[#7A866E] hover:text-[#242424]'"
+          >
+            Mô tả sản phẩm
+          </button>
+          <button
+            type="button"
+            @click="activeTab = 'reviews'"
+            class="pb-3.5 text-base font-bold transition-all relative shrink-0 cursor-pointer flex items-center gap-1.5"
+            :class="activeTab === 'reviews' ? 'text-[#242424] border-b-[3px] border-[#4D6A34]' : 'text-[#7A866E] hover:text-[#242424]'"
+          >
+            <span>Đánh giá khách hàng</span>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-[#EBF7E5] text-[#4D6A34] font-bold">
+              {{ displayReviewCount }}
+            </span>
+          </button>
+        </div>
+
+        <!-- Tab Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+          <!-- Cột Trái: Nội dung Tab -->
+          <div class="lg:col-span-7 space-y-7">
+            <!-- TAB 1: MÔ TẢ & HƯỚNG DẪN -->
+            <div v-if="activeTab === 'desc'" class="space-y-6 text-sm sm:text-base text-[#4E5C3E] leading-relaxed">
+              <div>
+                <h3 class="font-heading text-xl font-bold text-[#242424] mb-2.5">
+                  {{ product.name }}
+                </h3>
+                <p class="leading-relaxed">
+                  {{ product.description || 'Sản phẩm dinh dưỡng sạch được kiểm định nghiêm ngặt từ nguồn nguyên liệu tự nhiên cao cấp, phù hợp cho lối sống lành mạnh và chế độ ăn cân bằng.' }}
+                </p>
+              </div>
+
+              <!-- 3 Cách thưởng thức dinh dưỡng mỗi ngày -->
+              <div class="space-y-3">
+                <h4 class="font-heading text-base font-bold text-[#242424]">
+                  Gợi ý sử dụng lành mạnh mỗi ngày:
+                </h4>
+                <ul class="space-y-2.5 text-xs sm:text-sm text-[#4E5C3E]">
+                  <li class="flex items-start gap-2.5">
+                    <span class="w-6 h-6 rounded-full bg-[#EBF7E5] text-[#4D6A34] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">1</span>
+                    <span><strong>Dùng trực tiếp:</strong> Thích hợp làm món ăn vặt giàu năng lượng sạch trong giờ làm việc hoặc trước khi tập luyện 30 phút.</span>
+                  </li>
+                  <li class="flex items-start gap-2.5">
+                    <span class="w-6 h-6 rounded-full bg-[#EBF7E5] text-[#4D6A34] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">2</span>
+                    <span><strong>Kết hợp sữa chua hoặc sữa hạt:</strong> Dùng kèm sữa chua Hy Lạp hoặc sữa hạnh nhân không đường để tạo bữa sáng nhanh gọn, giàu đạm.</span>
+                  </li>
+                  <li class="flex items-start gap-2.5">
+                    <span class="w-6 h-6 rounded-full bg-[#EBF7E5] text-[#4D6A34] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">3</span>
+                    <span><strong>Bảo quản:</strong> Để nơi khô ráo, thoáng mát, đậy kín nắp sau khi sử dụng để giữ nguyên độ tươi ngon và giòn rụm.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <!-- Thành phần nguyên liệu chi tiết -->
+              <div class="p-5 rounded-2xl bg-[#FAF9F5] border border-[#E3E8DC] text-xs sm:text-sm space-y-2">
+                <span class="font-bold text-[#242424] block">Thành phần nguyên liệu chi tiết:</span>
+                <div v-if="normalizedIngredients.length > 0" class="flex flex-wrap gap-2">
+                  <span
+                    v-for="(ing, idx) in normalizedIngredients"
+                    :key="idx"
+                    class="px-3.5 py-1.5 bg-white border border-[#CCD7BC] rounded-xl text-xs font-semibold text-[#4D6A34] shadow-2xs"
+                  >
+                    {{ ing }}
+                  </span>
+                </div>
+                <p v-else class="text-[#576449]">Nguyên liệu thuần tự nhiên, đã qua kiểm định an toàn vệ sinh thực phẩm.</p>
+              </div>
+            </div>
+
+            <!-- TAB 2: ĐÁNH GIÁ KHÁCH HÀNG -->
+            <div v-else class="space-y-6 text-sm sm:text-base text-[#4E5C3E]">
+              <!-- Rating Summary Banner -->
+              <div class="p-6 rounded-xl bg-white border border-[#E3E8DC] flex flex-col sm:flex-row items-center justify-between gap-6">
+                <div class="text-center sm:text-left space-y-1">
+                  <div class="flex items-baseline gap-2">
+                    <span class="font-heading text-4xl font-black text-[#242424]">{{ displayRating }}</span>
+                    <span class="text-base text-[#7A866E]">/ 5</span>
+                  </div>
                   <div class="flex text-[#E8A020]">
-                    <Star v-for="i in 5" :key="i" class="w-4 h-4 fill-[#E8A020]" />
+                    <Star
+                      v-for="i in 5"
+                      :key="i"
+                      class="w-4 h-4"
+                      :class="i <= Math.round(displayRating) ? 'fill-[#E8A020] text-[#E8A020]' : 'text-stone-300'"
+                    />
+                  </div>
+                  <span class="text-xs text-[#7A866E] block">Dựa trên {{ displayReviewCount }} lượt đánh giá thực tế</span>
+                </div>
+
+                <button
+                  type="button"
+                  @click="showReviewModal = true"
+                  class="px-5 py-3 rounded-xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+                >
+                  <MessageSquare class="w-4 h-4" />
+                  <span>Viết đánh giá</span>
+                </button>
+              </div>
+
+              <!-- Danh sách nhận xét -->
+              <div class="space-y-3.5">
+                <div
+                  v-for="rev in reviewsList"
+                  :key="rev.id"
+                  class="p-5 rounded-xl bg-white border border-[#E3E8DC] space-y-2.5 shadow-2xs"
+                >
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                      <div class="w-8 h-8 rounded-full bg-[#EBF7E5] text-[#4D6A34] font-black text-xs flex items-center justify-center">
+                        {{ rev.author.charAt(0) }}
+                      </div>
+                      <div>
+                        <div class="flex items-center gap-2">
+                          <span class="font-bold text-sm text-[#242424]">{{ rev.author }}</span>
+                        </div>
+                        <span class="text-[11px] text-[#7A866E]">{{ rev.date }}</span>
+                      </div>
+                    </div>
+
+                    <div class="flex text-[#E8A020]">
+                      <Star
+                        v-for="i in 5"
+                        :key="i"
+                        class="w-3.5 h-3.5"
+                        :class="i <= rev.rating ? 'fill-[#E8A020] text-[#E8A020]' : 'text-stone-300'"
+                      />
+                    </div>
+                  </div>
+
+                  <p class="text-xs sm:text-sm text-[#4E5C3E] leading-relaxed">
+                    "{{ rev.content }}"
+                  </p>
+
+                  <div class="flex items-center gap-1 text-[11px] text-[#7A866E] pt-1">
+                    <ThumbsUp class="w-3.5 h-3.5" />
+                    <span>Hữu ích ({{ rev.likes }})</span>
                   </div>
                 </div>
-                <p class="text-sm text-[#576449]">"Hạt rất giòn và thơm, vị ngọt thanh vừa phải, ăn với sữa chua Hy Lạp buổi sáng cực kỳ tiện lợi và no lâu!"</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cột Phải: Bảng THÔNG TIN DINH DƯỠNG Chuẩn Khoa Học -->
+          <div class="lg:col-span-5 bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-sm space-y-5">
+            <div class="border-b-4 border-[#242424] pb-2.5">
+              <h3 class="font-heading text-xl font-black text-[#242424] uppercase tracking-wider">
+                Thông Tin Dinh Dưỡng
+              </h3>
+              <p class="text-xs text-[#7A866E]">Chuẩn kiểm định Viện Dinh Dưỡng</p>
+            </div>
+
+            <div class="flex justify-between text-sm py-1 border-b border-[#ECEFE7]">
+              <span class="font-bold text-[#242424]">Khẩu phần khuyến nghị</span>
+              <span class="font-normal text-[#242424]">{{ product.nutrition?.servingSize || '100g' }}</span>
+            </div>
+
+            <div class="flex justify-between text-sm py-1 border-b-4 border-[#242424]">
+              <span class="text-[#7A866E]">Khẩu phần mỗi hộp</span>
+              <span class="text-[#7A866E]">~{{ product.nutrition?.servingsPerContainer || 5 }} lần dùng</span>
+            </div>
+
+            <!-- Calo lớn -->
+            <div class="flex items-center justify-between py-3 border-b-2 border-[#242424]">
+              <div>
+                <span class="text-sm font-bold text-[#242424] block uppercase">Năng Lượng / Calo</span>
+                <span class="text-xs text-[#7A866E]">{{ product.nutrition?.servingSize || '100g' }}</span>
+              </div>
+              <span class="font-heading text-4xl font-black text-[#242424]">
+                {{ product.nutrition?.calories || 0 }} <span class="text-base font-normal">kcal</span>
+              </span>
+            </div>
+
+            <div class="text-xs text-right text-[#7A866E] font-bold">
+              % GIÁ TRỊ HÀNG NGÀY (DV)*
+            </div>
+
+            <!-- Bảng thông số động -->
+            <div class="space-y-2 text-sm text-[#242424]">
+              <div class="flex justify-between py-1 border-b border-[#F0F3EC]">
+                <span><strong>Tổng chất béo (Total Fat)</strong> {{ product.nutrition?.fat || 0 }}g</span>
+                <span class="font-bold">{{ Math.round(((product.nutrition?.fat || 0) / 78) * 100) }}%</span>
+              </div>
+              <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
+                <span>Chất béo bão hòa {{ product.nutrition?.saturatedFat ?? Math.round((product.nutrition?.fat || 0) * 0.15 * 10) / 10 }}g</span>
+                <span>{{ Math.round((((product.nutrition?.saturatedFat || 1) / 20) * 100)) }}%</span>
+              </div>
+              <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
+                <span>Chất béo chuyển hóa {{ product.nutrition?.transFat || 0 }}g</span>
+                <span>0%</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-[#F0F3EC]">
+                <span><strong>Cholesterol</strong> {{ product.nutrition?.cholesterol || 0 }}mg</span>
+                <span class="font-bold">0%</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-[#F0F3EC]">
+                <span><strong>Natri (Sodium)</strong> {{ product.nutrition?.sodium || 25 }}mg</span>
+                <span class="font-bold">1%</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-[#F0F3EC]">
+                <span><strong>Tổng Carbohydrate</strong> {{ product.nutrition?.carbs || 0 }}g</span>
+                <span class="font-bold">{{ Math.round(((product.nutrition?.carbs || 0) / 275) * 100) }}%</span>
+              </div>
+              <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
+                <span>Chất xơ tiêu hóa {{ product.nutrition?.fiber || 3 }}g</span>
+                <span>{{ Math.round((((product.nutrition?.fiber || 3) / 28) * 100)) }}%</span>
+              </div>
+              <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
+                <span>Đường tổng {{ product.nutrition?.sugar || 0 }}g</span>
+                <span>-</span>
+              </div>
+              <div class="flex justify-between py-1">
+                <span><strong>Chất đạm</strong> {{ product.nutrition?.protein || 0 }}g</span>
+                <span class="font-bold">{{ Math.round(((product.nutrition?.protein || 0) / 50) * 100) }}%</span>
+              </div>
+            </div>
+
+            <p class="text-[10px] text-[#8C9484] pt-2 border-t border-[#ECEFE7] leading-relaxed">
+              * Phần trăm Giá trị Hàng ngày (% Daily Value - DV) dựa trên chế độ ăn 2.000 calo tiêu chuẩn mỗi ngày của người trưởng thành.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section "Các sản phẩm liên quan" -->
+      <div v-if="relatedProducts.length > 0" class="pt-10 border-t border-[#E3E8DC]">
+        <div class="mb-6 flex items-center justify-between">
+          <div>
+            <h3 class="font-heading text-2xl font-black text-[#242424]">Các sản phẩm liên quan</h3>
+          </div>
+        </div>
+
+        <!-- Grid thẻ sản phẩm tương tự trang Sản phẩm -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div
+            v-for="rel in relatedProducts"
+            :key="rel.id"
+            class="group relative flex flex-col bg-white rounded-xl border border-[#E3E8DC] hover:border-[#4D6A34] hover:shadow-xl transition-all duration-200 overflow-hidden"
+          >
+            <!-- Product Image -->
+            <div class="relative aspect-4/3 w-full bg-[#FAF9F5] overflow-hidden cursor-pointer" @click="goToProduct(rel.id)">
+              <img
+                :src="rel.image"
+                :alt="rel.name"
+                loading="lazy"
+                class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            </div>
+
+            <!-- Content -->
+            <div class="p-5 flex-1 flex flex-col justify-between space-y-3.5">
+              <div class="flex items-center justify-between text-xs text-[#576449]">
+                <span class="text-[11px] font-semibold truncate max-w-[130px]" :title="rel.categoryName">
+                  {{ rel.categoryName }}
+                </span>
+                <div class="flex items-center gap-1 font-bold text-[#2D3B1E] shrink-0">
+                  <Star class="w-3.5 h-3.5 fill-[#E8A020] text-[#E8A020]" />
+                  <span>{{ rel.rating ?? 4.9 }}</span>
+                  <span class="text-[#7A866E] font-medium text-[11px]">({{ rel.reviewCount ?? 0 }})</span>
+                </div>
+              </div>
+
+              <h4
+                @click="goToProduct(rel.id)"
+                class="font-heading text-base font-bold text-[#242424] hover:text-[#4D6A34] transition-colors cursor-pointer line-clamp-2 leading-snug"
+                :title="rel.name"
+              >
+                {{ rel.name }}
+              </h4>
+
+              <!-- 4 Trụ Cột Dinh Dưỡng -->
+              <div class="grid grid-cols-4 gap-1 p-2 rounded-[8px] bg-[#F6F8F3] border border-[#E3E8DC] text-center">
+                <div class="px-1">
+                  <span class="text-[10px] text-[#7A866E] uppercase block font-semibold">Calo</span>
+                  <span class="text-sm font-extrabold text-[#2D3B1E]">{{ rel.nutrition?.calories ?? 0 }}</span>
+                </div>
+                <div class="px-1 border-l border-[#E3E8DC]">
+                  <span class="text-[10px] text-[#7A866E] uppercase block font-semibold">Đạm</span>
+                  <span class="text-sm font-extrabold text-[#4D6A34]">{{ rel.nutrition?.protein ?? 0 }}g</span>
+                </div>
+                <div class="px-1 border-l border-[#E3E8DC]">
+                  <span class="text-[10px] text-[#7A866E] uppercase block font-semibold">Carb</span>
+                  <span class="text-sm font-extrabold text-[#2D3B1E]">{{ rel.nutrition?.carbs ?? 0 }}g</span>
+                </div>
+                <div class="px-1 border-l border-[#E3E8DC]">
+                  <span class="text-[10px] text-[#7A866E] uppercase block font-semibold">Đường</span>
+                  <span class="text-sm font-extrabold text-[#2D3B1E]">{{ rel.nutrition?.sugar ?? 0 }}g</span>
+                </div>
+              </div>
+
+              <!-- Price & Nút Xem chi tiết -->
+              <div class="pt-2.5 flex items-center justify-between border-t border-[#F0F3EC]">
+                <span class="font-heading text-base sm:text-lg font-black text-[#242424]">
+                  {{ formatVnd(rel.price) }}
+                </span>
+
+                <button
+                  type="button"
+                  @click="goToProduct(rel.id)"
+                  class="px-3 py-1.5 rounded-xl bg-[#FAF9F5] hover:bg-[#4D6A34] text-[#4D6A34] hover:text-white border border-[#CCD7BC] hover:border-[#4D6A34] text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+                >
+                  <span>Xem chi tiết</span>
+                  <ChevronRight class="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
           </div>
         </div>
-
-        <!-- Cột Phải: Bảng THÔNG TIN DINH DƯỠNG Chuẩn Khoa Học (Figma Style) -->
-        <div class="lg:col-span-5 bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-sm space-y-5">
-          <div class="border-b-4 border-[#242424] pb-2.5">
-            <h3 class="font-heading text-xl font-black text-[#242424] uppercase tracking-wider">
-              Thông Tin Dinh Dưỡng
-            </h3>
-            <p class="text-xs text-[#7A866E]">Chuẩn kiểm định Viện Dinh Dưỡng</p>
-          </div>
-
-          <div class="flex justify-between text-sm py-1 border-b border-[#ECEFE7]">
-            <span class="font-bold text-[#242424]">Khẩu phần khuyến nghị (Serving size)</span>
-            <span class="font-bold text-[#242424]">40g</span>
-          </div>
-
-          <div class="flex justify-between text-sm py-1 border-b-4 border-[#242424]">
-            <span class="text-[#7A866E]">Khẩu phần mỗi hũ (~500g)</span>
-            <span class="text-[#7A866E]">~12.5 lần dùng</span>
-          </div>
-
-          <!-- Calo lớn -->
-          <div class="flex items-baseline justify-between py-3 border-b-2 border-[#242424]">
-            <div>
-              <span class="text-sm font-bold text-[#242424] block uppercase">Năng Lượng / Calo</span>
-              <span class="text-xs text-[#7A866E]">Mỗi khẩu phần 40g</span>
-            </div>
-            <span class="font-heading text-4xl font-black text-[#242424]">152 <span class="text-base font-normal">kcal</span></span>
-          </div>
-
-          <div class="text-xs text-right text-[#7A866E] font-bold">
-            % GIÁ TRỊ HÀNG NGÀY (DV)*
-          </div>
-
-          <!-- Bảng thông số -->
-          <div class="space-y-2 text-sm text-[#242424]">
-            <div class="flex justify-between py-1 border-b border-[#F0F3EC]">
-              <span><strong>Tổng chất béo (Total Fat)</strong> 6g</span>
-              <span class="font-bold">8%</span>
-            </div>
-            <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
-              <span>Chất béo bão hòa 0.8g</span>
-              <span>4%</span>
-            </div>
-            <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
-              <span>Chất béo chuyển hóa (Trans fat) 0g</span>
-              <span>0%</span>
-            </div>
-            <div class="flex justify-between py-1 border-b border-[#F0F3EC]">
-              <span><strong>Cholesterol</strong> 0mg</span>
-              <span class="font-bold">0%</span>
-            </div>
-            <div class="flex justify-between py-1 border-b border-[#F0F3EC]">
-              <span><strong>Natri (Sodium)</strong> 25mg</span>
-              <span class="font-bold">1%</span>
-            </div>
-            <div class="flex justify-between py-1 border-b border-[#F0F3EC]">
-              <span><strong>Tổng Carbohydrate</strong> 18g</span>
-              <span class="font-bold">7%</span>
-            </div>
-            <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
-              <span>Chất xơ tiêu hóa (Fiber) 3.2g</span>
-              <span>11%</span>
-            </div>
-            <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
-              <span>Đường tổng (Total Sugars) 1.2g</span>
-              <span>-</span>
-            </div>
-            <div class="flex justify-between py-1 border-b-2 border-[#242424]">
-              <span><strong>Chất đạm (Protein)</strong> 5.6g</span>
-              <span class="font-bold">11%</span>
-            </div>
-          </div>
-
-          <!-- Micronutrients -->
-          <div class="grid grid-cols-2 gap-2 text-xs text-[#576449] pt-2">
-            <div>Vitamin E: <strong>15%</strong></div>
-            <div>Sắt (Iron): <strong>8%</strong></div>
-            <div>Kẽm (Zinc): <strong>10%</strong></div>
-            <div>Magiê (Magnesium): <strong>12%</strong></div>
-          </div>
-
-          <p class="text-[10px] text-[#8C9484] pt-2 border-t border-[#ECEFE7] leading-relaxed">
-            * Phần trăm Giá trị Hàng ngày (% Daily Value - DV) dựa trên chế độ ăn 2.000 calo tiêu chuẩn mỗi ngày của người trưởng thành.
-          </p>
-        </div>
       </div>
     </div>
 
-    <!-- Section "Thường được mua cùng" -->
-    <div class="pt-10 border-t border-[#E3E8DC]">
-      <div class="mb-6 flex items-center justify-between">
-        <div>
-          <h3 class="font-heading text-2xl font-black text-[#242424]">Thường được mua cùng</h3>
-          <p class="text-sm text-[#7A866E]">Kết hợp hoàn hảo cho thực đơn dinh dưỡng và bữa ăn lành mạnh</p>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <!-- Combo 1 -->
-        <div class="p-6 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#4D6A34] transition-all space-y-3.5">
-          <img
-            src="https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=400&q=80"
-            alt="Sữa chua Hy Lạp"
-            class="w-full h-44 object-cover rounded-2xl"
-          />
-          <div>
-            <span class="text-xs text-[#7A866E]">Sản phẩm từ sữa lên men</span>
-            <h4 class="font-heading text-base font-bold text-[#242424] mt-0.5">Sữa Chua Hy Lạp Nguyên Bản 450g</h4>
-            <span class="text-sm font-bold text-[#4D6A34] block mt-1">82.000đ</span>
-          </div>
-          <button
-            type="button"
-            @click="addComboItem('Sữa Chua Hy Lạp Nguyên Bản 450g', 82000, 110, 10)"
-            class="w-full py-3 rounded-2xl bg-[#FAF9F5] hover:bg-[#EBF7E5] text-[#4D6A34] text-xs font-bold border border-[#CCD7BC] transition-colors"
-          >
-            + Thêm vào combo (+82k)
-          </button>
-        </div>
-
-        <!-- Combo 2 -->
-        <div class="p-6 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#4D6A34] transition-all space-y-3.5">
-          <img
-            src="https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?auto=format&fit=crop&w=400&q=80"
-            alt="Bơ đậu phộng"
-            class="w-full h-44 object-cover rounded-2xl"
-          />
-          <div>
-            <span class="text-xs text-[#7A866E]">Bơ hạt thuần khiết</span>
-            <h4 class="font-heading text-base font-bold text-[#242424] mt-0.5">Bơ Đậu Phộng Mịn Thuần Chay 350g</h4>
-            <span class="text-sm font-bold text-[#4D6A34] block mt-1">90.000đ</span>
-          </div>
-          <button
-            type="button"
-            @click="addComboItem('Bơ Đậu Phộng Mịn Thuần Chay 350g', 90000, 190, 8)"
-            class="w-full py-3 rounded-2xl bg-[#FAF9F5] hover:bg-[#EBF7E5] text-[#4D6A34] text-xs font-bold border border-[#CCD7BC] transition-colors"
-          >
-            + Thêm vào combo (+90k)
-          </button>
-        </div>
-
-        <!-- Combo 3 -->
-        <div class="p-6 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#4D6A34] transition-all space-y-3.5">
-          <img
-            src="https://images.unsplash.com/photo-1622484216858-a5b4819779df?auto=format&fit=crop&w=400&q=80"
-            alt="NutriBar"
-            class="w-full h-44 object-cover rounded-2xl"
-          />
-          <div>
-            <span class="text-xs text-[#7A866E]">Thanh năng lượng sạch</span>
-            <h4 class="font-heading text-base font-bold text-[#242424] mt-0.5">NutriBar Hạt & Socola Đen 60g</h4>
-            <span class="text-sm font-bold text-[#4D6A34] block mt-1">45.000đ</span>
-          </div>
-          <button
-            type="button"
-            @click="addComboItem('NutriBar Hạt & Socola Đen 60g', 45000, 210, 20)"
-            class="w-full py-3 rounded-2xl bg-[#FAF9F5] hover:bg-[#EBF7E5] text-[#4D6A34] text-xs font-bold border border-[#CCD7BC] transition-colors"
-          >
-            + Thêm vào combo (+45k)
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- MODAL VIẾT ĐÁNH GIÁ -->
+    <ProductReviewModal
+      v-model="showReviewModal"
+      :product-name="product?.name"
+      @submit="handleReviewSubmit"
+    />
   </div>
 </template>
