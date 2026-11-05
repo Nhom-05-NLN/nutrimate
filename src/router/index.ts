@@ -40,6 +40,7 @@ const routes: RouteRecordRaw[] = [
     path: '/cart',
     name: 'cart',
     component: CartView,
+    meta: { requiresAuth: true },
   },
   {
     path: '/checkout',
@@ -50,6 +51,7 @@ const routes: RouteRecordRaw[] = [
     path: '/orders',
     name: 'orders',
     component: OrdersView,
+    meta: { requiresAuth: true },
   },
   {
     path: '/profile',
