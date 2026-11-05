@@ -65,7 +65,7 @@ COMMENT ON TABLE admin_notifications IS 'Lưu thông báo hoạt động mới d
 -- 4. Bảng hồ sơ sức khỏe và mục tiêu dinh dưỡng của khách hàng.
 CREATE TABLE IF NOT EXISTS health_profiles (
     health_profile_id SERIAL PRIMARY KEY,
-    customer_id INT NOT NULL UNIQUE REFERENCES customers(user_id) ON DELETE CASCADE,
+    customer_id INT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     age INT,
     gender VARCHAR(20),
     height_cm NUMERIC,
@@ -174,7 +174,7 @@ CREATE TABLE IF NOT EXISTS nutrition_logs (
 -- 6. Nhật ký dinh dưỡng chuẩn hóa trong nutrition_diary và diary_entries.
 CREATE TABLE IF NOT EXISTS nutrition_diary (
     diary_id SERIAL PRIMARY KEY,
-    customer_id INT REFERENCES customers(user_id) ON DELETE CASCADE,
+    customer_id INT REFERENCES users(id) ON DELETE CASCADE,
     date DATE NOT NULL,
     total_calories DOUBLE PRECISION DEFAULT 0,
     total_protein DOUBLE PRECISION DEFAULT 0,
@@ -203,7 +203,7 @@ ALTER TABLE diary_entries ADD COLUMN IF NOT EXISTS food_name VARCHAR(200);
 -- 10. Bảng nhật ký lượng nước uống.
 CREATE TABLE IF NOT EXISTS water_logs (
     water_log_id SERIAL PRIMARY KEY,
-    customer_id INT REFERENCES customers(user_id) ON DELETE CASCADE,
+    customer_id INT REFERENCES users(id) ON DELETE CASCADE,
     recorded_date DATE NOT NULL,
     amount_ml INT NOT NULL CHECK (amount_ml > 0),
     logged_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

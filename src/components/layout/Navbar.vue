@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useCartStore } from '../../stores/cartStore';
 import { useProductStore } from '../../stores/productStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -21,6 +21,7 @@ import {
 } from 'lucide-vue-next';
 
 const router = useRouter();
+const route = useRoute();
 const cartStore = useCartStore();
 const productStore = useProductStore();
 const authStore = useAuthStore();
@@ -104,7 +105,7 @@ async function handleCustomerLogout() {
           </RouterLink>
 
           <RouterLink
-            v-if="authStore.currentUser?.role === 'customer'"
+            v-if="authStore.currentUser"
             to="/nutrition"
             active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
             class="py-1 hover:text-[#6B7A3A] transition-colors relative"
@@ -210,7 +211,7 @@ async function handleCustomerLogout() {
               <div v-if="authStore.currentUser" class="p-2.5 space-y-1">
 
                 <RouterLink
-                  v-if="authStore.currentUser?.role === 'customer'"
+                  v-if="authStore.currentUser"
                   to="/profile"
                   @click="isUserDropdownOpen = false"
                   class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#F4F7EF] transition-colors group"
@@ -242,7 +243,7 @@ async function handleCustomerLogout() {
                   <ChevronRight class="h-4 w-4 text-[#A3AA98] group-hover:text-[#536124]" />
                 </RouterLink>
 
-                <RouterLink  v-if="authStore.currentUser?.role === 'customer'" to="/nutrition" @click="isUserDropdownOpen = false" class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#F4F7EF] transition-colors group">
+                <RouterLink v-if="authStore.currentUser" to="/nutrition" @click="isUserDropdownOpen = false" class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#F4F7EF] transition-colors group">
                   <Leaf class="w-[19px] h-[19px] text-[#71813B]" />
 
                   <div class="flex-1 min-w-0">
@@ -274,7 +275,7 @@ async function handleCustomerLogout() {
               <!-- Login -->
               <div v-else class="p-3">
                 <RouterLink
-                  to="/login"
+                  :to="{ name: 'login', query: { redirect: route.fullPath } }"
                   @click="isUserDropdownOpen = false"
                   class="flex items-center justify-center gap-2 w-full
                         py-3 rounded-xl bg-[#71813B] text-white
@@ -336,7 +337,7 @@ async function handleCustomerLogout() {
           Thực phẩm
         </RouterLink>
         <RouterLink
-          v-if="authStore.currentUser?.role === 'customer'"
+          v-if="authStore.currentUser"
           to="/nutrition"
           @click="isMobileMenuOpen = false"
           class="px-4 py-2.5 rounded-xl text-sm font-semibold text-[#242424] hover:bg-[#EBF7E5]"

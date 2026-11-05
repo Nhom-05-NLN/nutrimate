@@ -271,11 +271,13 @@ export interface CalorieProfileInput {
   weightKg: number;
   age: number;
   gender: 'male' | 'female' | 'other';
-  activityLevel: ActivityLevel;
-  nutritionGoal: NutritionGoal;
+  activityLevel: ActivityLevel | null;
+  nutritionGoal: NutritionGoal | null;
 }
 
-export interface CaloriePlanResult extends CalorieProfileInput {
+export interface CaloriePlanResult extends Omit<CalorieProfileInput, 'activityLevel' | 'nutritionGoal'> {
+  activityLevel: ActivityLevel;
+  nutritionGoal: NutritionGoal;
   bmi: number;
   bmrKcal: number;
   tdeeKcal: number;
@@ -292,6 +294,7 @@ export interface CaloriePlanResponse {
     gender: CalorieProfileInput['gender'] | null;
     activityLevel: ActivityLevel | null;
     nutritionGoal: NutritionGoal | null;
+    bmi: number | null;
   };
   plan: CaloriePlanResult | null;
 }

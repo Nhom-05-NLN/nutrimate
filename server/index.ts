@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { config } from './config.js';
-import { ensureDietPreferencesColumn, testDbConnection } from './db/index.js';
+import { ensureAdminPersonalFeatures, ensureDietPreferencesColumn, testDbConnection } from './db/index.js';
 import apiRouter from './routes/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -49,6 +49,7 @@ async function bootstrap() {
   // Test PostgreSQL connection
   if (await testDbConnection()) {
     await ensureDietPreferencesColumn();
+    await ensureAdminPersonalFeatures();
   }
 
   // Mount API routes under /api

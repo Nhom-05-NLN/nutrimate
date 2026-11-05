@@ -55,13 +55,13 @@ const routes: RouteRecordRaw[] = [
     path: '/profile',
     name: 'profile',
     component: ProfileView,
-    meta: { requiresCustomer: true },
+    meta: { requiresAuth: true },
   },
   {
     path: '/nutrition',
     name: 'nutrition',
     component: NutritionDashboardView,
-    meta: { requiresCustomer: true },
+    meta: { requiresAuth: true },
   },
   {
     path: '/login',
@@ -137,7 +137,7 @@ router.beforeEach(async (to) => {
     return true;
   }
 
-  if (!to.path.startsWith('/admin') && !to.meta.requiresCustomer) {
+  if (!to.path.startsWith('/admin') && !to.meta.requiresAuth) {
     return true;
   }
 
@@ -146,17 +146,21 @@ router.beforeEach(async (to) => {
     await authStore.restoreSession();
   } catch (error: unknown) {
     console.error('[Router] Không thể xác minh quyền truy cập quản trị:', error);
-    return { name: to.path.startsWith('/admin') ? 'admin-login' : 'login' };
+    return to.path.startsWith('/admin')
+      ? { name: 'admin-login' }
+      : { name: 'login', query: { redirect: to.fullPath } };
   }
 
   if (to.path.startsWith('/admin') && authStore.currentUser?.role === 'admin') {
     return true;
   }
 
-  if (to.meta.requiresCustomer && authStore.currentUser?.role === 'customer') return true;
+  if (to.meta.requiresAuth && authStore.currentUser) return true;
 
   if (!authStore.currentUser) {
-    return { name: to.path.startsWith('/admin') ? 'admin-login' : 'login' };
+    return to.path.startsWith('/admin')
+      ? { name: 'admin-login' }
+      : { name: 'login', query: { redirect: to.fullPath } };
   }
 
   return to.path.startsWith('/admin') ? { name: 'home' } : { name: 'login' };
