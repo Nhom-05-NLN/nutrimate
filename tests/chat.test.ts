@@ -8,7 +8,7 @@ import { config } from '../server/config.js';
 import { createChatController } from '../server/controllers/chatController.js';
 import { createChatIdentity, verifyCustomerJwt } from '../server/middleware/chatIdentity.js';
 import { ChatConversationRepository } from '../server/repositories/chatConversationRepository.js';
-import { boundedContext, createChatService } from '../server/services/chatService.js';
+import { asksForProductSuggestions, boundedContext, createChatService, matchKnowledgeBase } from '../server/services/chatService.js';
 import { generateChatReply, type LlmMessage } from '../server/services/chatLlmService.js';
 import { CHAT_DISCLAIMER, ChatError, type ChatOwner, type Conversation, type StoredChatMessage } from '../server/types/chat.js';
 import { getAllKnowledge } from '../server/repositories/chatRepository.js';
@@ -114,6 +114,43 @@ test('Customer: successful chat persists user/assistant, history and multi-turn 
   assert.equal(captured[1]?.content, 'Tôi muốn ăn uống hợp lý');
   const history = await request(`/conversations/${id}/messages`, undefined, jwt());
   assert.equal((await history.json()).data.messages.length, 4);
+});
+test('knowledge retrieval matches Vietnamese questions with accents and avoids unrelated entries', () => {
+  const entries = [
+    { question: 'Người bị bệnh tiểu đường nên ăn uống như thế nào?', answer: 'Câu trả lời từ tri thức.', category: 'Dinh dưỡng' },
+  ];
+  assert.equal(matchKnowledgeBase('Tôi nên ăn gì khi bị tiểu đường?', entries)?.answer, 'Câu trả lời từ tri thức.');
+  assert.equal(matchKnowledgeBase('Toi nen an gi khi bi tieu duong?', entries)?.answer, 'Câu trả lời từ tri thức.');
+  assert.equal(matchKnowledgeBase('Có giao hàng nhanh không?', entries), undefined);
+});
+test('product cards are requested only when the customer asks for food suggestions', () => {
+  assert.equal(asksForProductSuggestions('Gợi ý món giàu protein, ít đường'), true);
+  assert.equal(asksForProductSuggestions('Tìm món ít calo cho bữa tối'), true);
+  assert.equal(asksForProductSuggestions('Chất xơ có tác dụng gì?'), false);
+  assert.equal(asksForProductSuggestions('Tôi muốn giảm cân thì nên ăn thế nào?'), false);
+});
+test('chat returns the matched knowledge_base answer without replacing it with generated text', async () => {
+  const knowledgeRepository = new MemoryRepository();
+  const owner = { userId: 1, guestHash: null } as const;
+  const conversation = await knowledgeRepository.create(owner);
+  let generated = false;
+  const knowledgeService = createChatService(knowledgeRepository, async () => {
+    generated = true;
+    return 'Câu trả lời không lấy từ tri thức.';
+  }, async () => ({ products: [], knowledge: 'Câu trả lời chuẩn', knowledgeAnswer: 'Câu trả lời chuẩn' }));
+  const result = await knowledgeService.ask(owner, conversation.id, randomUUID(), 'Câu hỏi dinh dưỡng');
+  assert.equal(generated, false);
+  assert.ok(result.reply.startsWith('Câu trả lời chuẩn'));
+  assert.ok(!result.reply.includes(CHAT_DISCLAIMER));
+});
+test('meal suggestion answers do not append the nutrition disclaimer', async () => {
+  const suggestionRepository = new MemoryRepository();
+  const owner = { userId: 1, guestHash: null } as const;
+  const conversation = await suggestionRepository.create(owner);
+  const suggestionService = createChatService(suggestionRepository, async () => 'Bạn có thể chọn các món ít calo dưới đây.', async () => ({ products: [], knowledge: '' }));
+  const result = await suggestionService.ask(owner, conversation.id, randomUUID(), 'Tìm món ít calo cho bữa tối');
+  assert.equal(result.reply, 'Bạn có thể chọn các món ít calo dưới đây.');
+  assert.ok(!result.reply.includes(CHAT_DISCLAIMER));
 });
 test('session bootstrap creates/restores Guest without creating conversations and rejects expired Customer JWT', async () => {
   const before = repository.records.size;
