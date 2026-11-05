@@ -18,6 +18,12 @@ export interface UserRecord {
 export interface LoginUserRecord extends UserRecord {
   role: "customer" | "admin";
   passwordHash: string | null;
+  dietPreferences: string[];
+}
+
+export interface CurrentUserRecord extends UserRecord {
+  role: "customer" | "admin";
+  dietPreferences: string[];
 }
 
 export interface UserAddressRecord {
@@ -51,6 +57,7 @@ interface UserRow {
   avt_url: string | null;
   role: "customer" | "admin";
   password_hash: string | null;
+  diet_preferences: string[];
 }
 
 interface CreatedUserRow {
@@ -63,6 +70,7 @@ interface CreatedUserRow {
 interface CurrentUserRow extends CreatedUserRow {
   avt_url: string | null;
   role: "customer" | "admin";
+  diet_preferences: string[];
 }
 
 interface AddressRow {
@@ -95,6 +103,7 @@ export async function findUserForLogin(
 
   const result = await getPool().query<UserRow>(
     `SELECT users.id, users.full_name, users.email, users.phone, users.avt_url,
+            users.diet_preferences,
             CASE WHEN EXISTS (
               SELECT 1 FROM admins WHERE admins.user_id = users.id
             ) THEN 'admin' ELSE 'customer' END AS role,
@@ -132,6 +141,7 @@ export async function findUserForLogin(
     avatarUrl: user.avt_url,
     role: user.role,
     passwordHash: user.password_hash,
+    dietPreferences: user.diet_preferences,
   };
 }
 
@@ -149,13 +159,14 @@ export async function createCustomerLoginNotification(
   );
 }
 
-export async function findUserById(id: string): Promise<(UserRecord & { role: "customer" | "admin" }) | null> {
+export async function findUserById(id: string): Promise<CurrentUserRecord | null> {
   if (!isDbConnected()) {
     throw new Error("PostgreSQL chưa sẵn sàng.");
   }
 
   const result = await getPool().query<CurrentUserRow>(
     `SELECT users.id, users.full_name, users.email, users.phone, users.avt_url,
+            users.diet_preferences,
             CASE WHEN EXISTS (
               SELECT 1 FROM admins WHERE admins.user_id = users.id
             ) THEN 'admin' ELSE 'customer' END AS role
@@ -176,7 +187,26 @@ export async function findUserById(id: string): Promise<(UserRecord & { role: "c
     phone: user.phone ?? "",
     avatarUrl: user.avt_url,
     role: user.role,
+    dietPreferences: user.diet_preferences,
   };
+}
+
+export async function updateUserDietPreferences(
+  id: string,
+  dietPreferences: string[],
+): Promise<string[] | null> {
+  if (!isDbConnected()) {
+    throw new Error("PostgreSQL chưa sẵn sàng.");
+  }
+
+  const result = await getPool().query<{ diet_preferences: string[] }>(
+    `UPDATE users
+     SET diet_preferences = $2::jsonb, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1
+     RETURNING diet_preferences`,
+    [id, JSON.stringify(dietPreferences)],
+  );
+  return result.rows[0]?.diet_preferences ?? null;
 }
 
 export async function updateUserAvatar(id: string, avatarUrl: string): Promise<string | undefined> {

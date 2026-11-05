@@ -9,6 +9,7 @@ import {
   RegisteredUser,
   updateCurrentUser,
   updateCurrentUserAvatar,
+  updateCurrentUserDietPreferences,
 } from '../services/api';
 
 export const useAuthStore = defineStore('auth', () => {
@@ -144,7 +145,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function toProfile(
-    user: Pick<RegisteredUser, 'id' | 'name' | 'email' | 'phone' | 'role' | 'defaultAddress' | 'avatarUrl'>,
+    user: Pick<RegisteredUser, 'id' | 'name' | 'email' | 'phone' | 'role' | 'defaultAddress' | 'avatarUrl'> &
+      Partial<Pick<RegisteredUser, 'dietPreferences'>>,
     cachedProfile?: UserProfile,
   ): UserProfile {
     return {
@@ -158,6 +160,7 @@ export const useAuthStore = defineStore('auth', () => {
       ),
       role: user.role,
       defaultAddress: user.defaultAddress ?? cachedProfile?.defaultAddress ?? null,
+      dietPreferences: user.dietPreferences ?? cachedProfile?.dietPreferences ?? [],
     };
   }
 
@@ -203,12 +206,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function updateDietPreferences(dietPreferences: string[]) {
+  async function updateDietPreferences(dietPreferences: string[]): Promise<void> {
+    if (!currentUser.value) return;
+    const savedPreferences = await updateCurrentUserDietPreferences(dietPreferences);
     if (!currentUser.value) return;
     currentUser.value = {
       ...currentUser.value,
-      dietPreferences: [...dietPreferences],
-      currentDiet: dietPreferences.join(' & ') || 'Chưa chọn',
+      dietPreferences: savedPreferences,
+      currentDiet: savedPreferences.join(' & ') || 'Chưa chọn',
     };
     activeStorage?.setItem(authStorageKey, JSON.stringify(currentUser.value));
   }
@@ -259,6 +264,7 @@ export const useAuthStore = defineStore('auth', () => {
       phone: profile.phone,
       role: 'role' in profile && profile.role === 'admin' ? 'admin' : 'customer',
       avatarUrl: 'avatarUrl' in profile ? profile.avatarUrl : null,
+      dietPreferences: 'dietPreferences' in profile ? profile.dietPreferences : [],
     });
     storage.setItem(authStorageKey, JSON.stringify(user));
     storage.setItem(authTokenKey, token);

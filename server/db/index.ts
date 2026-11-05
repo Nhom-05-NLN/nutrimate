@@ -49,6 +49,17 @@ export function isDbConnected(): boolean {
   return isConnected;
 }
 
+export async function ensureDietPreferencesColumn(): Promise<void> {
+  if (!isConnected) {
+    throw new Error('PostgreSQL chưa sẵn sàng để cập nhật cấu trúc chế độ ăn.');
+  }
+
+  await getPool().query(
+    `ALTER TABLE users
+     ADD COLUMN IF NOT EXISTS diet_preferences JSONB NOT NULL DEFAULT '[]'::jsonb`,
+  );
+}
+
 export async function queryPostgres<T extends QueryResultRow = QueryResultRow>(
   text: string,
   params?: unknown[]
