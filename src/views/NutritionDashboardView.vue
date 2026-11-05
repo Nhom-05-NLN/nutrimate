@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useCartStore } from '../stores/cartStore';
-import { useChatStore } from '../stores/chatStore';
 import { useToastStore } from '../stores/toastStore';
 import { fetchCaloriePlan, fetchNutritionDiary, fetchProducts, postNutritionImage, postNutritionMeal, postNutritionWater } from '../services/api';
 import type { CaloriePlanResponse, CreateNutritionDiaryMeal, MealType, NutritionDiaryDay, NutritionImagePrediction, Product } from '../types';
@@ -20,7 +19,6 @@ import {
 } from 'lucide-vue-next';
 
 const cartStore = useCartStore();
-const chatStore = useChatStore();
 const toastStore = useToastStore();
 const authStore = useAuthStore();
 
@@ -41,16 +39,24 @@ const productPickerError = ref('');
 const mealProductOptions = ref<Product[]>([]);
 const scanError = ref('');
 const scanResult = ref<NutritionImagePrediction | null>(null);
+const scanIsLabel = computed(() => (scanResult.value?.labelFacts.length ?? 0) > 0);
 const scanLabelRows = computed(() => {
   const normalize = (label: string) => label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const coreGroup = (key: string) => {
+    if (/^(?:energy|calories?|nangluong)$/.test(key)) return 'energy';
+    if (/^(?:protein|chatdam|dam)$/.test(key)) return 'protein';
+    if (/^(?:fat|totalfat|chatbeo|chatbeotongso|tongchatbeo)$/.test(key)) return 'fat';
+    if (/^(?:carb|carbs|carbohydrates?|carbohydrats?|hydratcacbon)$/.test(key)) return 'carbs';
+    if (/^(?:sugars?|totalsugars?|duong|duongtongso|duongtong)$/.test(key)) return 'sugar';
+    return key;
+  };
   const rows: { label: string; value: string }[] = [];
   const seen = new Set<string>();
   for (const fact of scanResult.value?.labelFacts ?? []) {
     const label = fact.label.trim();
     const value = fact.value.trim();
     if (!label || !value) continue;
-    const key = normalize(label);
-    if (/^(?:energy|calories?|nangluong|protein|chatdam|totalfat|fat|chatbeo|carbohydrates?|carbs?|hydratcacbon|sugars?|totalsugars?|duong)$/.test(key)) continue;
+    const key = coreGroup(normalize(label));
     if (seen.has(key)) continue;
     seen.add(key);
     rows.push({ label, value });
@@ -231,8 +237,7 @@ async function analyzeSelectedImage() {
   scanError.value = '';
   scanResult.value = null;
   try {
-    const conversationId = await chatStore.ensureCurrentConversation();
-    scanResult.value = await postNutritionImage(image, authStore.accessToken, conversationId, crypto.randomUUID());
+    scanResult.value = await postNutritionImage(image, authStore.accessToken, '', '', '', false);
   }
   catch (error: unknown) { scanError.value = error instanceof Error ? error.message : 'Không thể phân tích ảnh.'; }
   finally { isScanLoading.value = false; if (scanInput.value) scanInput.value.value = ''; }
@@ -725,7 +730,7 @@ async function addWater(amount: number) {
               Nutrition Facts AI
             </div>
 
-            <div class="space-y-2.5 text-xs sm:text-sm border-t border-b border-[#F0F3EC] py-3">
+            <div v-if="!scanIsLabel" class="space-y-2.5 text-xs sm:text-sm border-t border-b border-[#F0F3EC] py-3">
               <div class="flex justify-between">
                 <span class="text-[#7A866E]">Calories:</span>
                 <span class="font-bold text-[#242424]">{{ scanResult?.predictedCalories ?? '—' }} kcal</span>
@@ -748,14 +753,14 @@ async function addWater(amount: number) {
               </div>
             </div>
 
-            <div v-if="scanLabelRows.length" class="space-y-2.5 border-b border-[#F0F3EC] pb-3 text-xs sm:text-sm">
+            <div v-if="scanIsLabel && scanLabelRows.length" class="space-y-2.5 border-y border-[#F0F3EC] py-3 text-xs sm:text-sm">
               <div v-for="row in scanLabelRows" :key="row.label" class="flex justify-between gap-4">
                 <span class="text-[#7A866E]">{{ row.label }}:</span>
                 <span class="text-right font-bold text-[#242424]">{{ row.value }}</span>
               </div>
             </div>
 
-            <p class="text-center text-xs font-bold text-[#536124]">{{ scanResult?.status === 'completed' ? 'Đã đọc nhãn · thông tin mang tính tham khảo' : scanResult?.status === 'unrecognized' ? 'Không nhận diện được món ăn/nhãn.' : 'Chưa có kết quả phân tích.' }}</p>
+            <p class="text-center text-xs font-bold text-[#536124]">{{ scanResult?.status === 'completed' ? (scanIsLabel ? 'Đã đọc thông tin trên nhãn' : 'Đã ước lượng dinh dưỡng từ ảnh') : scanResult?.status === 'unrecognized' ? 'Không nhận diện được món ăn/nhãn.' : 'Chưa có kết quả phân tích.' }}</p>
             <p class="text-center text-xs text-[#68725F]">Thông tin chỉ mang tính tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.</p>
             <button v-if="scanResult?.status === 'completed'" type="button" class="w-full rounded-xl bg-[#536124] p-3 font-bold text-white" @click="addScanResultToDiary">Kiểm tra và ghi vào nhật ký</button>
           </div>

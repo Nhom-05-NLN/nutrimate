@@ -202,6 +202,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
             class="w-full appearance-none rounded-xl border border-[#E3E8DC] bg-[#FAF9F5] py-2 pl-3 pr-9 text-xs font-semibold text-[#344625] outline-none transition-colors hover:border-[#B8C9A8] focus:border-[#718C54] disabled:opacity-60"
             @change="chatStore.selectConversation(($event.target as HTMLSelectElement).value)"
           >
+            <option v-if="!chatStore.conversationId" value="" disabled>Hội thoại mới</option>
             <option v-for="(conversation, index) in chatStore.conversations" :key="conversation.id" :value="conversation.id">Hội thoại {{ index + 1 }} · {{ new Date(conversation.createdAt).toLocaleDateString('vi-VN') }}</option>
           </select>
           <ChevronDown class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#71805F]" />

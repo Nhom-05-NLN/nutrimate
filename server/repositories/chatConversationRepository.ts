@@ -18,7 +18,11 @@ export class ChatConversationRepository {
   }
   async list(owner: ChatOwner): Promise<Conversation[]> {
     const result = await this.pool.query<Conversation>(
-      'SELECT id, created_at AS "createdAt", updated_at AS "updatedAt" FROM chat_conversations WHERE user_id = $1 OR (user_id IS NULL AND guest_owner_hash = $2) ORDER BY updated_at DESC, id DESC LIMIT 50',
+      `SELECT c.id, c.created_at AS "createdAt", c.updated_at AS "updatedAt"
+       FROM chat_conversations c
+       WHERE (c.user_id = $1 OR (c.user_id IS NULL AND c.guest_owner_hash = $2))
+         AND EXISTS (SELECT 1 FROM chat_messages m WHERE m.conversation_id = c.id)
+       ORDER BY c.updated_at DESC, c.id DESC LIMIT 50`,
       [owner.userId, owner.guestHash],
     );
     return result.rows;

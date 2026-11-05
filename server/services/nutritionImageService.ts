@@ -75,7 +75,7 @@ export function createNutritionImageService(
   conversations = new ChatConversationRepository(),
 ) {
   return {
-    async analyze(userId: number, conversationId: string, requestId: string, image: unknown, declaredType: string, question = ''): Promise<NutritionImagePrediction> {
+    async analyze(userId: number, conversationId: string, requestId: string, image: unknown, declaredType: string, question = '', saveToChat = true): Promise<NutritionImagePrediction> {
       if (!Buffer.isBuffer(image) || image.length === 0) throw new ChatError(400, 'Chưa nhận được ảnh cần phân tích.');
       if (image.length > config.nutritionImage.maxUploadBytes) throw new ChatError(413, 'Ảnh vượt quá dung lượng tối đa 5 MB.');
       const mimeType = imageMimeType(image, declaredType);
@@ -115,7 +115,7 @@ export function createNutritionImageService(
         await imageRepository.failNutritionImage(record.image_id, userId).catch(() => {
           console.error('[NutritionImage] Could not mark an unsuccessful analysis.');
         });
-        await conversations.saveImageAnalysis(
+        if (saveToChat) await conversations.saveImageAnalysis(
           conversationId,
           userId,
           requestId,
@@ -134,16 +134,18 @@ export function createNutritionImageService(
         ? `\u004d\u00ec\u006e\u0068 \u0063\u0068\u01b0\u0061 \u006e\u0068\u1ead\u006e \u0064\u0069\u1ec7\u006e \u0111\u01b0\u1ee3\u0063 \u0074\u0068\u1ef1\u0063 \u0070\u0068\u1ea9\u006d \u0074\u0072\u006f\u006e\u0067 \u1ea3\u006e\u0068.\n\n${disclaimer}`
         : `Ước tính dinh dưỡng cho khẩu phần trong ảnh\n\n• Năng lượng: ${prediction.predictedCalories ?? '—'} kcal\n• Protein: ${prediction.predictedProtein ?? '—'} g\n• Carbs: ${prediction.predictedCarbs ?? '—'} g\n• Chất béo: ${prediction.predictedFat ?? '—'} g\n• Đường: ${prediction.predictedSugar ?? '—'} g\n\n${disclaimer}`;
 
-      try {
-        await conversations.saveImageAnalysis(conversationId, userId, requestId, completed.image_id, reply, question);
-      } catch (error) {
-        await imageRepository.deleteNutritionImage(completed.image_id, userId).catch(() => {
-          console.error('[NutritionImage] Could not remove an upload after chat history save failure.');
-        });
-        await unlink(filePath).catch(() => {
-          console.error('[NutritionImage] Could not remove an upload after chat history save failure.');
-        });
-        throw error;
+      if (saveToChat) {
+        try {
+          await conversations.saveImageAnalysis(conversationId, userId, requestId, completed.image_id, reply, question);
+        } catch (error) {
+          await imageRepository.deleteNutritionImage(completed.image_id, userId).catch(() => {
+            console.error('[NutritionImage] Could not remove an upload after chat history save failure.');
+          });
+          await unlink(filePath).catch(() => {
+            console.error('[NutritionImage] Could not remove an upload after chat history save failure.');
+          });
+          throw error;
+        }
       }
 
       return { ...prediction, labelFacts };

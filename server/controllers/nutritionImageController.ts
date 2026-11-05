@@ -48,9 +48,10 @@ export function createNutritionImageController(
       try {
         const userId = res.locals.nutritionImageUserId;
         if (typeof userId !== 'number' || !Number.isSafeInteger(userId)) throw new ChatError(401, 'Đăng nhập Customer để phân tích ảnh thực phẩm.');
+        const saveToChat = req.get('x-chat-save-history') !== 'false';
         const conversationId = req.get('x-chat-conversation-id') ?? '';
         const requestId = req.get('x-chat-request-id') ?? '';
-        if (!UUID_PATTERN.test(conversationId) || !UUID_PATTERN.test(requestId)) {
+        if (saveToChat && (!UUID_PATTERN.test(conversationId) || !UUID_PATTERN.test(requestId))) {
           throw new ChatError(400, 'Thiếu thông tin hội thoại để lưu ảnh vào lịch sử chat.');
         }
         const encodedQuestion = req.get('x-chat-question') ?? '';
@@ -63,7 +64,7 @@ export function createNutritionImageController(
           throw new ChatError(400, 'Câu hỏi gửi kèm ảnh không hợp lệ.');
         }
         if (question.length > 1000) throw new ChatError(400, 'Câu hỏi kèm ảnh tối đa 1000 ký tự.');
-        const result = await service.analyze(userId, conversationId, requestId, req.body, req.get('content-type') ?? '', question);
+        const result = await service.analyze(userId, conversationId, requestId, req.body, req.get('content-type') ?? '', question, saveToChat);
         res.status(201).json({ success: true, data: result });
       } catch (error) {
         failure(res, error);

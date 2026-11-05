@@ -485,8 +485,8 @@ async function prepareNutritionImage(image: File): Promise<File> {
   }
 }
 
-export async function postNutritionImage(image: File, token: string, conversationId: string, requestId: string, question = ''): Promise<NutritionImagePrediction> {
-  if (!conversationId || !requestId) throw new Error('Thiáº¿u thÃ´ng tin há»™i thoáº¡i Ä‘á»ƒ lÆ°u áº£nh vÃ o lá»‹ch sá»­ chat.');
+export async function postNutritionImage(image: File, token: string, conversationId = '', requestId = '', question = '', saveToChat = true): Promise<NutritionImagePrediction> {
+  if (saveToChat && (!conversationId || !requestId)) throw new Error('Thiáº¿u thÃ´ng tin há»™i thoáº¡i Ä‘á»ƒ lÆ°u áº£nh vÃ o lá»‹ch sá»­ chat.');
   const preparedImage = await prepareNutritionImage(image);
   const questionBytes = new TextEncoder().encode(question.trim());
   let questionBinary = '';
@@ -497,8 +497,7 @@ export async function postNutritionImage(image: File, token: string, conversatio
     headers: {
       'Content-Type': preparedImage.type || 'application/octet-stream',
       Authorization: `Bearer ${token}`,
-      'X-Chat-Conversation-Id': conversationId,
-      'X-Chat-Request-Id': requestId,
+      ...(saveToChat ? { 'X-Chat-Conversation-Id': conversationId, 'X-Chat-Request-Id': requestId } : { 'X-Chat-Save-History': 'false' }),
       'X-Chat-Question': btoa(questionBinary),
     },
     body: preparedImage,
