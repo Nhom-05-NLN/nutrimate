@@ -30,6 +30,10 @@ import {
   Pencil,
   Save,
   LogOut,
+
+  FolderTree,
+
+  Boxes,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -339,15 +343,22 @@ onUnmounted(() => {
   dismissNotificationPopup();
 });
 
-const navItems = [
+const coreNavItems = [
   { path: '/admin', label: 'Tổng quan', icon: LayoutDashboard },
-  { path: '/admin/products', label: 'Sản phẩm & Kho', icon: Package },
+  { path: '/admin/products', label: 'Sản phẩm', icon: Package },
+  { path: '/admin/categories', label: 'Danh mục', icon: FolderTree },
+  { path: '/admin/inventory', label: 'Tồn kho', icon: Boxes, badge: '4 cảnh báo' },
   { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart, badge: '12 mới' },
   { path: '/admin/customers', label: 'Khách hàng', icon: Users },
+];
+
+const aiNavItems = [
   { path: '/admin/knowledge-base', label: 'AI Knowledge Base', icon: Bot, badge: 'v2.5' },
 ];
+
+const navItems = computed(() => [...coreNavItems, ...aiNavItems]);
 const adminPageTitle = computed(() =>
-  navItems.find((item) => item.path === route.path)?.label ?? 'Quản trị',
+  navItems.value.find((item) => item.path === route.path)?.label ?? 'Quản trị',
 );
 const todayLabel = new Date().toLocaleDateString('vi-VN', {
   day: '2-digit',
@@ -413,7 +424,7 @@ async function handleAdminLogout() {
               VẬN HÀNH LÕI
             </span>
             <RouterLink
-              v-for="item in navItems.slice(0, 4)"
+              v-for="item in coreNavItems"
               :key="item.path"
               :to="item.path"
               class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition-colors"
@@ -444,24 +455,24 @@ async function handleAdminLogout() {
               DINH DƯỠNG & TRÍ TUỆ AI
             </span>
             <RouterLink
-              :to="navItems[4].path"
+              v-for="item in aiNavItems" :key="item.path" :to="item.path"
               class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition-colors"
               :class="[
-                route.path === navItems[4].path
+                route.path === item.path
                   ? 'bg-[#536124] text-white shadow-xs font-bold hover:bg-[#434F1D] hover:text-white'
                   : 'text-[#576449] hover:bg-[#EBF7E5] hover:text-[#2D3B1E] font-semibold'
               ]"
               @click="isSidebarOpen = false"
             >
               <div class="flex items-center gap-3">
-                <component :is="navItems[4].icon" class="w-4 h-4" />
-                <span>{{ navItems[4].label }}</span>
+                <component :is="item.icon" class="w-4 h-4" />
+                <span>{{ item.label }}</span>
               </div>
               <span
                 class="px-2 py-0.5 rounded-full text-[9px] font-bold"
-                :class="route.path === navItems[4].path ? 'bg-white/20 text-white' : 'bg-[#EBF7E5] text-[#536124]'"
+                :class="route.path === item.path ? 'bg-white/20 text-white' : 'bg-[#EBF7E5] text-[#536124]'"
               >
-                {{ navItems[4].badge }}
+                {{ item.badge }}
               </span>
             </RouterLink>
 
