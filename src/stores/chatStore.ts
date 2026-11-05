@@ -163,6 +163,33 @@ export const useChatStore = defineStore('chat', () => {
     } catch (reason) { if (active === epoch) reportError(reason, 'Không tạo được hội thoại.'); }
     finally { if (active === epoch) isThinking.value = false; }
   }
+  async function ensureCurrentConversation(): Promise<string> {
+    if (conversationId.value) return conversationId.value;
+    if (isThinking.value || requiresAuthentication.value || guestSessionExpired.value) {
+      throw new Error(error.value || 'KhÃ´ng thá»ƒ chuáº©n bá»‹ há»™i thoáº¡i NutriBot.');
+    }
+    const active = epoch;
+    isThinking.value = true;
+    error.value = '';
+    try {
+      if (!sessionReady && !await prepareSession(auth.accessToken, active)) {
+        throw new Error(error.value || 'KhÃ´ng thá»ƒ chuáº©n bá»‹ phiÃªn chat.');
+      }
+      const conversation = await createChatConversation(auth.accessToken);
+      if (active !== epoch) throw new Error('PhiÃªn chat Ä‘Ã£ thay Ä‘á»•i, vui lÃ²ng thá»­ láº¡i.');
+      conversations.value.unshift(conversation);
+      conversationId.value = conversation.id;
+      disposeImagePreviews();
+      messages.value = [welcome()];
+      hasEarlier.value = false;
+      return conversation.id;
+    } catch (reason) {
+      if (active === epoch) reportError(reason, 'KhÃ´ng táº¡o Ä‘Æ°á»£c há»™i thoáº¡i NutriBot.');
+      throw reason;
+    } finally {
+      if (active === epoch) isThinking.value = false;
+    }
+  }
   async function loadEarlier() {
     const first = messages.value[0];
     if (isThinking.value || requiresAuthentication.value || guestSessionExpired.value || !conversationId.value || !first || !hasEarlier.value) return;
@@ -289,9 +316,13 @@ export const useChatStore = defineStore('chat', () => {
       if (active === epoch) isThinking.value = false;
     }
   }
-  function openChat() { isOpen.value = true; void initialize(); }
+  function openChat() {
+    if (isOpen.value) return;
+    isOpen.value = true;
+    void newConversation();
+  }
   function closeChat() { isOpen.value = false; }
   function toggleChat() { if (isOpen.value) closeChat(); else openChat(); }
   return { isOpen, isThinking, messages, error, requiresAuthentication, requiresImageAuthentication, guestSessionExpired, restartGuestSession, conversationId, conversations, hasEarlier, openChat, closeChat, toggleChat,
-    sendMessage, retryMessage, analyzeImage, initialize, selectConversation, newConversation, loadEarlier };
+    sendMessage, retryMessage, analyzeImage, initialize, selectConversation, newConversation, ensureCurrentConversation, loadEarlier };
 });

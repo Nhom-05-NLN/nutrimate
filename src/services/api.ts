@@ -486,6 +486,7 @@ async function prepareNutritionImage(image: File): Promise<File> {
 }
 
 export async function postNutritionImage(image: File, token: string, conversationId: string, requestId: string, question = ''): Promise<NutritionImagePrediction> {
+  if (!conversationId || !requestId) throw new Error('Thiáº¿u thÃ´ng tin há»™i thoáº¡i Ä‘á»ƒ lÆ°u áº£nh vÃ o lá»‹ch sá»­ chat.');
   const preparedImage = await prepareNutritionImage(image);
   const questionBytes = new TextEncoder().encode(question.trim());
   let questionBinary = '';

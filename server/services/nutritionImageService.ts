@@ -58,6 +58,7 @@ function toPrediction(row: NutritionImageRow): NutritionImagePrediction {
     predictedCarbs: row.predicted_carbs,
     predictedFat: row.predicted_fat,
     predictedSugar: row.predicted_sugar,
+    labelFacts: [],
   };
 }
 
@@ -97,8 +98,10 @@ export function createNutritionImageService(
       }
 
       let completed: NutritionImageRow;
+      let labelFacts: ImageNutritionEstimate['labelFacts'] = [];
       try {
         const estimate = await predict(image, mimeType, question);
+        labelFacts = estimate.labelFacts;
         completed = await imageRepository.finishNutritionImage(record.image_id, userId, {
           ocrText: estimate.ocrText,
           calories: estimate.calories,
@@ -143,7 +146,7 @@ export function createNutritionImageService(
         throw error;
       }
 
-      return prediction;
+      return { ...prediction, labelFacts };
     },
 
     async getImage(userId: number, filename: string): Promise<{ image: Buffer; mimeType: SupportedImageMime }> {

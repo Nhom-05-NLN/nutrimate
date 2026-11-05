@@ -41,6 +41,23 @@ const productPickerError = ref('');
 const mealProductOptions = ref<Product[]>([]);
 const scanError = ref('');
 const scanResult = ref<NutritionImagePrediction | null>(null);
+const scanLabelRows = computed(() => {
+  const normalize = (label: string) => label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const rows: { label: string; value: string }[] = [];
+  const seen = new Set<string>();
+  for (const fact of scanResult.value?.labelFacts ?? []) {
+    const label = fact.label.trim();
+    const value = fact.value.trim();
+    if (!label || !value) continue;
+    const key = normalize(label);
+    if (/^(?:energy|calories?|nangluong|protein|chatdam|totalfat|fat|chatbeo|carbohydrates?|carbs?|hydratcacbon|sugars?|totalsugars?|duong)$/.test(key)) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ label, value });
+    if (rows.length >= 40) break;
+  }
+  return rows;
+});
 const scanInput = ref<HTMLInputElement | null>(null);
 const weekReportOpen = ref(false);
 const weekReportLoading = ref(false);
@@ -213,17 +230,20 @@ async function analyzeSelectedImage() {
   isScanLoading.value = true;
   scanError.value = '';
   scanResult.value = null;
-  try { scanResult.value = await postNutritionImage(image, authStore.accessToken); }
+  try {
+    const conversationId = await chatStore.ensureCurrentConversation();
+    scanResult.value = await postNutritionImage(image, authStore.accessToken, conversationId, crypto.randomUUID());
+  }
   catch (error: unknown) { scanError.value = error instanceof Error ? error.message : 'Không thể phân tích ảnh.'; }
   finally { isScanLoading.value = false; if (scanInput.value) scanInput.value.value = ''; }
 }
 
 function addScanResultToDiary() {
-  if (!scanResult.value || scanResult.value.status !== 'completed' || scanResult.value.predictedCalories === null || scanResult.value.predictedProtein === null || scanResult.value.predictedCarbs === null || scanResult.value.predictedFat === null) return;
+  if (!scanResult.value || scanResult.value.status !== 'completed' || scanResult.value.predictedCalories === null || scanResult.value.predictedProtein === null || scanResult.value.predictedFat === null) return;
   mealForm.value = {
     date: selectedDate.value, mealType: 'snack', foodName: 'Món ăn từ ảnh (ước lượng AI)',
     calories: scanResult.value.predictedCalories, protein: scanResult.value.predictedProtein,
-    carbs: scanResult.value.predictedCarbs, fat: scanResult.value.predictedFat,
+    carbs: scanResult.value.predictedCarbs ?? 0, fat: scanResult.value.predictedFat,
     sugar: scanResult.value.predictedSugar ?? 0,
   };
   isMealModalOpen.value = true;
@@ -722,9 +742,20 @@ async function addWater(amount: number) {
                 <span class="text-[#7A866E]">Carbohydrates:</span>
                 <span class="font-bold text-[#242424]">{{ scanResult?.predictedCarbs ?? '—' }}g</span>
               </div>
+              <div class="flex justify-between">
+                <span class="text-[#7A866E]">Total Sugar:</span>
+                <span class="font-bold text-[#242424]">{{ scanResult?.predictedSugar ?? '—' }}g</span>
+              </div>
             </div>
 
-            <p class="text-center text-xs font-bold text-[#536124]">{{ scanResult?.status === 'completed' ? 'Đã phân tích · ước lượng tham khảo' : scanResult?.status === 'unrecognized' ? 'Không nhận diện được món ăn/nhãn.' : 'Chưa có kết quả phân tích.' }}</p>
+            <div v-if="scanLabelRows.length" class="space-y-2.5 border-b border-[#F0F3EC] pb-3 text-xs sm:text-sm">
+              <div v-for="row in scanLabelRows" :key="row.label" class="flex justify-between gap-4">
+                <span class="text-[#7A866E]">{{ row.label }}:</span>
+                <span class="text-right font-bold text-[#242424]">{{ row.value }}</span>
+              </div>
+            </div>
+
+            <p class="text-center text-xs font-bold text-[#536124]">{{ scanResult?.status === 'completed' ? 'Đã đọc nhãn · thông tin mang tính tham khảo' : scanResult?.status === 'unrecognized' ? 'Không nhận diện được món ăn/nhãn.' : 'Chưa có kết quả phân tích.' }}</p>
             <p class="text-center text-xs text-[#68725F]">Thông tin chỉ mang tính tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.</p>
             <button v-if="scanResult?.status === 'completed'" type="button" class="w-full rounded-xl bg-[#536124] p-3 font-bold text-white" @click="addScanResultToDiary">Kiểm tra và ghi vào nhật ký</button>
           </div>
