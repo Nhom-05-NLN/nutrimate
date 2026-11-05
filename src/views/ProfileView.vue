@@ -16,6 +16,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import {
   ChevronRight,
+  ChevronDown,
   Camera,
   Edit3,
   ArrowRight,
@@ -560,9 +561,12 @@ async function handleAvatarChange(event: Event) {
               <input id="profile-age" v-model.number="profile.age" type="number" min="13" max="120" step="1" required :disabled="planSaving" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm disabled:opacity-60" />
             </label>
             <label for="profile-gender" class="text-xs font-bold text-[#576449]">Giới tính dùng cho công thức
-              <select id="profile-gender" v-model="profile.gender" required :disabled="planSaving" class="mt-1 w-full rounded-xl border border-[#DEE5D4] bg-white px-3 py-2 text-sm disabled:opacity-60">
-                <option :value="null" disabled>Chọn giới tính</option><option value="female">Nữ</option><option value="male">Nam</option><option value="other">Khác / hệ số trung bình</option>
-              </select>
+              <span class="relative mt-1 block">
+                <select id="profile-gender" v-model="profile.gender" required :disabled="planSaving" class="w-full appearance-none rounded-xl border border-[#DEE5D4] bg-white py-2 pl-3 pr-10 text-sm disabled:opacity-60">
+                  <option :value="null" disabled>Chọn giới tính</option><option value="female">Nữ</option><option value="male">Nam</option><option value="other">Khác / hệ số trung bình</option>
+                </select>
+                <ChevronDown class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7A866E]" aria-hidden="true" />
+              </span>
             </label>
             <p v-if="planError" class="sm:col-span-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800" role="alert">{{ planError }}</p>
             <div class="sm:col-span-2 flex justify-end gap-2">
@@ -577,22 +581,22 @@ async function handleAvatarChange(event: Event) {
           </div>
 
           <!-- Card Chỉ Số Khối Cơ Thể BMI -->
-          <div class="p-5 rounded-2xl bg-[#F6F8F3] border border-[#CCD7BC] space-y-4">
-            <div class="flex items-baseline justify-between">
+          <div class="p-5 sm:p-6 rounded-2xl bg-[#F6F8F3] border border-[#CCD7BC] space-y-5">
+            <div class="flex items-start justify-between gap-4">
               <div>
                 <span class="text-xs text-[#7A866E] uppercase font-bold block">Chỉ số khối cơ thể (BMI)</span>
-                <span class="font-heading text-4xl font-black text-[#242424]">{{ caloriePlan?.bmi ?? '—' }} <span class="text-sm font-normal text-[#7A866E]">kg/m²</span></span>
+                <span class="mt-1 block font-heading text-4xl font-black text-[#242424]">{{ caloriePlan?.bmi ?? '—' }} <span class="text-sm font-normal text-[#7A866E]">kg/m²</span></span>
               </div>
               <div class="text-right">
                 <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#4D6A34] text-white text-xs font-bold shadow-2xs">
                   {{ caloriePlan ? `✓ ${bmiCategory}` : bmiCategory }}
                 </span>
-                <span class="text-xs text-[#4D6A34] block font-semibold mt-1">{{ caloriePlan ? 'Chỉ số tham khảo theo BMI' : 'Bổ sung hồ sơ để xem phân tích' }}</span>
+                <span class="text-xs text-[#4D6A34] block font-semibold mt-2">{{ caloriePlan ? 'Chỉ số tham khảo theo BMI' : 'Bổ sung hồ sơ để xem phân tích' }}</span>
               </div>
             </div>
 
             <!-- Thước Đo Phân Vùng Chuẩn WHO 4 Màu -->
-            <div class="space-y-2 pt-2">
+            <div class="space-y-2.5 pt-1">
               <div class="flex justify-between text-xs text-[#7A866E]">
                 <span>Thước đo phân vùng chuẩn WHO</span>
                 <span class="font-bold text-[#4D6A34]">Điểm rơi: {{ caloriePlan?.bmi ?? '—' }}</span>
@@ -651,10 +655,13 @@ async function handleAvatarChange(event: Event) {
 
           <div class="space-y-1.5">
             <label class="block text-xs font-bold text-[#242424]" for="profile-activity-level">Mức độ hoạt động</label>
-            <select id="profile-activity-level" v-model="activityLevel" @change="planError = ''" class="w-full rounded-xl border border-[#DEE5D4] bg-[#FAF9F5] px-3 py-2.5 text-sm text-[#242424]">
-              <option :value="null" disabled>Chọn mức độ hoạt động</option>
-              <option v-for="option in activityOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
+            <span class="relative block">
+              <select id="profile-activity-level" v-model="activityLevel" @change="planError = ''" class="w-full appearance-none rounded-xl border border-[#DEE5D4] bg-[#FAF9F5] py-2.5 pl-3 pr-10 text-sm text-[#242424]">
+                <option :value="null" disabled>Chọn mức độ hoạt động</option>
+                <option v-for="option in activityOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+              </select>
+              <ChevronDown class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7A866E]" aria-hidden="true" />
+            </span>
           </div>
 
           <div class="grid grid-cols-2 gap-2">
