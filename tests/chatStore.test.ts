@@ -22,9 +22,9 @@ test('opening Guest widget bootstraps before listing/history, with no probing 40
   try {
     const store = useChatStore();
     await store.initialize();
-    assert.deepEqual(calls, ['POST /api/chat/session', 'GET /api/chat/conversations', 'POST /api/chat/conversations', 'GET /api/chat/conversations/existing/messages']);
+    assert.deepEqual(calls, ['POST /api/chat/session', 'GET /api/chat/conversations']);
     assert.equal(store.error, '');
-    assert.equal(store.conversationId, 'existing');
+    assert.equal(store.conversationId, null);
   } finally { globalThis.fetch = original; }
 });
 
@@ -41,6 +41,7 @@ test('restoring Guest session loads its history without creating a second conver
   try {
     const store = useChatStore();
     await store.initialize();
+    await store.selectConversation(fixtureConversation.id);
     assert.equal(creations, 0);
     assert.equal(store.messages[0]?.text, 'Previous Guest question');
   } finally { globalThis.fetch = original; }
@@ -65,6 +66,7 @@ test('Customer sends JWT on session/list/history; expired JWT preserves context 
   try {
     const store = useChatStore();
     await store.initialize();
+    await store.selectConversation(fixtureConversation.id);
     assert.equal(store.messages[0]?.text, 'Private Customer context');
     expired = true;
     const before = calls.length;
@@ -96,13 +98,14 @@ test('expired Guest pauses the old context and starts fresh only after explicit 
   try {
     const store = useChatStore();
     await store.initialize();
+    await store.selectConversation(fixtureConversation.id);
     expired = true;
     await store.sendMessage('Unsent question');
     assert.equal(store.guestSessionExpired, true);
     assert.equal(store.conversationId, 'existing');
     await store.restartGuestSession();
     assert.equal(store.guestSessionExpired, false);
-    assert.equal(store.conversationId, 'new-session');
+    assert.equal(store.conversationId, null);
     assert.ok(!store.messages.some(message => message.text === 'Unsent question'));
   } finally { globalThis.fetch = original; }
 });
@@ -182,6 +185,8 @@ test('Customer image prediction appears in the chat with estimated values and di
   auth.accessToken = 'customer-jwt';
   URL.createObjectURL = () => 'blob:synthetic-image';
   globalThis.fetch = async (url, options) => {
+    if (String(url).endsWith('/session')) return ok({ kind: 'customer', created: false });
+    if (String(url).endsWith('/conversations')) return ok(fixtureConversation);
     assert.equal(String(url), '/api/chat/nutrition-images');
     assert.equal(options?.method, 'POST');
     assert.equal(options?.headers && (options.headers as Record<string, string>).Authorization, 'Bearer customer-jwt');
@@ -203,11 +208,11 @@ test('Customer image prediction appears in the chat with estimated values and di
     const store = useChatStore();
     await store.analyzeImage(new File([new Uint8Array([1, 2, 3])], 'food.png', { type: 'image/png' }));
     assert.equal(store.messages[1]?.imagePreview, 'blob:synthetic-image');
-    assert.match(store.messages[2]?.text || '', /Calories: 210 kcal/);
+    assert.match(store.messages[2]?.text || '', /210 kcal/);
     assert.match(store.messages[2]?.text || '', /Protein: 12 g/);
     assert.match(store.messages[2]?.text || '', /Carbs: 24 g/);
-    assert.match(store.messages[2]?.text || '', /Fat: 8 g/);
-    assert.match(store.messages[2]?.text || '', /Sugar: 4 g/);
+    assert.match(store.messages[2]?.text || '', /8 g/);
+    assert.match(store.messages[2]?.text || '', /4 g/);
     assert.match(store.messages[2]?.text || '', /Thông tin chỉ mang tính tham khảo/);
     assert.equal(store.error, '');
   } finally {

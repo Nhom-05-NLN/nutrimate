@@ -163,21 +163,21 @@ export const useChatStore = defineStore('chat', () => {
   async function ensureCurrentConversation(): Promise<string> {
     if (conversationId.value) return conversationId.value;
     if (isThinking.value || requiresAuthentication.value || guestSessionExpired.value) {
-      throw new Error(error.value || 'KhÃ´ng thá»ƒ chuáº©n bá»‹ há»™i thoáº¡i NutriBot.');
+      throw new Error(error.value || 'Không thể chuẩn bị hội thoại NutriBot.');
     }
     const active = epoch;
     isThinking.value = true;
     error.value = '';
     try {
       if (!sessionReady && !await prepareSession(auth.accessToken, active)) {
-        throw new Error(error.value || 'KhÃ´ng thá»ƒ chuáº©n bá»‹ phiÃªn chat.');
+        throw new Error(error.value || 'Không thể chuẩn bị phiên chat.');
       }
       if (!conversations.value.length) {
         conversations.value = await fetchChatConversations(auth.accessToken);
-        if (active !== epoch) throw new Error('PhiÃªn chat Ä‘Ã£ thay Ä‘á»•i, vui lÃ²ng thá»­ láº¡i.');
+        if (active !== epoch) throw new Error('Phiên chat đã thay đổi, vui lòng thử lại.');
       }
       const conversation = await createChatConversation(auth.accessToken);
-      if (active !== epoch) throw new Error('PhiÃªn chat Ä‘Ã£ thay Ä‘á»•i, vui lÃ²ng thá»­ láº¡i.');
+      if (active !== epoch) throw new Error('Phiên chat đã thay đổi, vui lòng thử lại.');
       conversations.value.unshift(conversation);
       conversationId.value = conversation.id;
       disposeImagePreviews();
@@ -185,7 +185,7 @@ export const useChatStore = defineStore('chat', () => {
       hasEarlier.value = false;
       return conversation.id;
     } catch (reason) {
-      if (active === epoch) reportError(reason, 'KhÃ´ng táº¡o Ä‘Æ°á»£c há»™i thoáº¡i NutriBot.');
+      if (active === epoch) reportError(reason, 'Không tạo được hội thoại NutriBot.');
       throw reason;
     } finally {
       if (active === epoch) isThinking.value = false;

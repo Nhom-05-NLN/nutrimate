@@ -222,10 +222,10 @@ export const useProductStore = defineStore('product', () => {
   const totalPages = ref<number>(Math.ceil(FIGMA_SEED_PRODUCTS.length / 9));
 
   const categories = ref<Category[]>([
-    { id: 'low-carb', name: 'Low-Carb & KETO', slug: 'low-carb', description: '�t tinh b?t, gi�u ch?t xo', dietType: 'low-carb', count: 18 },
-    { id: 'high-protein', name: 'High-Protein', slug: 'high-protein', description: 'Gi�u d?m si?t co', dietType: 'high-protein', count: 22 },
-    { id: 'sugar-free', name: 'Sugar-Free', slug: 'sugar-free', description: '0g du?ng tinh luy?n', dietType: 'sugar-free', count: 15 },
-    { id: 'snacks-nuts', name: 'H?t dinh du?ng', slug: 'snacks-nuts', description: 'H?t nu?ng m?c & Granola', dietType: 'snacks-nuts', count: 14 },
+    { id: 'low-carb', name: 'Low-Carb & KETO', slug: 'low-carb', description: 'Ít tinh bột, giàu chất xơ', dietType: 'low-carb', count: 18 },
+    { id: 'high-protein', name: 'High-Protein', slug: 'high-protein', description: 'Giàu đạm siết cơ', dietType: 'high-protein', count: 22 },
+    { id: 'sugar-free', name: 'Sugar-Free', slug: 'sugar-free', description: '0g đường tinh luyện', dietType: 'sugar-free', count: 15 },
+    { id: 'snacks-nuts', name: 'Hạt dinh dưỡng', slug: 'snacks-nuts', description: 'Hạt nướng mộc & Granola', dietType: 'snacks-nuts', count: 14 },
   ]);
   const selectedProduct = ref<Product | null>(null);
   const isLoading = ref<boolean>(false);

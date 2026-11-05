@@ -228,7 +228,7 @@ test('strict repository mode returns genuine empty results and propagates databa
   const empty: typeof queryPostgres = async () => ({ rows: [], rowCount: 0, command: 'SELECT', oid: 0, fields: [] });
   const unavailable: typeof queryPostgres = async () => { throw new Error('Database unavailable'); };
   assert.deepEqual(await getAllKnowledge(true, empty), []);
-  assert.deepEqual(await findProducts({}, true, empty), []);
+  assert.deepEqual(await findProducts({}, true, empty), { products: [], total: 0 });
   await assert.rejects(getAllKnowledge(true, unavailable), /Database unavailable/);
   await assert.rejects(findProducts({}, true, unavailable), /Database unavailable/);
 });
