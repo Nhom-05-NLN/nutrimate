@@ -10,6 +10,7 @@ import authRoutes from './authRoutes.js';
 import nutritionDiaryRoutes from './nutritionDiaryRoutes.js';
 import adminCustomerRoutes from './adminCustomerRoutes.js';
 import adminNotificationRoutes from './adminNotificationRoutes.js';
+import adminDashboardRoutes from './adminDashboardRoutes.js';
 
 const apiRouter = Router();
 
@@ -24,5 +25,6 @@ apiRouter.use('/nutrition-diary', nutritionDiaryRoutes);
 apiRouter.use('/knowledge', knowledgeRoutes);
 apiRouter.use('/admin/customers', adminCustomerRoutes);
 apiRouter.use('/admin/notifications', adminNotificationRoutes);
+apiRouter.use('/admin/dashboard', adminDashboardRoutes);
 
 export default apiRouter;

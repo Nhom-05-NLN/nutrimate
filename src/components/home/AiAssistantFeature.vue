@@ -106,7 +106,7 @@ function handleAddAiCombo() {
                     </span>
                   </div>
                 </div>
-                <span class="text-[10px] text-[#7A866E]">Phiên bản 2.4</span>
+                <span class="text-[10px] text-[#7A866E]">Phiên bản 2.5</span>
               </div>
 
               <!-- Body messages -->
