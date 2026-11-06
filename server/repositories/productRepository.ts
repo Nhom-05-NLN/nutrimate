@@ -47,6 +47,7 @@ function parseIngredients(value: string[] | string | null): string[] {
 }
 
 interface ProductRow {
+  variants?: Product['variants'];
   id: string;
   code: string;
   name: string;
@@ -78,6 +79,7 @@ function mapRowToProduct(row: ProductRow): Product {
   const priceNum = parseFloat(row.price);
   return {
     id: String(row.id),
+    variants: row.variants,
     code: row.code,
     name: row.name,
     category: row.category || 'all',
@@ -272,7 +274,15 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
 
 export async function findProductById(id: string, executeQuery = queryPostgres): Promise<Product | null> {
   const result = await executeQuery<ProductRow>(`
-    SELECT * FROM (${productReadSql}) products
+    SELECT products.*, COALESCE((
+      SELECT json_agg(json_build_object(
+        'id', v.variant_id::text, 'productId', v.product_id::text,
+        'name', v.variant_name, 'weight', v.weight, 'price', v.price,
+        'status', COALESCE(v.status, FALSE)
+      ) ORDER BY v.variant_id)
+      FROM product_variants v WHERE v.product_id = products.id
+    ), '[]'::json) AS variants
+    FROM (${productReadSql}) products
     WHERE (id::text = $1 OR code = $1) AND status = TRUE
     LIMIT 1
   `, [id]);

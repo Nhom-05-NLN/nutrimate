@@ -20,6 +20,19 @@ test('product detail maps stock directly from the database, including zero stock
   }
 });
 
+test('product detail links variants by product ID and preserves their distinct IDs and prices', async () => {
+  const variants = [
+    { id: '20', productId: '2', name: 'Standard', weight: 200, price: 68000, status: true },
+    { id: '29', productId: '2', name: 'Standard', weight: 200, price: 70000, status: false },
+  ];
+  const executeQuery = (async (sql: string) => {
+    assert.match(sql, /v.product_id = products.id/);
+    assert.match(sql, /ORDER BY v.variant_id/);
+    return { rows: [{ id: 2, price: '68000', rating: '0', variants }] };
+  }) as unknown as typeof queryPostgres;
+  assert.deepEqual((await findProductById('2', executeQuery))?.variants, variants);
+});
+
 test('popular products aggregate delivered quantities and sort before pagination', async () => {
   const queries: string[] = [];
   const executeQuery = (async (sql: string) => {
