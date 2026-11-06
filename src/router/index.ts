@@ -16,8 +16,8 @@ import { useAuthStore } from '../stores/authStore';
 // Admin Views
 import AdminDashboardView from '../views/admin/AdminDashboardView.vue';
 import AdminProductsView from '../views/admin/AdminProductsView.vue';
-// import AdminCategoriesView from '../views/admin/AdminCategoriesView.vue';
-// import AdminInventoryView from '../views/admin/AdminInventoryView.vue';
+import AdminCategoriesView from '../views/admin/AdminCategoriesView.vue';
+import AdminInventoryView from '../views/admin/AdminInventoryView.vue';
 import AdminOrdersView from '../views/admin/AdminOrdersView.vue';
 import AdminCustomersView from '../views/admin/AdminCustomersView.vue';
 import AdminKnowledgeBaseView from '../views/admin/AdminKnowledgeBaseView.vue';
@@ -103,18 +103,18 @@ const routes: RouteRecordRaw[] = [
     component: AdminProductsView,
     meta: { layout: 'admin' },
   },
-  // {
-  //   path: '/admin/categories',
-  //   name: 'admin-categories',
-  //   component: AdminCategoriesView,
-  //   meta: { layout: 'admin' },
-  // },
-  // {
-  //   path: '/admin/inventory',
-  //   name: 'admin-inventory',
-  //   component: AdminInventoryView,
-  //   meta: { layout: 'admin' },
-  // },
+  {
+    path: '/admin/categories',
+    name: 'admin-categories',
+    component: AdminCategoriesView,
+    meta: { layout: 'admin' },
+  },
+  {
+    path: '/admin/inventory',
+    name: 'admin-inventory',
+    component: AdminInventoryView,
+    meta: { layout: 'admin' },
+  },
   {
     path: '/admin/orders',
     name: 'admin-orders',

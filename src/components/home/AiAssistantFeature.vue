@@ -37,6 +37,7 @@ function handleAddAiCombo() {
       rating: 5.0,
       reviewCount: 42,
       badges: ['AI Recommended', '140 kcal'],
+      isAiRecommended: true,
       bestFor: 'Ăn xế văn phòng',
     },
     1,

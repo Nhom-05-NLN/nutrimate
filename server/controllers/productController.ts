@@ -1,11 +1,23 @@
 import { Request, Response } from 'express';
 import * as productService from '../services/productService.js';
+import { getTotalSoldProducts } from '../repositories/productRepository.js';
 import { ApiResponse, Product, ProductFilterQuery, PaginatedProductResponse } from '../types/index.js';
+
+export async function getSalesSummary(_req: Request, res: Response): Promise<void> {
+  try {
+    res.json({ success: true, data: { totalSold: await getTotalSoldProducts() } });
+  } catch {
+    res.status(503).json({ success: false, message: 'Không thể tải lượt bán từ cơ sở dữ liệu.' });
+  }
+}
 
 export async function getProducts(req: Request, res: Response<PaginatedProductResponse | ApiResponse<Product[]>>): Promise<void> {
   try {
     const { category, diet, search, maxCalories, minProtein, page, limit, sort } = req.query;
     const filter: ProductFilterQuery = {
+      categories: typeof req.query.categories === 'string'
+        ? [...new Set(req.query.categories.split(',').map(value => value.trim()).filter(value => value && value !== 'all'))]
+        : undefined,
       category: typeof category === 'string' ? category : undefined,
       diet: typeof diet === 'string' ? diet : undefined,
       search: typeof search === 'string' ? search : undefined,

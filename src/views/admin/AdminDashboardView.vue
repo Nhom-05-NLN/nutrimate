@@ -20,14 +20,24 @@ const categoryColors = ['#4D6A34', '#7F9C5B', '#A8C28E', '#D4E2C4'];
 const weeklyRevenueMax = computed(() =>
   Math.max(1, ...(dashboard.value?.weeklySales.map((day) => day.revenue) ?? [])),
 );
-const weeklyOrdersMax = computed(() =>
-  Math.max(1, ...(dashboard.value?.weeklySales.map((day) => day.orders) ?? [])),
-);
 const peakSalesDay = computed(() =>
   dashboard.value?.weeklySales.reduce(
     (peak, day) => (day.revenue > peak.revenue ? day : peak),
-    { date: '', revenue: 0, orders: 0 },
+    { date: '', revenue: 0, productRevenue: 0, aiRecommendedRevenue: 0, orders: 0 },
   ),
+);
+const averageOtherDayRevenue = computed(() => {
+  const days = dashboard.value?.weeklySales.filter((day) => day.date !== peakSalesDay.value?.date) ?? [];
+  return days.length ? days.reduce((total, day) => total + day.revenue, 0) / days.length : 0;
+});
+const peakRevenueChange = computed(() => {
+  const average = averageOtherDayRevenue.value;
+  return average > 0 && peakSalesDay.value
+    ? ((peakSalesDay.value.revenue - average) / average) * 100
+    : null;
+});
+const weeklyOrderCount = computed(() =>
+  dashboard.value?.weeklySales.reduce((total, day) => total + day.orders, 0) ?? 0,
 );
 const currentMonthLabel = new Intl.DateTimeFormat('vi-VN', {
   month: 'long',
@@ -58,9 +68,20 @@ function formatVnd(amount: number): string {
 
 function formatWeekday(dateValue: string): string {
   const [year, month, day] = dateValue.split('-').map(Number);
-  return new Intl.DateTimeFormat('vi-VN', { weekday: 'short' }).format(
+  return new Intl.DateTimeFormat('vi-VN', { weekday: 'long' }).format(
     new Date(year, month - 1, day),
   );
+}
+
+function formatDayOfMonth(dateValue: string): number {
+  return Number(dateValue.slice(-2));
+}
+
+function formatCompactVnd(amount: number): string {
+  if (amount >= 1_000_000) {
+    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(amount / 1_000_000)} tr`;
+  }
+  return `${formatNumber(amount / 1_000)}k`;
 }
 
 function formatPaymentMethod(method: string): string {
@@ -184,35 +205,41 @@ onMounted(() => {
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#F0F3EC] pb-4">
           <div>
             <h3 class="font-heading text-sm font-bold text-[#2D3B1E]">
-              Biến động doanh thu & Số lượng đơn hàng (Tuần qua)
+              Biến động doanh thu theo ngày (Tuần qua)
             </h3>
-            <p class="text-xs text-[#7A866E]">Doanh thu đơn đã giao và số đơn không bị hủy theo ngày</p>
+            <p class="text-xs text-[#7A866E]">Theo dõi doanh thu thực phẩm tự chọn và sản phẩm được AI gợi ý</p>
           </div>
-          <div class="flex items-center gap-3 text-xs text-[#7A866E]">
-            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#4D6A34]"></span> Doanh thu</span>
-            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#A3B88C]"></span> Số đơn</span>
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] text-[#7A866E]">
+            <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full bg-[#4D6A34]"></span> Thực phẩm tự chọn</span>
+            <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full bg-[#A3B88C]"></span> Sản phẩm được AI gợi ý</span>
           </div>
         </div>
 
-        <div class="h-56 flex items-end justify-between gap-3 pt-6 px-4">
-          <div v-for="day in dashboard?.weeklySales ?? []" :key="day.date" class="flex-1 flex flex-col items-center gap-2">
-            <span v-if="peakSalesDay?.date === day.date && day.revenue > 0" class="px-2 py-0.5 rounded-md bg-[#2D3B1E] text-white text-[9px] font-bold">
-              Đỉnh
+        <div class="flex h-52 items-end justify-between gap-2 px-2 pt-5 sm:gap-3 sm:px-4">
+          <div v-for="day in dashboard?.weeklySales ?? []" :key="day.date" class="group relative flex h-full flex-1 flex-col items-center justify-end gap-2">
+            <div class="pointer-events-none absolute bottom-12 z-10 hidden min-w-max -translate-y-2 rounded-lg bg-[#26351D] px-3 py-2 text-[10px] text-white shadow-lg group-hover:block">
+              <p class="font-bold">{{ formatWeekday(day.date) }} · {{ formatVnd(day.revenue) }}</p>
+              <p class="mt-1 text-white/75">Thực phẩm: {{ formatVnd(day.productRevenue) }}</p>
+              <p class="text-white/75">Sản phẩm AI gợi ý: {{ formatVnd(day.aiRecommendedRevenue) }}</p>
+            </div>
+            <span
+              v-if="peakSalesDay?.date === day.date && day.revenue > 0"
+              class="absolute bottom-[calc(100%-2.5rem)] z-[1] rounded-md bg-[#26351D] px-2 py-1 text-[9px] font-bold text-white"
+            >
+              Đỉnh: {{ formatCompactVnd(day.revenue) }}
             </span>
-            <div class="w-full max-w-[48px] h-40 bg-[#F0F4EA] rounded-xl overflow-hidden flex items-end justify-center gap-1 px-1">
+            <div class="flex h-36 w-full max-w-[42px] flex-col-reverse overflow-hidden rounded-lg bg-[#F0F4EA] shadow-inner">
               <div
-                class="w-1/2 bg-[#4D6A34] rounded-t-sm"
-                :style="{ height: `${(day.revenue / weeklyRevenueMax) * 100}%` }"
-                :title="`Doanh thu: ${formatVnd(day.revenue)}`"
+                class="w-full shrink-0 bg-[#4D6A34]"
+                :style="{ height: `${(day.productRevenue / weeklyRevenueMax) * 100}%` }"
               ></div>
               <div
-                class="w-1/2 bg-[#A3B88C] rounded-t-sm"
-                :style="{ height: `${(day.orders / weeklyOrdersMax) * 100}%` }"
-                :title="`${formatNumber(day.orders)} đơn`"
+                class="w-full shrink-0 bg-[#A3B88C]"
+                :style="{ height: `${(day.aiRecommendedRevenue / weeklyRevenueMax) * 100}%` }"
               ></div>
             </div>
-            <span class="text-[11px] font-semibold text-[#7A866E]">
-              {{ formatWeekday(day.date) }}
+            <span class="whitespace-nowrap text-[10px] font-semibold capitalize text-[#7A866E] sm:text-[11px]">
+              {{ formatWeekday(day.date) }} {{ formatDayOfMonth(day.date) }}
             </span>
           </div>
           <p v-if="!isLoading && dashboard && !dashboard.weeklySales.length" class="w-full self-center text-center text-xs text-[#7A866E]">
@@ -220,12 +247,19 @@ onMounted(() => {
           </p>
         </div>
 
-        <div class="pt-3 border-t border-[#F0F3EC] flex items-center justify-between text-xs text-[#7A866E]">
-          <span class="flex items-center gap-1.5 text-[#2D3B1E]">
-            <CheckCircle2 class="w-4 h-4 text-[#4D6A34]" />
-            Ngày doanh thu cao nhất: <strong>{{ peakSalesDay?.date ? `${formatWeekday(peakSalesDay.date)} · ${formatVnd(peakSalesDay.revenue)}` : 'Chưa có dữ liệu' }}</strong>
+        <div class="flex flex-col gap-3 border-t border-[#F0F3EC] pt-3 text-xs text-[#7A866E] sm:flex-row sm:items-center sm:justify-between">
+          <span class="flex items-start gap-1.5 text-[#2D3B1E]">
+            <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0 text-[#4D6A34]" />
+            <span v-if="peakSalesDay?.date">
+              Doanh số đỉnh {{ formatWeekday(peakSalesDay.date) }}: <strong>{{ formatVnd(peakSalesDay.revenue) }}</strong>
+              <span v-if="peakRevenueChange !== null" class="text-[#7A866E]">
+                (tăng {{ peakRevenueChange.toFixed(0) }}% so với trung bình các ngày còn lại)
+              </span>
+              <span class="ml-1 text-[#7A866E]">· {{ formatNumber(weeklyOrderCount) }} đơn trong tuần</span>
+            </span>
+            <span v-else>Chưa có doanh thu đơn đã giao trong tuần.</span>
           </span>
-          <RouterLink to="/admin/orders" class="text-[#4D6A34] font-bold hover:underline">Xem đơn hàng &gt;</RouterLink>
+          <RouterLink to="/admin/orders" class="shrink-0 font-bold text-[#4D6A34] hover:underline">Xem lịch sử tuần &gt;</RouterLink>
         </div>
       </div>
 

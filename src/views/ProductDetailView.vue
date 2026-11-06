@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useProductStore, FIGMA_SEED_PRODUCTS } from '../stores/productStore';
 import { useCartStore } from '../stores/cartStore';
 import { useToastStore } from '../stores/toastStore';
+import { useAdminStore } from '../stores/adminStore';
 import { fetchProductById } from '../services/api';
 import { Product, ProductPortionOption } from '../types';
 import ProductReviewModal from '../components/catalog/ProductReviewModal.vue';
@@ -28,8 +29,19 @@ const router = useRouter();
 const productStore = useProductStore();
 const cartStore = useCartStore();
 const toastStore = useToastStore();
+const adminStore = useAdminStore();
 
-const product = ref<Product | null>(null);
+const loadedProduct = ref<Product | null>(null);
+const product = computed<Product | null>(() => {
+  const detail = loadedProduct.value;
+  if (!detail) return null;
+  const inventoryProduct = adminStore.products.find(
+    (item) => item.id === detail.id || item.sku === detail.code
+  );
+  return inventoryProduct
+    ? { ...detail, stock: inventoryProduct.stock ?? detail.stock }
+    : detail;
+});
 const isLoading = ref<boolean>(true);
 const errorMessage = ref<string | null>(null);
 
@@ -201,14 +213,14 @@ async function loadProductDetail(productId: string) {
 
   try {
     const data = await fetchProductById(productId);
-    product.value = data;
+    loadedProduct.value = data;
   } catch {
     const found =
       productStore.products.find((p) => p.id === productId) ||
       FIGMA_SEED_PRODUCTS.find((p) => p.id === productId);
 
     if (found) {
-      product.value = found;
+      loadedProduct.value = found;
     } else {
       errorMessage.value = 'Không tìm thấy thông tin sản phẩm yêu cầu.';
     }
@@ -226,7 +238,11 @@ function handleAddToCart() {
     ...product.value,
     price: currentPrice.value,
   };
-  cartStore.addItem(productToAdd, quantity.value, selectedPortion.value);
+  cartStore.addItem(
+    route.query.source === 'ai' ? { ...productToAdd, isAiRecommended: true } : productToAdd,
+    quantity.value,
+    selectedPortion.value,
+  );
   toastStore.show('Đã thêm vào giỏ hàng', 'success', `${product.value.name} (${selectedPortion.value})`);
 }
 
@@ -257,8 +273,10 @@ function handleReviewSubmit(payload: { author: string; rating: number; content: 
     // Tính lại điểm trung bình có trọng số từ đánh giá mới
     const newRating = Number(((prevRating * prevCount + payload.rating) / newCount).toFixed(1));
 
-    product.value.reviewCount = newCount;
-    product.value.rating = newRating;
+    if (loadedProduct.value) {
+      loadedProduct.value.reviewCount = newCount;
+      loadedProduct.value.rating = newRating;
+    }
   }
 
   toastStore.show('Cảm ơn bạn đã gửi đánh giá!', 'success');

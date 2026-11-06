@@ -96,6 +96,10 @@ function goToDetail() {
       </div>
 
       <!-- Price & Add to Cart -->
+      <p class="text-[11px] text-[#7A866E]">
+        Đã bán {{ (product.soldCount ?? 0).toLocaleString('vi-VN') }}
+      </p>
+
       <div class="pt-2.5 flex items-center justify-between border-t border-[#F0F3EC]">
         <div>
           <span class="font-heading text-base sm:text-lg font-black text-[#242424]">

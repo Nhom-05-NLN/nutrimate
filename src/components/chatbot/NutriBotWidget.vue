@@ -115,7 +115,7 @@ function formatVnd(amount: number): string {
 }
 
 function handleAddToCartFromChat(product: Product) {
-  cartStore.addItem(product, 1);
+  cartStore.addItem({ ...product, isAiRecommended: true }, 1);
 }
 
 function hasNutritionFacts(product: ChatSuggestedProduct): product is Product {
@@ -123,7 +123,10 @@ function hasNutritionFacts(product: ChatSuggestedProduct): product is Product {
 }
 
 function openSuggestedProduct(product: ChatSuggestedProduct) {
-  void router.push(`/product/${encodeURIComponent(product.id)}`);
+  void router.push({
+    path: `/product/${encodeURIComponent(product.id)}`,
+    query: { source: 'ai' },
+  });
 }
 </script>
 

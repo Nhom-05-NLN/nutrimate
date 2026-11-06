@@ -48,6 +48,7 @@ export interface Product {
   soldCount?: number;
   badges: string[];
   isFeatured?: boolean;
+  isAiRecommended?: boolean;
   bestFor: string;
   traceability?: string;
 }
@@ -62,6 +63,31 @@ export interface Category {
   dietType: DietCategory;
   icon?: string;
   count?: number;
+}
+
+export interface AdminProductItem {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  price: number;
+  originalPrice?: number;
+  calo: number;
+  protein: number;
+  sugar: number;
+  carbs?: number;
+  fat?: number;
+  status: 'Đang bán' | 'Tạm ngừng';
+  image: string;
+  description?: string;
+  ingredients?: string[];
+  badges?: string[];
+  servingSize?: string;
+  stock?: number;
+  rating?: number;
+  reviewCount?: number;
+  soldCount?: number;
+  unit?: string;
 }
 
 export interface CartItem {
@@ -82,6 +108,7 @@ export interface OrderItem {
   quantity: number;
   calories: number;
   protein: number;
+  isAiRecommended?: boolean;
   portion?: string;
 }
 
@@ -144,6 +171,8 @@ export interface AdminDashboardData {
   weeklySales: {
     date: string;
     revenue: number;
+    productRevenue: number;
+    aiRecommendedRevenue: number;
     orders: number;
   }[];
   categories: {
@@ -171,6 +200,7 @@ export interface AdminDashboardData {
 }
 
 export interface ProductFilterQuery {
+  categories?: string[];
   category?: string;
   diet?: string;
   search?: string;
@@ -472,7 +502,7 @@ export interface AdminDashboardOverview {
   weeklyRevenueData: {
     day: string;
     regularRevenue: number;
-    aiComboRevenue: number;
+    aiRecommendedRevenue: number;
     isPeak?: boolean;
   }[];
   categoryShares: {
