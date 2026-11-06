@@ -4,8 +4,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { useProductStore, FIGMA_SEED_PRODUCTS } from '../stores/productStore';
 import { useCartStore } from '../stores/cartStore';
 import { useToastStore } from '../stores/toastStore';
-import { useAdminStore } from '../stores/adminStore';
-import { fetchProductById } from '../services/api';
+import { fetchProductById, fetchProductReviews, postProductReview, type ProductReview } from '../services/api';
+import { useAuthStore } from '../stores/authStore';
 import { Product, ProductPortionOption } from '../types';
 import ProductReviewModal from '../components/catalog/ProductReviewModal.vue';
 import {
@@ -20,7 +20,6 @@ import {
   Check,
   ArrowLeft,
   AlertCircle,
-  ThumbsUp,
   MessageSquare,
 } from 'lucide-vue-next';
 
@@ -29,23 +28,28 @@ const router = useRouter();
 const productStore = useProductStore();
 const cartStore = useCartStore();
 const toastStore = useToastStore();
-const adminStore = useAdminStore();
+const authStore = useAuthStore();
 
 const loadedProduct = ref<Product | null>(null);
-const product = computed<Product | null>(() => {
-  const detail = loadedProduct.value;
-  if (!detail) return null;
-  const inventoryProduct = adminStore.products.find(
-    (item) => item.id === detail.id || item.sku === detail.code
-  );
-  return inventoryProduct
-    ? { ...detail, stock: inventoryProduct.stock ?? detail.stock }
-    : detail;
-});
+const product = computed(() => loadedProduct.value);
 const isLoading = ref<boolean>(true);
 const errorMessage = ref<string | null>(null);
 
-const quantity = ref(1);
+const quantity = ref<number | string>(1);
+const availableStock = computed(() => Math.max(0, product.value?.stock ?? 0));
+
+function normalizeQuantity() {
+  const value = Number(quantity.value);
+  quantity.value = Math.min(
+    Math.max(1, Math.floor(Number.isFinite(value) ? value : 1)),
+    Math.max(1, availableStock.value)
+  );
+}
+
+function changeQuantity(amount: number) {
+  normalizeQuantity();
+  quantity.value = Math.min(Math.max(1, Number(quantity.value) + amount), Math.max(1, availableStock.value));
+}
 const selectedPortion = ref<string>('');
 const activeTab = ref<'desc' | 'traceability' | 'reviews'>('desc');
 const activeImageIndex = ref(0);
@@ -53,46 +57,34 @@ const activeImageIndex = ref(0);
 // Trạng thái modal đánh giá
 const showReviewModal = ref(false);
 
-// Danh sách đánh giá mẫu phong phú cho sản phẩm
-interface ReviewItem {
-  id: string;
-  author: string;
-  rating: number;
-  date: string;
-  content: string;
-  verified: boolean;
-  likes: number;
+const reviewsList = ref<ProductReview[]>([]);
+const reviewsLoading = ref(false);
+const reviewsError = ref('');
+const reviewSubmitting = ref(false);
+
+async function loadReviews(productId: string) {
+  reviewsLoading.value = true;
+  reviewsError.value = '';
+  reviewsList.value = [];
+  try {
+    const reviews = await fetchProductReviews(productId);
+    if (String(route.params.id) === productId) reviewsList.value = reviews;
+  } catch (error) {
+    if (String(route.params.id) === productId) {
+      reviewsError.value = error instanceof Error ? error.message : 'Không thể tải đánh giá.';
+    }
+  } finally {
+    if (String(route.params.id) === productId) reviewsLoading.value = false;
+  }
 }
 
-const reviewsList = ref<ReviewItem[]>([
-  {
-    id: 'rev-1',
-    author: 'Trần Tường Vy',
-    rating: 5,
-    date: '2 ngày trước',
-    content: 'Hạt rất giòn và thơm tự nhiên, vị ngọt thanh vừa phải không gắt đường. Mình thường ăn chung với sữa chua Hy Lạp buổi sáng cực kỳ tiện lợi và no lâu!',
-    verified: true,
-    likes: 12,
-  },
-  {
-    id: 'rev-2',
-    author: 'Lê Hoàng Nam (Gym Coach)',
-    rating: 5,
-    date: '1 tuần trước',
-    content: 'Chỉ số Macro in rất rõ ràng, hàm lượng protein cao đúng như cam kết. Ăn trước tập 30 phút cung cấp năng lượng tốt, không bị nặng bụng.',
-    verified: true,
-    likes: 8,
-  },
-  {
-    id: 'rev-3',
-    author: 'Nguyễn Bích Ngọc',
-    rating: 4,
-    date: '2 tuần trước',
-    content: 'Đóng gói chắc chắn, giao hàng hỏa tốc trong 2h rất ưng. Hũ 500g ăn được gần 2 tuần, sẽ ủng hộ dài dài.',
-    verified: true,
-    likes: 5,
-  },
-]);
+function openReviewModal() {
+  if (!authStore.currentUser) {
+    toastStore.show('Vui lòng đăng nhập để viết đánh giá.', 'info');
+    return;
+  }
+  showReviewModal.value = true;
+}
 
 // Danh sách hình ảnh động
 const gallery = computed<string[]>(() => {
@@ -149,24 +141,15 @@ const relatedProducts = computed<Product[]>(() => {
 });
 
 // Điểm đánh giá hiển thị (được cập nhật động theo sản phẩm hoặc danh sách review)
-const displayRating = computed(() => {
-  if (product.value?.rating) {
-    return Number(product.value.rating.toFixed(1));
-  }
-  if (reviewsList.value.length > 0) {
-    const sum = reviewsList.value.reduce((acc, r) => acc + r.rating, 0);
-    return Number((sum / reviewsList.value.length).toFixed(1));
-  }
-  return 5.0;
-});
+const displayRating = computed(() => Number((product.value?.rating ?? 0).toFixed(1)));
 
-// Số lượt đánh giá hiển thị
-const displayReviewCount = computed(() => {
-  if (product.value?.reviewCount !== undefined && product.value.reviewCount > 0) {
-    return product.value.reviewCount;
-  }
-  return reviewsList.value.length;
-});
+const displayReviewCount = computed(() => product.value?.reviewCount ?? 0);
+
+function formatNutritionGrams(value: number | undefined, isMilligrams = false): string {
+  if (value === undefined || value === null || !Number.isFinite(value)) return '-';
+  const grams = isMilligrams ? value / 1000 : value;
+  return grams.toLocaleString('vi-VN', { maximumFractionDigits: 3 }) + ' g';
+}
 
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -209,21 +192,14 @@ async function loadProductDetail(productId: string) {
   isLoading.value = true;
   errorMessage.value = null;
   activeImageIndex.value = 0;
+  loadedProduct.value = null;
   quantity.value = 1;
 
   try {
     const data = await fetchProductById(productId);
     loadedProduct.value = data;
-  } catch {
-    const found =
-      productStore.products.find((p) => p.id === productId) ||
-      FIGMA_SEED_PRODUCTS.find((p) => p.id === productId);
-
-    if (found) {
-      loadedProduct.value = found;
-    } else {
-      errorMessage.value = 'Không tìm thấy thông tin sản phẩm yêu cầu.';
-    }
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Không thể tải sản phẩm từ cơ sở dữ liệu.';
   } finally {
     if (product.value) {
       selectedPortion.value = portions.value[0]?.label || 'Tiêu chuẩn';
@@ -233,21 +209,22 @@ async function loadProductDetail(productId: string) {
 }
 
 function handleAddToCart() {
-  if (!product.value) return;
+  if (!product.value || availableStock.value <= 0) return false;
+  normalizeQuantity();
   const productToAdd: Product = {
     ...product.value,
     price: currentPrice.value,
   };
   cartStore.addItem(
     route.query.source === 'ai' ? { ...productToAdd, isAiRecommended: true } : productToAdd,
-    quantity.value,
+    Number(quantity.value),
     selectedPortion.value,
   );
   toastStore.show('Đã thêm vào giỏ hàng', 'success', `${product.value.name} (${selectedPortion.value})`);
 }
 
 function handleBuyNow() {
-  handleAddToCart();
+  if (handleAddToCart() === false) return;
   router.push('/cart');
 }
 
@@ -255,31 +232,24 @@ function goToProduct(targetId: string) {
   router.push(`/product/${targetId}`);
 }
 
-function handleReviewSubmit(payload: { author: string; rating: number; content: string }) {
-  reviewsList.value.unshift({
-    id: `rev-${Date.now()}`,
-    author: payload.author,
-    rating: payload.rating,
-    date: 'Vừa xong',
-    content: payload.content,
-    verified: true,
-    likes: 0,
-  });
-
-  if (product.value) {
-    const prevCount = product.value.reviewCount || (reviewsList.value.length - 1);
-    const prevRating = product.value.rating || 5.0;
-    const newCount = prevCount + 1;
-    // Tính lại điểm trung bình có trọng số từ đánh giá mới
-    const newRating = Number(((prevRating * prevCount + payload.rating) / newCount).toFixed(1));
-
-    if (loadedProduct.value) {
-      loadedProduct.value.reviewCount = newCount;
-      loadedProduct.value.rating = newRating;
+async function handleReviewSubmit(payload: { rating: number; content: string }) {
+  if (!product.value || reviewSubmitting.value) return;
+  const productId = String(route.params.id);
+  reviewSubmitting.value = true;
+  try {
+    await postProductReview(productId, payload);
+    showReviewModal.value = false;
+    if (String(route.params.id) === productId) {
+      await Promise.all([loadReviews(productId), fetchProductById(productId).then(detail => {
+        if (String(route.params.id) === productId) loadedProduct.value = detail;
+      })]);
     }
+    toastStore.show('Đã lưu đánh giá của bạn!', 'success');
+  } catch (error) {
+    toastStore.show(error instanceof Error ? error.message : 'Không thể gửi đánh giá.', 'error');
+  } finally {
+    reviewSubmitting.value = false;
   }
-
-  toastStore.show('Cảm ơn bạn đã gửi đánh giá!', 'success');
 }
 
 onMounted(() => {
@@ -288,13 +258,16 @@ onMounted(() => {
   }
   const id = String(route.params.id || 'prod-granola');
   loadProductDetail(id);
+  loadReviews(id);
 });
 
 watch(
   () => route.params.id,
   (newId) => {
     if (newId) {
+      showReviewModal.value = false;
       loadProductDetail(String(newId));
+      loadReviews(String(newId));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }
@@ -303,6 +276,13 @@ watch(
 
 <template>
   <div class="max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-10">
+    <nav aria-label="Breadcrumb" class="text-xs text-[#7A866E]">
+      <ol class="flex flex-wrap items-center gap-2">
+        <li><RouterLink to="/catalog" class="hover:text-[#4D6A34]">Sản phẩm</RouterLink></li>
+        <li aria-hidden="true"><ChevronRight class="h-3.5 w-3.5" /></li>
+        <li aria-current="page" class="font-semibold text-[#2D3B1E]">{{ product?.name || 'Chi tiết sản phẩm' }}</li>
+      </ol>
+    </nav>
     <!-- TRẠNG THÁI 1: LOADING SKELETON -->
     <div v-if="isLoading" class="animate-pulse space-y-12">
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14">
@@ -526,15 +506,31 @@ watch(
             <div class="flex items-center border border-[#CCD7BC] rounded-2xl bg-white p-1 shadow-2xs">
               <button
                 type="button"
-                @click="quantity = Math.max(1, quantity - 1)"
+                @click="changeQuantity(-1)"
+                :disabled="availableStock <= 0 || Number(quantity) <= 1"
+                aria-label="Giảm số lượng"
                 class="w-9 h-9 rounded-xl flex items-center justify-center text-[#576449] hover:bg-[#FAF9F5] transition-colors cursor-pointer"
               >
                 <Minus class="w-4 h-4 stroke-[2.5]" />
               </button>
-              <span class="w-12 text-center font-black text-base text-[#242424]">{{ quantity }}</span>
+              <input
+                v-model="quantity"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                :max="Math.max(1, availableStock)"
+                step="1"
+                :disabled="availableStock <= 0"
+                aria-label="Số lượng sản phẩm"
+                class="w-16 appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none bg-transparent text-center font-black text-base text-[#242424] outline-none disabled:opacity-50"
+                @change="normalizeQuantity"
+                @blur="normalizeQuantity"
+              />
               <button
                 type="button"
-                @click="quantity++"
+                @click="changeQuantity(1)"
+                :disabled="availableStock <= 0 || Number(quantity) >= availableStock"
+                aria-label="Tăng số lượng"
                 class="w-9 h-9 rounded-xl flex items-center justify-center text-[#576449] hover:bg-[#FAF9F5] transition-colors cursor-pointer"
               >
                 <Plus class="w-4 h-4 stroke-[2.5]" />
@@ -700,7 +696,7 @@ watch(
 
                 <button
                   type="button"
-                  @click="showReviewModal = true"
+                  @click="openReviewModal"
                   class="px-5 py-3 rounded-xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
                 >
                   <MessageSquare class="w-4 h-4" />
@@ -708,6 +704,9 @@ watch(
                 </button>
               </div>
 
+              <p v-if="reviewsLoading" class="py-6 text-center text-sm text-[#7A866E]">Đang tải đánh giá...</p>
+              <p v-else-if="reviewsError" role="alert" class="py-6 text-center text-sm text-rose-600">{{ reviewsError }}</p>
+              <p v-else-if="!reviewsList.length" class="py-6 text-center text-sm text-[#7A866E]">Chưa có đánh giá nào</p>
               <!-- Danh sách nhận xét -->
               <div class="space-y-3.5">
                 <div
@@ -724,7 +723,7 @@ watch(
                         <div class="flex items-center gap-2">
                           <span class="font-bold text-sm text-[#242424]">{{ rev.author }}</span>
                         </div>
-                        <span class="text-[11px] text-[#7A866E]">{{ rev.date }}</span>
+                        <span class="text-[11px] text-[#7A866E]">{{ new Date(rev.createdAt).toLocaleDateString('vi-VN') }}</span>
                       </div>
                     </div>
 
@@ -742,10 +741,6 @@ watch(
                     "{{ rev.content }}"
                   </p>
 
-                  <div class="flex items-center gap-1 text-[11px] text-[#7A866E] pt-1">
-                    <ThumbsUp class="w-3.5 h-3.5" />
-                    <span>Hữu ích ({{ rev.likes }})</span>
-                  </div>
                 </div>
               </div>
             </div>
@@ -765,11 +760,6 @@ watch(
               <span class="font-normal text-[#242424]">{{ product.nutrition?.servingSize || '100g' }}</span>
             </div>
 
-            <div class="flex justify-between text-sm py-1 border-b-4 border-[#242424]">
-              <span class="text-[#7A866E]">Khẩu phần mỗi hộp</span>
-              <span class="text-[#7A866E]">~{{ product.nutrition?.servingsPerContainer || 5 }} lần dùng</span>
-            </div>
-
             <!-- Calo lớn -->
             <div class="flex items-center justify-between py-3 border-b-2 border-[#242424]">
               <div>
@@ -781,53 +771,44 @@ watch(
               </span>
             </div>
 
-            <div class="text-xs text-right text-[#7A866E] font-bold">
-              % GIÁ TRỊ HÀNG NGÀY (DV)*
-            </div>
-
-            <!-- Bảng thông số động -->
             <div class="space-y-2 text-sm text-[#242424]">
-              <div class="flex justify-between py-1 border-b border-[#F0F3EC]">
-                <span><strong>Tổng chất béo (Total Fat)</strong> {{ product.nutrition?.fat || 0 }}g</span>
-                <span class="font-bold">{{ Math.round(((product.nutrition?.fat || 0) / 78) * 100) }}%</span>
+              <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
+                <span class="font-bold">Tổng chất béo (Total Fat)</span>
+                <span class="shrink-0 font-bold">{{ formatNutritionGrams(product.nutrition?.fat) }}</span>
               </div>
-              <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
-                <span>Chất béo bão hòa {{ product.nutrition?.saturatedFat ?? Math.round((product.nutrition?.fat || 0) * 0.15 * 10) / 10 }}g</span>
-                <span>{{ Math.round((((product.nutrition?.saturatedFat || 1) / 20) * 100)) }}%</span>
+              <div class="flex justify-between gap-4 pl-4 text-[#7A866E] text-xs">
+                <span>Chất béo bão hòa</span>
+                <span class="shrink-0">{{ formatNutritionGrams(product.nutrition?.saturatedFat) }}</span>
               </div>
-              <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
-                <span>Chất béo chuyển hóa {{ product.nutrition?.transFat || 0 }}g</span>
-                <span>0%</span>
+              <div class="flex justify-between gap-4 pl-4 text-[#7A866E] text-xs">
+                <span>Chất béo chuyển hóa</span>
+                <span class="shrink-0">{{ formatNutritionGrams(product.nutrition?.transFat) }}</span>
               </div>
-              <div class="flex justify-between py-1 border-b border-[#F0F3EC]">
-                <span><strong>Cholesterol</strong> {{ product.nutrition?.cholesterol || 0 }}mg</span>
-                <span class="font-bold">0%</span>
+              <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
+                <span class="font-bold">Cholesterol</span>
+                <span class="shrink-0 font-bold">{{ formatNutritionGrams(product.nutrition?.cholesterol, true) }}</span>
               </div>
-              <div class="flex justify-between py-1 border-b border-[#F0F3EC]">
-                <span><strong>Natri (Sodium)</strong> {{ product.nutrition?.sodium || 25 }}mg</span>
-                <span class="font-bold">1%</span>
+              <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
+                <span class="font-bold">Natri (Sodium)</span>
+                <span class="shrink-0 font-bold">{{ formatNutritionGrams(product.nutrition?.sodium, true) }}</span>
               </div>
-              <div class="flex justify-between py-1 border-b border-[#F0F3EC]">
-                <span><strong>Tổng Carbohydrate</strong> {{ product.nutrition?.carbs || 0 }}g</span>
-                <span class="font-bold">{{ Math.round(((product.nutrition?.carbs || 0) / 275) * 100) }}%</span>
+              <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
+                <span class="font-bold">Tổng Carbohydrate</span>
+                <span class="shrink-0 font-bold">{{ formatNutritionGrams(product.nutrition?.carbs) }}</span>
               </div>
-              <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
-                <span>Chất xơ tiêu hóa {{ product.nutrition?.fiber || 3 }}g</span>
-                <span>{{ Math.round((((product.nutrition?.fiber || 3) / 28) * 100)) }}%</span>
+              <div class="flex justify-between gap-4 pl-4 text-[#7A866E] text-xs">
+                <span>Chất xơ tiêu hóa</span>
+                <span class="shrink-0">{{ formatNutritionGrams(product.nutrition?.fiber) }}</span>
               </div>
-              <div class="flex justify-between pl-4 text-[#7A866E] text-xs">
-                <span>Đường tổng {{ product.nutrition?.sugar || 0 }}g</span>
-                <span>-</span>
+              <div class="flex justify-between gap-4 pl-4 text-[#7A866E] text-xs">
+                <span>Đường tổng</span>
+                <span class="shrink-0">{{ formatNutritionGrams(product.nutrition?.sugar) }}</span>
               </div>
-              <div class="flex justify-between py-1">
-                <span><strong>Chất đạm</strong> {{ product.nutrition?.protein || 0 }}g</span>
-                <span class="font-bold">{{ Math.round(((product.nutrition?.protein || 0) / 50) * 100) }}%</span>
+              <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
+                <span class="font-bold">Chất đạm</span>
+                <span class="shrink-0 font-bold">{{ formatNutritionGrams(product.nutrition?.protein) }}</span>
               </div>
             </div>
-
-            <p class="text-[10px] text-[#8C9484] pt-2 border-t border-[#ECEFE7] leading-relaxed">
-              * Phần trăm Giá trị Hàng ngày (% Daily Value - DV) dựa trên chế độ ăn 2.000 calo tiêu chuẩn mỗi ngày của người trưởng thành.
-            </p>
           </div>
         </div>
       </div>
@@ -922,6 +903,8 @@ watch(
     <!-- MODAL VIẾT ĐÁNH GIÁ -->
     <ProductReviewModal
       v-model="showReviewModal"
+      :submitting="reviewSubmitting"
+      :author-name="authStore.currentUser?.name"
       :product-name="product?.name"
       @submit="handleReviewSubmit"
     />

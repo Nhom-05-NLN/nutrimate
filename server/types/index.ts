@@ -16,7 +16,7 @@ export interface Product {
   id: string;
   code: string;
   name: string;
-  category: DietCategory;
+  category: string;
   categoryName: string;
   price: number;
   basePrice?: number;
