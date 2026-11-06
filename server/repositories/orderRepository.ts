@@ -67,8 +67,12 @@ export async function getAllOrders(): Promise<Order[]> {
       const itemsByOrderId = new Map<string, OrderItem[]>();
       for (const itemRow of itemsResult.rows) {
         const list = itemsByOrderId.get(String(itemRow.order_id)) || [];
+        const rawId = itemRow.product_id;
+        const resolvedId = (rawId !== null && rawId !== undefined && String(rawId) !== 'null')
+          ? String(rawId)
+          : (itemRow.product_name ? `prod-${encodeURIComponent(itemRow.product_name)}` : '');
         list.push({
-          productId: String(itemRow.product_id),
+          productId: resolvedId,
           productName: itemRow.product_name,
           productImage: itemRow.product_image || '',
           price: parseFloat(itemRow.unit_price),
@@ -135,16 +139,22 @@ export async function getOrderById(id: string): Promise<Order | null> {
         WHERE order_id = $1
       `;
       const itemsRes = await queryPostgres<OrderItemRow>(itemsSql, [orderRow.id]);
-      const items: OrderItem[] = itemsRes.rows.map((itemRow) => ({
-        productId: String(itemRow.product_id),
-        productName: itemRow.product_name,
-        productImage: itemRow.product_image || '',
-        price: parseFloat(itemRow.unit_price),
-        quantity: itemRow.quantity,
-        calories: parseFloat(itemRow.calories),
-        protein: parseFloat(itemRow.protein),
-        isAiRecommended: itemRow.is_ai_recommended,
-      }));
+      const items: OrderItem[] = itemsRes.rows.map((itemRow) => {
+        const rawId = itemRow.product_id;
+        const resolvedId = (rawId !== null && rawId !== undefined && String(rawId) !== 'null')
+          ? String(rawId)
+          : (itemRow.product_name ? `prod-${encodeURIComponent(itemRow.product_name)}` : '');
+        return {
+          productId: resolvedId,
+          productName: itemRow.product_name,
+          productImage: itemRow.product_image || '',
+          price: parseFloat(itemRow.unit_price),
+          quantity: itemRow.quantity,
+          calories: parseFloat(itemRow.calories),
+          protein: parseFloat(itemRow.protein),
+          isAiRecommended: itemRow.is_ai_recommended,
+        };
+      });
 
       return {
         id: String(orderRow.id),
@@ -221,13 +231,15 @@ export async function createOrder(order: Order): Promise<Order> {
       for (const item of order.items) {
         const itemSql = `
           INSERT INTO order_items (
-            order_id, product_name, product_image,
+            order_id, product_id, product_name, product_image,
             unit_price, quantity, calories, protein, subtotal, is_ai_recommended
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         `;
         const subtotal = item.price * item.quantity;
+        const parsedProdId = item.productId && !isNaN(Number(item.productId)) ? Number(item.productId) : null;
         await client.query(itemSql, [
           order.id,
+          parsedProdId,
           item.productName,
           item.productImage,
           item.price,

@@ -681,7 +681,6 @@ function handlePaymentModalClose() {
       :open="showVietQrModal"
       :order="createdOrder"
       @close="handlePaymentModalClose"
-      @payment-success="handlePaymentModalClose"
     />
 
     <!-- MoMo Payment Modal Component -->
@@ -689,7 +688,6 @@ function handlePaymentModalClose() {
       :open="showMomoModal"
       :order="createdOrder"
       @close="handlePaymentModalClose"
-      @payment-success="handlePaymentModalClose"
     />
   </div>
 </template>

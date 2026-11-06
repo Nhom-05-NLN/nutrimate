@@ -232,7 +232,7 @@ export const useCartStore = defineStore('cart', () => {
     selectedKeys.value = [];
   }
 
-  function addItem(product: Product, quantity = 1, portion = 'Mặc định') {
+  function addItem(product: Product, quantity = 1, portion = 'Mặc định', silent = false) {
     const normalizedPortion = portion || 'Mặc định';
     const key = getCartItemKey(product.id, normalizedPortion);
 
@@ -256,13 +256,15 @@ export const useCartStore = defineStore('cart', () => {
       selectedKeys.value = [...selectedKeys.value, key];
     }
 
-    toast.show(
-      'Đã thêm vào giỏ hàng thành công!',
-      'success',
-      `${product.name} (${normalizedPortion}) x ${quantity}`,
-      'Xem giỏ hàng',
-      '/cart'
-    );
+    if (!silent) {
+      toast.show(
+        'Đã thêm vào giỏ hàng thành công!',
+        'success',
+        `${product.name} (${normalizedPortion}) x ${quantity}`,
+        'Xem giỏ hàng',
+        '/cart'
+      );
+    }
   }
 
   function removeItem(productId: string, portion?: string) {
