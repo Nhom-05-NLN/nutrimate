@@ -16,6 +16,8 @@ import { useAuthStore } from '../stores/authStore';
 // Admin Views
 import AdminDashboardView from '../views/admin/AdminDashboardView.vue';
 import AdminProductsView from '../views/admin/AdminProductsView.vue';
+import AdminCategoriesView from '../views/admin/AdminCategoriesView.vue';
+import AdminInventoryView from '../views/admin/AdminInventoryView.vue';
 import AdminOrdersView from '../views/admin/AdminOrdersView.vue';
 import AdminCustomersView from '../views/admin/AdminCustomersView.vue';
 import AdminKnowledgeBaseView from '../views/admin/AdminKnowledgeBaseView.vue';
@@ -40,6 +42,7 @@ const routes: RouteRecordRaw[] = [
     path: '/cart',
     name: 'cart',
     component: CartView,
+    meta: { requiresAuth: true },
   },
   {
     path: '/checkout',
@@ -50,22 +53,29 @@ const routes: RouteRecordRaw[] = [
     path: '/orders',
     name: 'orders',
     component: OrdersView,
+    meta: { requiresAuth: true },
   },
   {
     path: '/profile',
     name: 'profile',
     component: ProfileView,
-    meta: { requiresCustomer: true },
+    meta: { requiresAuth: true },
   },
   {
     path: '/nutrition',
     name: 'nutrition',
     component: NutritionDashboardView,
-    meta: { requiresCustomer: true },
+    meta: { requiresAuth: true },
   },
   {
     path: '/login',
     name: 'login',
+    component: LoginView,
+    meta: { layout: 'blank' },
+  },
+  {
+    path: '/admin/login',
+    name: 'admin-login',
     component: LoginView,
     meta: { layout: 'blank' },
   },
@@ -91,6 +101,18 @@ const routes: RouteRecordRaw[] = [
     path: '/admin/products',
     name: 'admin-products',
     component: AdminProductsView,
+    meta: { layout: 'admin' },
+  },
+  {
+    path: '/admin/categories',
+    name: 'admin-categories',
+    component: AdminCategoriesView,
+    meta: { layout: 'admin' },
+  },
+  {
+    path: '/admin/inventory',
+    name: 'admin-inventory',
+    component: AdminInventoryView,
     meta: { layout: 'admin' },
   },
   {
@@ -127,7 +149,11 @@ export const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
-  if (!to.path.startsWith('/admin') && !to.meta.requiresCustomer) {
+  if (to.path === '/admin/login') {
+    return true;
+  }
+
+  if (!to.path.startsWith('/admin') && !to.meta.requiresAuth) {
     return true;
   }
 
@@ -136,17 +162,21 @@ router.beforeEach(async (to) => {
     await authStore.restoreSession();
   } catch (error: unknown) {
     console.error('[Router] Không thể xác minh quyền truy cập quản trị:', error);
-    return { name: 'login' };
+    return to.path.startsWith('/admin')
+      ? { name: 'admin-login' }
+      : { name: 'login', query: { redirect: to.fullPath } };
   }
 
   if (to.path.startsWith('/admin') && authStore.currentUser?.role === 'admin') {
     return true;
   }
 
-  if (to.meta.requiresCustomer && authStore.currentUser?.role === 'customer') return true;
+  if (to.meta.requiresAuth && authStore.currentUser) return true;
 
   if (!authStore.currentUser) {
-    return { name: 'login' };
+    return to.path.startsWith('/admin')
+      ? { name: 'admin-login' }
+      : { name: 'login', query: { redirect: to.fullPath } };
   }
 
   return to.path.startsWith('/admin') ? { name: 'home' } : { name: 'login' };

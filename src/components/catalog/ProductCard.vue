@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Product } from '../../types';
 import { useCartStore } from '../../stores/cartStore';
 import { useToastStore } from '../../stores/toastStore';
-import { ShoppingBag, Heart, Star } from 'lucide-vue-next';
+import { ShoppingBag, Star } from 'lucide-vue-next';
 
 const props = defineProps<{
   product: Product;
@@ -13,7 +13,6 @@ const props = defineProps<{
 const router = useRouter();
 const cartStore = useCartStore();
 const toastStore = useToastStore();
-const isLiked = ref(false);
 
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -21,13 +20,6 @@ function formatVnd(amount: number): string {
 
 // Kiểm tra tình trạng tồn kho
 const isInStock = computed(() => (props.product.stock ?? 0) > 0);
-
-function toggleLike() {
-  isLiked.value = !isLiked.value;
-  if (isLiked.value) {
-    toastStore.show('Đã lưu vào danh sách yêu thích', 'success', props.product.name);
-  }
-}
 
 function handleAddToCart() {
   if (!isInStock.value) return;
@@ -54,40 +46,6 @@ function goToDetail() {
         class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
         :class="{ 'grayscale-25': !isInStock }"
       />
-
-      <!-- <div class="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
-        <span
-          v-if="!isInStock"
-          class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-600 text-white shadow-xs flex items-center gap-1"
-        >
-          <AlertCircle class="w-3 h-3" />
-          Hết hàng
-        </span>
-        <span
-          v-else-if="isLowStock"
-          class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-white shadow-xs"
-        >
-          Chỉ còn {{ product.stock }}
-        </span>
-        <span
-          v-for="badge in product?.badges.slice(0, 2)"
-          :key="badge"
-          class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#FAF9F5]/95 backdrop-blur-xs text-[#242424] border border-[#CCD7BC] shadow-2xs"
-        >
-          {{ badge }}
-        </span>
-      </div> -->
-
-      <!-- Favorite Button -->
-      <button
-        type="button"
-        @click.stop="toggleLike"
-        class="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/95 backdrop-blur-xs border border-[#CCD7BC] text-[#7A866E] hover:text-rose-500 flex items-center justify-center shadow-xs transition-colors z-10 cursor-pointer"
-        :class="{ 'text-rose-500 fill-rose-500': isLiked }"
-        aria-label="Yêu thích sản phẩm"
-      >
-        <Heart class="w-4 h-4" :class="{ 'fill-rose-500 text-rose-500': isLiked }" />
-      </button>
     </div>
 
     <!-- Content -->
@@ -109,7 +67,7 @@ function goToDetail() {
         @click="goToDetail"
         class="font-heading text-base font-bold text-[#242424] hover:text-[#4D6A34] transition-colors cursor-pointer line-clamp-2 leading-snug"
         :title="product.name"
-        >
+      >
         {{ product.name }}
       </h3>
 
@@ -125,7 +83,7 @@ function goToDetail() {
           <span class="text-[10px] text-[#7A866E] uppercase block font-semibold">Đạm</span>
           <span class="text-sm font-extrabold text-[#4D6A34]">{{ product.nutrition?.protein ?? 0 }}g</span>
         </div>
-        <!-- 3. Carbs (Mới thêm chuẩn Class Diagram) -->
+        <!-- 3. Carbs -->
         <div class="px-1 border-l border-[#E3E8DC]">
           <span class="text-[10px] text-[#7A866E] uppercase block font-semibold">Carb</span>
           <span class="text-sm font-extrabold text-[#2D3B1E]">{{ product.nutrition?.carbs ?? 0 }}g</span>

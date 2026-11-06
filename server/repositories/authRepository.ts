@@ -18,6 +18,12 @@ export interface UserRecord {
 export interface LoginUserRecord extends UserRecord {
   role: "customer" | "admin";
   passwordHash: string | null;
+  dietPreferences: string[];
+}
+
+export interface CurrentUserRecord extends UserRecord {
+  role: "customer" | "admin";
+  dietPreferences: string[];
 }
 
 export interface UserAddressRecord {
@@ -51,6 +57,7 @@ interface UserRow {
   avt_url: string | null;
   role: "customer" | "admin";
   password_hash: string | null;
+  diet_preferences: string[];
 }
 
 interface CreatedUserRow {
@@ -63,6 +70,7 @@ interface CreatedUserRow {
 interface CurrentUserRow extends CreatedUserRow {
   avt_url: string | null;
   role: "customer" | "admin";
+  diet_preferences: string[];
 }
 
 interface AddressRow {
@@ -85,21 +93,35 @@ export class DuplicateEmailError extends Error {
   }
 }
 
-export async function findUserForLogin(identifier: string): Promise<LoginUserRecord | null> {
+export async function findUserForLogin(
+  identifier: string,
+  expectedRole: "customer" | "admin",
+): Promise<LoginUserRecord | null> {
   if (!isDbConnected()) {
     throw new Error("PostgreSQL chưa sẵn sàng.");
   }
 
   const result = await getPool().query<UserRow>(
     `SELECT users.id, users.full_name, users.email, users.phone, users.avt_url,
+            users.diet_preferences,
             CASE WHEN EXISTS (
               SELECT 1 FROM admins WHERE admins.user_id = users.id
             ) THEN 'admin' ELSE 'customer' END AS role,
             users.password_hash
      FROM users
-     WHERE LOWER(users.email) = $1 OR users.phone = $2
+     WHERE (LOWER(users.email) = $1 OR users.phone = $2)
+       AND (
+         ($3 = 'admin' AND EXISTS (
+           SELECT 1 FROM admins WHERE admins.user_id = users.id
+         ))
+         OR ($3 = 'customer' AND EXISTS (
+           SELECT 1 FROM customers WHERE customers.user_id = users.id
+         ) AND NOT EXISTS (
+           SELECT 1 FROM admins WHERE admins.user_id = users.id
+         ))
+       )
      LIMIT 2`,
-    [identifier.toLowerCase(), identifier],
+    [identifier.toLowerCase(), identifier, expectedRole],
   );
 
   if (result.rows.length !== 1) {
@@ -119,16 +141,32 @@ export async function findUserForLogin(identifier: string): Promise<LoginUserRec
     avatarUrl: user.avt_url,
     role: user.role,
     passwordHash: user.password_hash,
+    dietPreferences: user.diet_preferences,
   };
 }
 
-export async function findUserById(id: string): Promise<(UserRecord & { role: "customer" | "admin" }) | null> {
+export async function createCustomerLoginNotification(
+  user: Pick<LoginUserRecord, "id" | "name" | "email">,
+): Promise<void> {
+  if (!isDbConnected()) {
+    throw new Error("PostgreSQL chưa sẵn sàng.");
+  }
+
+  await getPool().query(
+    `INSERT INTO admin_notifications (type, title, message, customer_id)
+     VALUES ('customer_logged_in', 'Khách hàng đăng nhập', $1, $2)`,
+    [`${user.name} (${user.email}) vừa đăng nhập.`, user.id],
+  );
+}
+
+export async function findUserById(id: string): Promise<CurrentUserRecord | null> {
   if (!isDbConnected()) {
     throw new Error("PostgreSQL chưa sẵn sàng.");
   }
 
   const result = await getPool().query<CurrentUserRow>(
     `SELECT users.id, users.full_name, users.email, users.phone, users.avt_url,
+            users.diet_preferences,
             CASE WHEN EXISTS (
               SELECT 1 FROM admins WHERE admins.user_id = users.id
             ) THEN 'admin' ELSE 'customer' END AS role
@@ -149,7 +187,26 @@ export async function findUserById(id: string): Promise<(UserRecord & { role: "c
     phone: user.phone ?? "",
     avatarUrl: user.avt_url,
     role: user.role,
+    dietPreferences: user.diet_preferences,
   };
+}
+
+export async function updateUserDietPreferences(
+  id: string,
+  dietPreferences: string[],
+): Promise<string[] | null> {
+  if (!isDbConnected()) {
+    throw new Error("PostgreSQL chưa sẵn sàng.");
+  }
+
+  const result = await getPool().query<{ diet_preferences: string[] }>(
+    `UPDATE users
+     SET diet_preferences = $2::jsonb, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1
+     RETURNING diet_preferences`,
+    [id, JSON.stringify(dietPreferences)],
+  );
+  return result.rows[0]?.diet_preferences ?? null;
 }
 
 export async function updateUserAvatar(id: string, avatarUrl: string): Promise<string | undefined> {
@@ -503,6 +560,11 @@ export async function createUser(user: NewUserRecord): Promise<UserRecord> {
     await client.query("INSERT INTO customers (user_id) VALUES ($1)", [
       createdUser.id,
     ]);
+    await client.query(
+      `INSERT INTO admin_notifications (type, title, message, customer_id)
+       VALUES ('customer_registered', 'Khách hàng mới đăng ký', $1, $2)`,
+      [`${createdUser.full_name} (${createdUser.email}) vừa tạo tài khoản.`, createdUser.id],
+    );
     await client.query("COMMIT");
     transactionStarted = false;
 

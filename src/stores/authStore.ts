@@ -2,23 +2,25 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { UserProfile } from '../types';
 import { useToastStore } from './toastStore';
+import { DEFAULT_USER_AVATAR, LEGACY_DEFAULT_USER_AVATAR } from '../constants/avatar';
 import {
   fetchCurrentUser,
   postLogout,
   RegisteredUser,
   updateCurrentUser,
   updateCurrentUserAvatar,
+  updateCurrentUserDietPreferences,
 } from '../services/api';
 
 export const useAuthStore = defineStore('auth', () => {
   const profileDefaults: Omit<UserProfile, 'id' | 'name' | 'email' | 'phone'> = {
     role: 'customer',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+    avatar: DEFAULT_USER_AVATAR,
     birthDate: '1998-06-18',
     city: 'TP. Hồ Chí Minh',
     membershipTier: 'Gold',
     nutriPoints: 490,
-    currentDiet: 'Eat Clean & Low-Carb',
+    currentDiet: 'Chưa chọn',
     fitnessGoal: 'Giảm 3kg mỡ và săn chắc cơ bắp',
     heightCm: 165,
     weightKg: 58.5,
@@ -40,7 +42,7 @@ export const useAuthStore = defineStore('auth', () => {
       fatGrams: 45,
       fatKcal: 405,
     },
-    dietPreferences: ['Low-Carb', 'Giàu Protein'],
+    dietPreferences: [],
   };
 
   const authStorageKey = "nutrimate-auth-user";
@@ -74,16 +76,37 @@ export const useAuthStore = defineStore('auth', () => {
           typeof token === "string" &&
           token.length > 0
         ) {
-          return {
-            user: {
+          const hasLegacyDefaultDietPreferences =
+            'dietPreferences' in profile &&
+            Array.isArray(profile.dietPreferences) &&
+            profile.dietPreferences.length === 2 &&
+            profile.dietPreferences[0] === 'Low-Carb' &&
+            profile.dietPreferences[1] === 'Giàu Protein' &&
+            'currentDiet' in profile &&
+            profile.currentDiet === 'Eat Clean & Low-Carb';
+          const user: UserProfile = {
               ...profileDefaults,
               ...profile,
               id: profile.id,
               name: profile.name,
               email: profile.email,
               phone: profile.phone,
+              ...(hasLegacyDefaultDietPreferences
+                ? { currentDiet: 'Chưa chọn', dietPreferences: [] }
+                : {}),
+              avatar:
+                'avatar' in profile &&
+                typeof profile.avatar === 'string' &&
+                profile.avatar !== LEGACY_DEFAULT_USER_AVATAR
+                  ? profile.avatar
+                  : DEFAULT_USER_AVATAR,
               role: 'role' in profile && profile.role === 'admin' ? 'admin' : 'customer',
-            },
+            };
+          if (hasLegacyDefaultDietPreferences) {
+            storage.setItem(authStorageKey, JSON.stringify(user));
+          }
+          return {
+            user,
             storage,
             token,
           };
@@ -122,16 +145,22 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function toProfile(
-    user: Pick<RegisteredUser, 'id' | 'name' | 'email' | 'phone' | 'role' | 'defaultAddress' | 'avatarUrl'>,
+    user: Pick<RegisteredUser, 'id' | 'name' | 'email' | 'phone' | 'role' | 'defaultAddress' | 'avatarUrl'> &
+      Partial<Pick<RegisteredUser, 'dietPreferences'>>,
     cachedProfile?: UserProfile,
   ): UserProfile {
     return {
       ...profileDefaults,
       ...cachedProfile,
       ...user,
-      avatar: user.avatarUrl || cachedProfile?.avatar || profileDefaults.avatar,
+      avatar: user.avatarUrl || (
+        cachedProfile?.avatar && cachedProfile.avatar !== LEGACY_DEFAULT_USER_AVATAR
+          ? cachedProfile.avatar
+          : profileDefaults.avatar
+      ),
       role: user.role,
       defaultAddress: user.defaultAddress ?? cachedProfile?.defaultAddress ?? null,
+      dietPreferences: user.dietPreferences ?? cachedProfile?.dietPreferences ?? [],
     };
   }
 
@@ -177,12 +206,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function updateDietPreferences(dietPreferences: string[]) {
+  async function updateDietPreferences(dietPreferences: string[]): Promise<void> {
+    if (!currentUser.value) return;
+    const savedPreferences = await updateCurrentUserDietPreferences(dietPreferences);
     if (!currentUser.value) return;
     currentUser.value = {
       ...currentUser.value,
-      dietPreferences: [...dietPreferences],
-      currentDiet: dietPreferences.join(' & ') || 'Chưa chọn',
+      dietPreferences: savedPreferences,
+      currentDiet: savedPreferences.join(' & ') || 'Chưa chọn',
     };
     activeStorage?.setItem(authStorageKey, JSON.stringify(currentUser.value));
   }
@@ -233,6 +264,7 @@ export const useAuthStore = defineStore('auth', () => {
       phone: profile.phone,
       role: 'role' in profile && profile.role === 'admin' ? 'admin' : 'customer',
       avatarUrl: 'avatarUrl' in profile ? profile.avatarUrl : null,
+      dietPreferences: 'dietPreferences' in profile ? profile.dietPreferences : [],
     });
     storage.setItem(authStorageKey, JSON.stringify(user));
     storage.setItem(authTokenKey, token);

@@ -48,6 +48,7 @@ export interface Product {
   soldCount?: number;
   badges: string[];
   isFeatured?: boolean;
+  isAiRecommended?: boolean;
   bestFor: string;
   traceability?: string;
 }
@@ -62,6 +63,31 @@ export interface Category {
   dietType: DietCategory;
   icon?: string;
   count?: number;
+}
+
+export interface AdminProductItem {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  price: number;
+  originalPrice?: number;
+  calo: number;
+  protein: number;
+  sugar: number;
+  carbs?: number;
+  fat?: number;
+  status: 'Đang bán' | 'Tạm ngừng';
+  image: string;
+  description?: string;
+  ingredients?: string[];
+  badges?: string[];
+  servingSize?: string;
+  stock?: number;
+  rating?: number;
+  reviewCount?: number;
+  soldCount?: number;
+  unit?: string;
 }
 
 export interface CartItem {
@@ -82,6 +108,7 @@ export interface OrderItem {
   quantity: number;
   calories: number;
   protein: number;
+  isAiRecommended?: boolean;
   portion?: string;
 }
 
@@ -129,6 +156,49 @@ export interface Order {
   trackingSteps?: TrackingStep[];
 }
 
+export interface AdminDashboardData {
+  summary: {
+    monthlyRevenue: number;
+    revenueChangePercent: number | null;
+    totalOrders: number;
+    deliveredOrderPercent: number;
+    pendingOrders: number;
+    totalCustomers: number;
+    newCustomers: number;
+    customersWithBmi: number;
+    monthlyChatMessages: number;
+  };
+  weeklySales: {
+    date: string;
+    revenue: number;
+    productRevenue: number;
+    aiRecommendedRevenue: number;
+    orders: number;
+  }[];
+  categories: {
+    name: string;
+    unitsSold: number;
+    percentage: number;
+  }[];
+  urgentOrders: {
+    id: string;
+    orderCode: string;
+    customerName: string;
+    customerPhone: string;
+    mainProduct: string;
+    total: number;
+    paymentMethod: string;
+    status: string;
+  }[];
+  lowStockProducts: {
+    id: string;
+    code: string;
+    name: string;
+    stock: number;
+    threshold: number;
+  }[];
+}
+
 export interface ProductFilterQuery {
   category?: string;
   diet?: string;
@@ -169,6 +239,7 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   imagePreview?: string;
+  imageUrl?: string;
   suggestedProducts?: ChatSuggestedProduct[];
   actionLink?: {
     text: string;
@@ -208,6 +279,7 @@ export interface NutritionImagePrediction {
   predictedCarbs: number | null;
   predictedFat: number | null;
   predictedSugar: number | null;
+  labelFacts: { label: string; value: string }[];
 }
 
 export interface ApiResponse<T> {
@@ -228,11 +300,13 @@ export interface CalorieProfileInput {
   weightKg: number;
   age: number;
   gender: 'male' | 'female' | 'other';
-  activityLevel: ActivityLevel;
-  nutritionGoal: NutritionGoal;
+  activityLevel: ActivityLevel | null;
+  nutritionGoal: NutritionGoal | null;
 }
 
-export interface CaloriePlanResult extends CalorieProfileInput {
+export interface CaloriePlanResult extends Omit<CalorieProfileInput, 'activityLevel' | 'nutritionGoal'> {
+  activityLevel: ActivityLevel;
+  nutritionGoal: NutritionGoal;
   bmi: number;
   bmrKcal: number;
   tdeeKcal: number;
@@ -249,8 +323,38 @@ export interface CaloriePlanResponse {
     gender: CalorieProfileInput['gender'] | null;
     activityLevel: ActivityLevel | null;
     nutritionGoal: NutritionGoal | null;
+    bmi: number | null;
   };
   plan: CaloriePlanResult | null;
+}
+
+export interface AdminCustomer {
+  id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  avatarUrl: string | null;
+  bmi: number | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  nutritionGoal: string | null;
+  totalSpent: number;
+  orderCount: number;
+  completedOrderCount: number;
+  recentChatMessages: number;
+  recentChatConversations: number;
+  lastChatAt: string | null;
+}
+
+export interface AdminCustomerListResponse {
+  customers: AdminCustomer[];
+  total: number;
+  totalCustomers: number;
+  bmiGoalCustomerCount: number;
+  frequentChatCustomerCount: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -397,7 +501,7 @@ export interface AdminDashboardOverview {
   weeklyRevenueData: {
     day: string;
     regularRevenue: number;
-    aiComboRevenue: number;
+    aiRecommendedRevenue: number;
     isPeak?: boolean;
   }[];
   categoryShares: {

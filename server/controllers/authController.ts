@@ -112,6 +112,41 @@ export async function updateMe(
   }
 }
 
+export async function updateDietPreferences(
+  req: Request<object, ApiResponse<{ dietPreferences: string[] }>, authService.UpdateDietPreferencesInput>,
+  res: Response<ApiResponse<{ dietPreferences: string[] }>, AuthLocals>
+): Promise<void> {
+  if (typeof req.body !== "object" || req.body === null || Array.isArray(req.body)) {
+    res.status(400).json({ success: false, message: "Danh sách chế độ ăn không hợp lệ." });
+    return;
+  }
+
+  try {
+    const dietPreferences = await authService.updateAuthenticatedUserDietPreferences(
+      res.locals.auth.sub,
+      req.body,
+    );
+    if (!dietPreferences) {
+      clearAuthCookie(res);
+      res.status(401).json({ success: false, message: "Phiên đăng nhập không còn hợp lệ." });
+      return;
+    }
+    res.status(200).json({
+      success: true,
+      message: "Đã lưu chế độ ăn.",
+      data: { dietPreferences },
+    });
+  } catch (err: unknown) {
+    if (err instanceof authService.AuthServiceError) {
+      res.status(err.statusCode).json({ success: false, message: err.message });
+      return;
+    }
+    const message = err instanceof Error ? err.message : "Unknown diet preferences update error";
+    console.error("[AuthController] Không thể cập nhật chế độ ăn:", message);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ khi cập nhật chế độ ăn." });
+  }
+}
+
 export async function listAddresses(
   _req: Request,
   res: Response<ApiResponse<authService.RegisteredUser["addresses"]>, AuthLocals>
@@ -260,9 +295,10 @@ function clearAuthCookie(res: Response): void {
   res.clearCookie(AUTH_COOKIE_NAME, AUTH_COOKIE_OPTIONS);
 }
 
-export async function login(
+async function login(
   req: Request<object, ApiResponse<authService.AuthenticatedUser>, authService.LoginUserInput>,
-  res: Response<ApiResponse<authService.AuthenticatedUser>>
+  res: Response<ApiResponse<authService.AuthenticatedUser>>,
+  expectedRole: "customer" | "admin",
 ): Promise<void> {
   if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
     res.status(400).json({ success: false, message: 'Dữ liệu đăng nhập không hợp lệ.' });
@@ -270,7 +306,7 @@ export async function login(
   }
 
   try {
-    const user = await authService.login(req.body);
+    const user = await authService.login(req.body, expectedRole);
     const rememberMe = req.body.rememberMe !== false;
     setAuthCookie(res, user, rememberMe);
     res.status(200).json({
@@ -288,4 +324,18 @@ export async function login(
     console.error('[AuthController] Không thể đăng nhập:', message);
     res.status(500).json({ success: false, message: 'Lỗi máy chủ khi đăng nhập.' });
   }
+}
+
+export async function customerLogin(
+  req: Request<object, ApiResponse<authService.AuthenticatedUser>, authService.LoginUserInput>,
+  res: Response<ApiResponse<authService.AuthenticatedUser>>,
+): Promise<void> {
+  await login(req, res, 'customer');
+}
+
+export async function adminLogin(
+  req: Request<object, ApiResponse<authService.AuthenticatedUser>, authService.LoginUserInput>,
+  res: Response<ApiResponse<authService.AuthenticatedUser>>,
+): Promise<void> {
+  await login(req, res, 'admin');
 }

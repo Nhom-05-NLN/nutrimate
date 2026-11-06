@@ -41,3 +41,25 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+.auth-page-enter-active,
+.auth-page-leave-active {
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+
+.auth-page-enter-from {
+  opacity: 0;
+  transform: translateY(12px) scale(0.99);
+}
+
+.auth-page-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.99);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-page-enter-active,
+  .auth-page-leave-active {
+    transition: none;
+  }
+}

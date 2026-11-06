@@ -69,7 +69,7 @@ export async function getCalorieProfile(userId: string): Promise<CalorieProfile 
 export async function saveCalorieProfile(
   userId: string,
   profile: CalorieProfile,
-  targetCalories: number,
+  targetCalories: number | null,
 ): Promise<CalorieProfile | null> {
   if (!isDbConnected()) throw new Error('PostgreSQL hiện không khả dụng.');
   if (!(await usesUserProfileColumns())) {
@@ -86,7 +86,7 @@ export async function saveCalorieProfile(
          activity_level = EXCLUDED.activity_level,
          nutrition_goal = EXCLUDED.nutrition_goal,
          bmi = EXCLUDED.bmi,
-         daily_calorie_target = EXCLUDED.daily_calorie_target,
+         daily_calorie_target = COALESCE(EXCLUDED.daily_calorie_target, health_profiles.daily_calorie_target),
          updated_at = CURRENT_TIMESTAMP
        RETURNING height_cm, weight_kg, age, gender, activity_level, nutrition_goal`,
       [userId, profile.heightCm, profile.weightKg, profile.age, profile.gender,
@@ -101,7 +101,8 @@ export async function saveCalorieProfile(
   const result = await getPool().query<ProfileRow>(
     `UPDATE users
      SET height_cm = $2, weight_kg = $3, age = $4, gender = $5,
-         activity_level = $6, nutrition_goal = $7, daily_calorie_target = $8,
+         activity_level = $6, nutrition_goal = $7,
+         daily_calorie_target = COALESCE($8, daily_calorie_target),
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1
      RETURNING height_cm, weight_kg, age, gender, activity_level, nutrition_goal`,

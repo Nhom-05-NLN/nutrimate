@@ -11,6 +11,8 @@ export interface CalorieProfile {
 }
 
 export interface CaloriePlan extends CalorieProfile {
+  activityLevel: ActivityLevel;
+  nutritionGoal: NutritionGoal;
   bmi: number;
   bmrKcal: number;
   tdeeKcal: number;
