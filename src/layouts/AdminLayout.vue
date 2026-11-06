@@ -24,6 +24,7 @@ import {
   Leaf,
   Store,
   ChevronRight,
+  ChevronLeft,
   Menu,
   X,
   Camera,
@@ -360,11 +361,59 @@ const navItems = computed(() => [...coreNavItems, ...aiNavItems]);
 const adminPageTitle = computed(() =>
   navItems.value.find((item) => item.path === route.path)?.label ?? 'Quản trị',
 );
+const currentWeekStart = getCurrentWeekStart();
+const selectedDashboardWeek = computed(() => {
+  const week = route.query.week;
+  return typeof week === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(week) && week <= currentWeekStart
+    ? week
+    : currentWeekStart;
+});
+const dashboardWeekLabel = computed(() => {
+  const start = new Date(`${selectedDashboardWeek.value}T00:00:00.000Z`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 6);
+  const formatDate = new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'UTC',
+  });
+  const startLabel = formatDate.format(start);
+  const endLabel = new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(end);
+  return `${startLabel} – ${endLabel}`;
+});
+const canViewPreviousDashboardWeek = computed(() => selectedDashboardWeek.value > '0001-01-01');
 const todayLabel = new Date().toLocaleDateString('vi-VN', {
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
 });
+
+function getCurrentWeekStart(): string {
+  const now = new Date();
+  const monday = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() - ((now.getUTCDay() + 6) % 7),
+  ));
+  return monday.toISOString().slice(0, 10);
+}
+
+function changeDashboardWeek(offset: number): void {
+  const date = new Date(`${selectedDashboardWeek.value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + offset * 7);
+  const nextWeek = date.toISOString().slice(0, 10);
+  void router.replace({
+    query: {
+      ...route.query,
+      week: nextWeek === currentWeekStart ? undefined : nextWeek,
+    },
+  });
+}
 
 function closeNotifications() {
   isNotificationsOpen.value = false;
@@ -702,7 +751,35 @@ async function handleAdminLogout() {
         </div>
 
         <div class="flex items-center gap-4">
-          <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-bold text-[#2D3B1E]">
+          <div
+            v-if="route.name === 'admin-dashboard'"
+            class="hidden sm:flex items-center gap-1.5 rounded-full bg-[#FAF9F5] border border-[#CCD7BC] px-2 py-1 text-xs font-bold text-[#2D3B1E]"
+          >
+            <Calendar class="ml-1 h-3.5 w-3.5 shrink-0 text-[#536124]" />
+            <button
+              type="button"
+              class="flex h-6 w-6 items-center justify-center rounded-full text-[#536124] transition hover:bg-[#E9EFE2] disabled:cursor-not-allowed disabled:opacity-40"
+              :disabled="!canViewPreviousDashboardWeek"
+              :aria-label="`Xem thống kê tuần trước ${dashboardWeekLabel}`"
+              @click="changeDashboardWeek(-1)"
+            >
+              <ChevronLeft class="h-3.5 w-3.5" />
+            </button>
+            <span class="min-w-32 text-center">{{ dashboardWeekLabel }}</span>
+            <button
+              type="button"
+              class="flex h-6 w-6 items-center justify-center rounded-full text-[#536124] transition hover:bg-[#E9EFE2] disabled:cursor-not-allowed disabled:opacity-40"
+              :disabled="selectedDashboardWeek === currentWeekStart"
+              :aria-label="`Xem thống kê tuần sau ${dashboardWeekLabel}`"
+              @click="changeDashboardWeek(1)"
+            >
+              <ChevronRight class="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div
+            v-else
+            class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-bold text-[#2D3B1E]"
+          >
             <Calendar class="w-3.5 h-3.5 text-[#536124]" />
             <span>Hôm nay, {{ todayLabel }}</span>
           </div>

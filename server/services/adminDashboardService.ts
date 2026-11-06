@@ -1,5 +1,5 @@
 import { getAdminDashboard } from '../repositories/adminDashboardRepository.js';
 
-export async function loadAdminDashboard() {
-  return getAdminDashboard();
+export async function loadAdminDashboard(weekStart: string) {
+  return getAdminDashboard(weekStart);
 }
