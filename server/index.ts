@@ -11,6 +11,7 @@ import {
   testDbConnection,
 } from './db/index.js';
 import apiRouter from './routes/index.js';
+import { autoCancelExpiredOrders } from './services/orderService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,6 +80,13 @@ async function bootstrap() {
   }
 
   const activePort = await startListening(app, config.port);
+
+  // Tiến trình định kỳ dọn dẹp các đơn hàng quá hạn 30 phút thanh toán QR (chạy mỗi 60 giây)
+  setInterval(() => {
+    autoCancelExpiredOrders().catch((err: unknown) => {
+      console.warn('[Background Job autoCancelExpiredOrders error]:', err);
+    });
+  }, 60 * 1000);
 
   console.log(`====================================================`);
   console.log(` NutriMate Server is running!`);

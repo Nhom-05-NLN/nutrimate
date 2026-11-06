@@ -1,14 +1,22 @@
 -- ================================================================
--- NUTRIMATE DATABASE SCHEMA (PostgreSQL)
+-- NUTRIMATE DATABASE SCHEMA (PostgreSQL - Neon Cloud & Local)
 -- Đề tài: Nền tảng TMĐT thực phẩm ăn kiêng & Chatbot dinh dưỡng AI
--- Công nghệ: Frontend: Vue 3 | Backend: Node.js (Express) | Database: PostgreSQL
+-- Môn học: Niên luận Kỹ thuật Phần mềm (CT250E) - Nhóm 5
+-- Tham chiếu thiết kế: class_diagram_final.png & FEATURE_BRANCHES_PLAN.md (M3)
+-- Tương thích 100% với Class Diagram & RESTful API Backend
+-- ================================================================
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ================================================================
+-- 1. CỤM NGƯỜI DÙNG & HỒ SƠ THỂ TRẠNG (User, Customer, Admin, HealthProfile, Address)
 -- ================================================================
 
 -- 1. Bảng tài khoản và thông tin thể trạng cơ bản của người dùng.
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255),
+    password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(150) NOT NULL,
     phone VARCHAR(20),
     avt_url TEXT,
@@ -62,27 +70,46 @@ CREATE INDEX IF NOT EXISTS idx_admin_notifications_unread
     WHERE read_at IS NULL;
 COMMENT ON TABLE admin_notifications IS 'Lưu thông báo hoạt động mới dành cho quản trị viên.';
 
--- 4. Bảng hồ sơ sức khỏe và mục tiêu dinh dưỡng của khách hàng.
+CREATE TABLE IF NOT EXISTS addresses (
+    address_id SERIAL PRIMARY KEY,
+    id INT,
+    customer_id INT REFERENCES users(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    receiver_name VARCHAR(150) NOT NULL,
+    receiver_phone VARCHAR(20) NOT NULL,
+    address TEXT NOT NULL,
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS health_profiles (
     health_profile_id SERIAL PRIMARY KEY,
-    customer_id INT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    id INT,
+    customer_id INT UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
     age INT,
-    gender VARCHAR(20),
-    height_cm NUMERIC,
-    weight_kg NUMERIC,
-    bmi NUMERIC,
-    nutrition_goal VARCHAR(50),
-    daily_calorie_target INT,
-    protein_target NUMERIC DEFAULT 110,
-    carb_target NUMERIC DEFAULT 120,
-    fat_target NUMERIC DEFAULT 50,
+    gender VARCHAR(10) CHECK (gender IN ('male', 'female', 'other')),
+    height_cm NUMERIC(5, 1) DEFAULT 170.0,
+    height NUMERIC(5, 1) DEFAULT 170.0,
+    weight_kg NUMERIC(5, 1) DEFAULT 65.0,
+    weight NUMERIC(5, 1) DEFAULT 65.0,
+    bmi NUMERIC(4, 1) DEFAULT 22.5,
     activity_level VARCHAR(30) DEFAULT 'moderate',
+    nutrition_goal VARCHAR(50) DEFAULT 'maintain',
+    daily_calorie_target INT DEFAULT 1800,
+    calories_target NUMERIC(6, 1) DEFAULT 1800,
+    protein_target NUMERIC(6, 1) DEFAULT 110,
+    carb_target NUMERIC(6, 1) DEFAULT 120,
+    fat_target NUMERIC(6, 1) DEFAULT 50,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 COMMENT ON TABLE health_profiles IS 'Lưu hồ sơ sức khỏe, chỉ số cơ thể và mục tiêu calo của khách hàng.';
 
--- 5. Bảng danh mục thực phẩm ăn kiêng.
+-- ================================================================
+-- 2. CỤM SẢN PHẨM & DINH DƯỠNG (Category, Product, NutritionFact, ProductVariant, Inventory, ProductReview)
+-- ================================================================
 CREATE TABLE IF NOT EXISTS categories (
     category_id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -90,7 +117,6 @@ CREATE TABLE IF NOT EXISTS categories (
 );
 COMMENT ON TABLE categories IS 'Lưu danh mục sản phẩm và loại chế độ ăn tương ứng.';
 
--- 6. Bảng sản phẩm và thông tin dinh dưỡng.
 CREATE TABLE IF NOT EXISTS products (
     product_id SERIAL PRIMARY KEY,
     category_id INT REFERENCES categories(category_id) ON DELETE SET NULL,
@@ -110,75 +136,179 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS nutrition_facts (
     nutrition_fact_id SERIAL PRIMARY KEY,
     product_id INT NOT NULL UNIQUE REFERENCES products(product_id) ON DELETE CASCADE,
-    serving_size VARCHAR(50) NOT NULL,
-    calories DOUBLE PRECISION NOT NULL,
-    protein DOUBLE PRECISION NOT NULL,
-    carbs DOUBLE PRECISION NOT NULL,
-    fat DOUBLE PRECISION NOT NULL,
-    sugar DOUBLE PRECISION NOT NULL,
+    serving_size VARCHAR(100) NOT NULL DEFAULT '1 khẩu phần',
+    calories DOUBLE PRECISION NOT NULL DEFAULT 0,
+    protein DOUBLE PRECISION NOT NULL DEFAULT 0,
+    carbs DOUBLE PRECISION NOT NULL DEFAULT 0,
+    fat DOUBLE PRECISION NOT NULL DEFAULT 0,
+    sugar DOUBLE PRECISION NOT NULL DEFAULT 0,
     fiber DOUBLE PRECISION DEFAULT 0,
-    sodium DOUBLE PRECISION DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS product_reviews (
-    review_id SERIAL PRIMARY KEY,
-    product_id INT NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
-    user_id INT REFERENCES users(id) ON DELETE SET NULL,
-    rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
-    comment TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    sodium DOUBLE PRECISION DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS product_variants (
     variant_id SERIAL PRIMARY KEY,
     product_id INT NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
     variant_name VARCHAR(200) NOT NULL,
-    weight NUMERIC(12, 2),
+    weight NUMERIC(12, 2) DEFAULT 0,
     price NUMERIC(12, 2) NOT NULL CHECK (price >= 0),
     status BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 7. Bảng đơn đặt hàng.
-CREATE TABLE IF NOT EXISTS orders (
-    id SERIAL PRIMARY KEY,
-    order_code VARCHAR(30) UNIQUE NOT NULL,
+CREATE TABLE IF NOT EXISTS inventory (
+    inventory_id SERIAL PRIMARY KEY,
+    product_id INT REFERENCES products(product_id) ON DELETE CASCADE,
+    variant_id INT REFERENCES product_variants(variant_id) ON DELETE CASCADE,
+    quantity INT NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS product_reviews (
+    review_id SERIAL PRIMARY KEY,
+    product_id INT NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
     user_id INT REFERENCES users(id) ON DELETE SET NULL,
-    customer_name VARCHAR(150) NOT NULL,
-    customer_phone VARCHAR(20) NOT NULL,
-    customer_email VARCHAR(255) NOT NULL,
-    shipping_address TEXT NOT NULL,
-    payment_method VARCHAR(30) DEFAULT 'vietqr' CHECK (payment_method IN ('vietqr', 'cod', 'momo')),
-    payment_status VARCHAR(20) DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'failed')),
-    status VARCHAR(30) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'shipping', 'delivered', 'cancelled')),
-    total_amount NUMERIC(12, 2) NOT NULL,
-    total_calories NUMERIC(8, 1) DEFAULT 0,
-    total_protein NUMERIC(8, 1) DEFAULT 0,
-    shipping_fee NUMERIC(10, 2) DEFAULT 0,
-    notes TEXT,
+    customer_id INT REFERENCES users(id) ON DELETE SET NULL,
+    rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ================================================================
+-- 3. TRỌNG TÂM PHÂN HỆ M3: GIỎ HÀNG, ĐẶT HÀNG & THANH TOÁN (M3 – CART, ORDER & PAYMENT)
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS carts (
+    cart_id SERIAL PRIMARY KEY,
+    id INT,
+    customer_id INT REFERENCES users(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    session_id VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-COMMENT ON TABLE orders IS 'Lưu thông tin đơn hàng, khách nhận hàng, thanh toán và trạng thái giao hàng.';
 
--- 8. Bảng chi tiết sản phẩm trong từng đơn hàng.
-CREATE TABLE IF NOT EXISTS order_items (
-    id SERIAL PRIMARY KEY,
-    order_id INT REFERENCES orders(id) ON DELETE CASCADE,
-    product_id INT REFERENCES products(product_id) ON DELETE SET NULL,
-    product_name VARCHAR(200) NOT NULL,
-    product_image TEXT,
-    unit_price NUMERIC(12, 2) NOT NULL,
-    quantity INT NOT NULL CHECK (quantity > 0),
-    calories NUMERIC(6, 1) NOT NULL,
-    protein NUMERIC(6, 1) NOT NULL,
-    subtotal NUMERIC(12, 2) NOT NULL,
-    is_ai_recommended BOOLEAN NOT NULL DEFAULT FALSE
+CREATE TABLE IF NOT EXISTS cart_items (
+    cartitem_id SERIAL PRIMARY KEY,
+    id INT,
+    cart_id INT NOT NULL REFERENCES carts(cart_id) ON DELETE CASCADE,
+    product_id INT NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
+    variant_id INT REFERENCES product_variants(variant_id) ON DELETE SET NULL,
+    quantity INT NOT NULL DEFAULT 1 CHECK (quantity > 0),
+    unit_price NUMERIC(12, 2) NOT NULL CHECK (unit_price >= 0),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS orders (
+    order_id SERIAL PRIMARY KEY,
+    id INT,
+    order_code VARCHAR(30),
+    customer_id INT REFERENCES users(id) ON DELETE SET NULL,
+    user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    order_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    receiver_name VARCHAR(150),
+    receiver_phone VARCHAR(20),
+    receiver_email VARCHAR(255),
+    customer_name VARCHAR(150),
+    customer_phone VARCHAR(20),
+    customer_email VARCHAR(255),
+    shipping_address TEXT,
+    address_id INT REFERENCES addresses(address_id) ON DELETE SET NULL,
+    shipping_method VARCHAR(30) DEFAULT 'standard' CHECK (shipping_method IN ('standard', 'express_2h')),
+    shipping_fee NUMERIC(10, 2) DEFAULT 0 CHECK (shipping_fee >= 0),
+    discount_amount NUMERIC(10, 2) DEFAULT 0 CHECK (discount_amount >= 0),
+    voucher_code VARCHAR(50),
+    total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (total_amount >= 0),
+    total_calories NUMERIC(8, 1) DEFAULT 0 CHECK (total_calories >= 0),
+    total_protein NUMERIC(8, 1) DEFAULT 0 CHECK (total_protein >= 0),
+    status VARCHAR(30) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'packing', 'shipping', 'delivered', 'cancelled')),
+    note TEXT,
+    notes TEXT,
+    payment_method VARCHAR(30) DEFAULT 'vietqr' CHECK (payment_method IN ('vietqr', 'cod', 'momo', 'bank_card')),
+    payment_status VARCHAR(20) DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'failed', 'refunded')),
+    driver_name VARCHAR(100),
+    driver_phone VARCHAR(20),
+    driver_license_plate VARCHAR(20),
+    storage_temperature VARCHAR(50) DEFAULT '4°C (Thùng giữ mát)',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS order_items (
+    order_item_id SERIAL PRIMARY KEY,
+    id INT,
+    order_id INT NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
+    product_id INT REFERENCES products(product_id) ON DELETE SET NULL,
+    variant_id INT REFERENCES product_variants(variant_id) ON DELETE SET NULL,
+    product_name VARCHAR(200),
+    variant_name VARCHAR(100),
+    product_image TEXT,
+    unit_price NUMERIC(12, 2) NOT NULL CHECK (unit_price >= 0),
+    quantity INT NOT NULL CHECK (quantity > 0),
+    calories NUMERIC(6, 1) DEFAULT 0 CHECK (calories >= 0),
+    protein NUMERIC(6, 1) DEFAULT 0 CHECK (protein >= 0),
+    subtotal NUMERIC(12, 2) NOT NULL CHECK (subtotal >= 0),
+    is_ai_recommended BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE orders IS 'Lưu thông tin đơn hàng, khách nhận hàng, thanh toán và trạng thái giao hàng.';
 COMMENT ON TABLE order_items IS 'Lưu các sản phẩm, số lượng và giá trị dinh dưỡng tại thời điểm đặt hàng.';
 
--- 9. Bảng nhật ký dinh dưỡng hàng ngày.
+CREATE TABLE IF NOT EXISTS payments (
+    payment_id SERIAL PRIMARY KEY,
+    id INT,
+    order_id INT UNIQUE NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
+    method VARCHAR(30) NOT NULL CHECK (method IN ('vietqr', 'cod', 'momo', 'bank_card')),
+    amount NUMERIC(12, 2) NOT NULL CHECK (amount >= 0),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'failed', 'refunded')),
+    transaction_code VARCHAR(100),
+    paid_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS vouchers (
+    voucher_id SERIAL PRIMARY KEY,
+    id VARCHAR(50),
+    code VARCHAR(50) UNIQUE NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    description TEXT,
+    discount_type VARCHAR(20) NOT NULL CHECK (discount_type IN ('fixed', 'percent')),
+    discount_value NUMERIC(10, 2) NOT NULL CHECK (discount_value >= 0),
+    min_order_amount NUMERIC(10, 2) DEFAULT 0 CHECK (min_order_amount >= 0),
+    max_discount_amount NUMERIC(10, 2),
+    target_type VARCHAR(30) DEFAULT 'all' CHECK (target_type IN ('all', 'first_order')),
+    usage_limit INT DEFAULT 100 CHECK (usage_limit >= 0),
+    used_count INT DEFAULT 0 CHECK (used_count >= 0),
+    start_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    end_date TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_vouchers_code ON vouchers(code);
+CREATE INDEX IF NOT EXISTS idx_vouchers_active ON vouchers(is_active);
+
+-- ================================================================
+-- 4. CỤM AI, NHẬT KÝ & TRI THỨC (M4 & M5)
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS chatbot_knowledge (
+    id SERIAL PRIMARY KEY,
+    intent_tag VARCHAR(50) NOT NULL,
+    keyword_patterns TEXT[] NOT NULL,
+    answer_template TEXT NOT NULL,
+    recommended_category VARCHAR(50),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE chatbot_knowledge IS 'Cơ sở tri thức trả lời tự động cho NutriBot.';
+
 -- 6. Nhật ký dinh dưỡng chuẩn hóa trong nutrition_diary và diary_entries.
 CREATE TABLE IF NOT EXISTS nutrition_diary (
     diary_id SERIAL PRIMARY KEY,
@@ -229,7 +359,6 @@ CREATE TABLE IF NOT EXISTS knowledge_base (
 );
 COMMENT ON TABLE knowledge_base IS 'Lưu câu hỏi, câu trả lời và chủ đề kiến thức dinh dưỡng cho chatbot.';
 
--- 12. Bảng ảnh thực phẩm và kết quả dự đoán dinh dưỡng.
 -- 9. Dự đoán dinh dưỡng từ ảnh (NutritionImage)
 CREATE TABLE IF NOT EXISTS nutrition_images (
     image_id SERIAL PRIMARY KEY,
@@ -247,11 +376,93 @@ CREATE TABLE IF NOT EXISTS nutrition_images (
 COMMENT ON TABLE nutrition_images IS 'Lưu ảnh thực phẩm đã tải lên, trạng thái xử lý OCR và kết quả dinh dưỡng dự đoán.';
 CREATE INDEX IF NOT EXISTS idx_nutrition_images_customer_date ON nutrition_images(customer_id, upload_date DESC);
 
--- Tối ưu hóa hiệu năng truy vấn (Indexes)
+-- ================================================================
+-- 5. CHỈ MỤC TỐI ƯU HÓA HIỆU NĂNG TRUY VẤN (INDEXES)
+-- ================================================================
+
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_products_calories ON nutrition_facts(calories);
 CREATE INDEX IF NOT EXISTS idx_products_protein ON nutrition_facts(protein);
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_carts_customer_id ON carts(customer_id);
+CREATE INDEX IF NOT EXISTS idx_cart_items_cart_id ON cart_items(cart_id);
+CREATE INDEX IF NOT EXISTS idx_cart_items_product_id ON cart_items(product_id);
+
+CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_order_code ON orders(order_code);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
-CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_orders_payment_status ON orders(payment_status);
+CREATE INDEX IF NOT EXISTS idx_orders_order_date ON orders(order_date DESC);
+
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);
 CREATE INDEX IF NOT EXISTS idx_nutrition_diary_customer_date_lookup ON nutrition_diary(customer_id, date);
+
+-- ================================================================
+-- 6. TRIGGER TỰ ĐỒNG BỘ DỮ LIỆU & RÀNG BUỘC (DATA INTEGRITY)
+-- ================================================================
+
+CREATE OR REPLACE FUNCTION fn_sync_order_customer_fields()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.id := COALESCE(NEW.id, NEW.order_id);
+    NEW.receiver_name := COALESCE(NEW.receiver_name, NEW.customer_name, 'Khách hàng');
+    NEW.customer_name := COALESCE(NEW.customer_name, NEW.receiver_name);
+    NEW.receiver_phone := COALESCE(NEW.receiver_phone, NEW.customer_phone, '');
+    NEW.customer_phone := COALESCE(NEW.customer_phone, NEW.receiver_phone);
+    NEW.receiver_email := COALESCE(NEW.receiver_email, NEW.customer_email, '');
+    NEW.customer_email := COALESCE(NEW.customer_email, NEW.receiver_email);
+    NEW.note := COALESCE(NEW.note, NEW.notes);
+    NEW.notes := COALESCE(NEW.notes, NEW.note);
+    NEW.user_id := COALESCE(NEW.user_id, NEW.customer_id);
+    NEW.customer_id := COALESCE(NEW.customer_id, NEW.user_id);
+    NEW.created_at := COALESCE(NEW.created_at, NEW.order_date, CURRENT_TIMESTAMP);
+    NEW.order_date := COALESCE(NEW.order_date, NEW.created_at);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sync_order_customer_fields ON orders;
+CREATE TRIGGER trg_sync_order_customer_fields
+BEFORE INSERT OR UPDATE ON orders
+FOR EACH ROW
+EXECUTE FUNCTION fn_sync_order_customer_fields();
+
+CREATE OR REPLACE FUNCTION fn_sync_order_payment()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        INSERT INTO payments (order_id, method, amount, status, paid_at, transaction_code)
+        VALUES (
+            NEW.order_id,
+            COALESCE(NEW.payment_method, 'vietqr'),
+            NEW.total_amount,
+            COALESCE(NEW.payment_status, 'pending'),
+            CASE WHEN NEW.payment_status = 'paid' THEN CURRENT_TIMESTAMP ELSE NULL END,
+            'TXN-' || UPPER(SUBSTRING(MD5(COALESCE(NEW.order_code, NEW.order_id::text) || CURRENT_TIMESTAMP::text) FROM 1 FOR 8))
+        )
+        ON CONFLICT (order_id) DO UPDATE
+        SET method = EXCLUDED.method,
+            amount = EXCLUDED.amount,
+            status = EXCLUDED.status,
+            paid_at = CASE WHEN EXCLUDED.status = 'paid' THEN CURRENT_TIMESTAMP ELSE payments.paid_at END,
+            updated_at = CURRENT_TIMESTAMP;
+    ELSIF TG_OP = 'UPDATE' THEN
+        UPDATE payments
+        SET method = COALESCE(NEW.payment_method, method),
+            amount = NEW.total_amount,
+            status = COALESCE(NEW.payment_status, status),
+            paid_at = CASE WHEN NEW.payment_status = 'paid' AND payments.paid_at IS NULL THEN CURRENT_TIMESTAMP ELSE payments.paid_at END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE order_id = NEW.order_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sync_order_payment ON orders;
+CREATE TRIGGER trg_sync_order_payment
+AFTER INSERT OR UPDATE OF payment_method, payment_status, total_amount ON orders
+FOR EACH ROW
+EXECUTE FUNCTION fn_sync_order_payment();

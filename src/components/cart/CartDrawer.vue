@@ -1,20 +1,31 @@
 <script setup lang="ts">
-import { useCartStore } from '../../stores/cartStore';
+import { useRouter } from 'vue-router';
+import { useCartStore, getCartItemKey } from '../../stores/cartStore';
+import CartItemRow from './CartItemRow.vue';
 import {
   X,
-  Trash2,
-  Plus,
-  Minus,
   ShoppingBag,
   ArrowRight,
   Flame,
   Dumbbell,
+  ExternalLink,
 } from 'lucide-vue-next';
 
+const router = useRouter();
 const cartStore = useCartStore();
 
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+}
+
+function handleGoToCart() {
+  cartStore.closeCart();
+  router.push('/cart');
+}
+
+function handleProceedCheckout() {
+  cartStore.closeCart();
+  router.push('/checkout');
 }
 </script>
 
@@ -25,154 +36,130 @@ function formatVnd(amount: number): string {
       v-if="cartStore.isCartOpen"
       class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs transition-opacity duration-300"
       @click="cartStore.closeCart()"
+      aria-hidden="true"
     ></div>
 
     <!-- Slide-over Drawer -->
     <aside
-      class="fixed top-0 right-0 bottom-0 z-50 w-full max-w-md bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-in-out"
+      class="fixed top-0 right-0 bottom-0 z-50 w-full max-w-md bg-[#FAF9F5] shadow-2xl flex flex-col transition-transform duration-300 ease-in-out border-l border-[#E3E8DC]"
       :class="cartStore.isCartOpen ? 'translate-x-0' : 'translate-x-full'"
       role="dialog"
       aria-modal="true"
+      aria-label="Giỏ hàng của bạn"
     >
       <!-- Header -->
-      <div class="p-5 sm:p-6 border-b border-slate-200 flex items-center justify-between">
-        <div class="flex items-center gap-2.5">
-          <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
-            <ShoppingBag class="w-5 h-5" />
+      <div class="p-5 sm:p-6 bg-white border-b border-[#E8ECE2] flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-[#EBF7E5] text-[#4D6A34] flex items-center justify-center border border-[#CCD7BC]">
+            <ShoppingBag class="w-5 h-5 stroke-[2]" />
           </div>
           <div>
-            <h2 class="font-heading text-lg font-bold text-slate-900">Giỏ Hàng Dinh Dưỡng</h2>
-            <p class="text-xs text-slate-500">{{ cartStore.totalCount }} món trong giỏ</p>
+            <h2 class="font-heading text-lg font-bold text-[#242424]">Giỏ Hàng Dinh Dưỡng</h2>
+            <p class="text-xs text-[#7A866E] font-medium">{{ cartStore.totalCount }} món đang lưu</p>
           </div>
         </div>
 
         <button
           type="button"
           @click="cartStore.closeCart()"
-          class="w-9 h-9 rounded-xl text-slate-500 hover:bg-slate-100 flex items-center justify-center transition-colors min-h-[44px] min-w-[44px]"
+          class="w-10 h-10 rounded-2xl text-[#7A866E] hover:bg-[#FAF9F5] hover:text-[#242424] flex items-center justify-center transition-colors min-h-[44px] min-w-[44px] cursor-pointer"
           aria-label="Đóng giỏ hàng"
         >
           <X class="w-5 h-5" />
         </button>
       </div>
 
-      <!-- Nutrition Summary Banner -->
+      <!-- Nutrition Summary Banner (CN_17 / CN_18) -->
       <div
         v-if="cartStore.items.length > 0"
-        class="bg-emerald-950 text-white p-4 mx-4 mt-4 rounded-2xl shadow-inner flex items-center justify-between"
+        class="bg-[#232722] text-white p-4 mx-4 mt-4 rounded-2xl shadow-sm flex items-center justify-between border border-slate-800"
       >
-        <div class="flex items-center gap-2">
-          <Flame class="w-5 h-5 text-amber-400" />
+        <div class="flex items-center gap-2.5">
+          <Flame class="w-5 h-5 text-amber-300 shrink-0" />
           <div>
-            <span class="text-[11px] text-emerald-300 block uppercase font-bold tracking-wider">Tổng Năng Lượng</span>
+            <span class="text-[10px] text-[#A6B299] block uppercase font-bold tracking-wider">Tổng Năng Lượng</span>
             <span class="font-heading text-base font-extrabold text-white">{{ cartStore.totalCalories }} kcal</span>
           </div>
         </div>
-        <div class="h-8 w-px bg-slate-800"></div>
-        <div class="flex items-center gap-2">
-          <Dumbbell class="w-5 h-5 text-emerald-400" />
+
+        <div class="h-8 w-px bg-slate-700"></div>
+
+        <div class="flex items-center gap-2.5">
+          <Dumbbell class="w-5 h-5 text-emerald-400 shrink-0" />
           <div>
-            <span class="text-[11px] text-emerald-300 block uppercase font-bold tracking-wider">Tổng Đạm (Protein)</span>
-            <span class="font-heading text-base font-extrabold text-white">{{ cartStore.totalProtein }}g Đạm</span>
+            <span class="text-[10px] text-[#A6B299] block uppercase font-bold tracking-wider">Tổng Đạm</span>
+            <span class="font-heading text-base font-extrabold text-white">{{ cartStore.totalProtein }}g</span>
           </div>
         </div>
       </div>
 
       <!-- Items List -->
-      <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+      <div class="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
+        <!-- Empty State -->
         <div
           v-if="cartStore.items.length === 0"
-          class="h-full flex flex-col items-center justify-center text-center p-6 space-y-3"
+          class="h-full flex flex-col items-center justify-center text-center p-6 space-y-4"
         >
-          <div class="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
-            <ShoppingBag class="w-8 h-8" />
+          <div class="w-16 h-16 rounded-full bg-white border border-[#E3E8DC] text-[#7A866E] flex items-center justify-center">
+            <ShoppingBag class="w-8 h-8 stroke-[1.5]" />
           </div>
-          <h3 class="font-heading text-base font-bold text-slate-800">Giỏ hàng của bạn đang trống</h3>
-          <p class="text-xs text-slate-500 max-w-xs leading-relaxed">
+          <h3 class="font-heading text-base font-bold text-[#242424]">Giỏ hàng của bạn đang trống</h3>
+          <p class="text-xs text-[#7A866E] max-w-xs leading-relaxed">
             Hãy khám phá các thực phẩm Low-Carb, Giàu Đạm hoặc Không Đường để nạp dinh dưỡng sạch hôm nay nhé!
           </p>
+          <button
+            type="button"
+            @click="cartStore.closeCart(); router.push('/catalog')"
+            class="px-5 py-2.5 rounded-xl bg-[#4D6A34] text-white text-xs font-bold hover:bg-[#3B4E24] transition-colors"
+          >
+            Khám phá thực đơn
+          </button>
         </div>
 
-        <div
+        <!-- Render bằng CartItemRow compact mode -->
+        <CartItemRow
           v-for="item in cartStore.items"
-          :key="item.product.id"
-          class="flex items-center gap-3.5 p-3 rounded-2xl border border-slate-200/90 bg-slate-50/50 hover:bg-white hover:border-emerald-300 transition-all"
-        >
-          <!-- Thumb -->
-          <img
-            :src="item.product.image"
-            :alt="item.product.name"
-            class="w-16 h-16 rounded-xl object-cover shrink-0"
-          />
-
-          <!-- Info -->
-          <div class="flex-1 min-w-0">
-            <h4 class="font-heading text-sm font-bold text-slate-900 truncate">
-              {{ item.product.name }}
-            </h4>
-            <div class="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
-              <span>{{ item.product.nutrition.calories }} kcal</span>
-              <span>•</span>
-              <span class="text-emerald-700 font-semibold">{{ item.product.nutrition.protein }}g đạm</span>
-            </div>
-            <span class="font-heading text-sm font-bold text-emerald-700 block mt-1">
-              {{ formatVnd(item.product.price) }}
-            </span>
-          </div>
-
-          <!-- Quantity Controls -->
-          <div class="flex flex-col items-end gap-1.5 shrink-0">
-            <button
-              type="button"
-              @click="cartStore.removeItem(item.product.id)"
-              class="text-slate-400 hover:text-rose-600 p-1 transition-colors"
-              title="Xóa khỏi giỏ"
-            >
-              <Trash2 class="w-4 h-4" />
-            </button>
-            <div class="flex items-center border border-slate-300 rounded-xl bg-white">
-              <button
-                type="button"
-                @click="cartStore.updateQuantity(item.product.id, item.quantity - 1)"
-                class="w-6 h-6 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded-l-xl"
-              >
-                <Minus class="w-3 h-3" />
-              </button>
-              <span class="w-6 text-center text-xs font-bold text-slate-900">{{ item.quantity }}</span>
-              <button
-                type="button"
-                @click="cartStore.updateQuantity(item.product.id, item.quantity + 1)"
-                class="w-6 h-6 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded-r-xl"
-              >
-                <Plus class="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-        </div>
+          :key="getCartItemKey(item.product.id, item.selectedPortion)"
+          :item="item"
+          :compact="true"
+          @update-quantity="(qty) => cartStore.updateQuantity(item.product.id, qty, item.selectedPortion)"
+          @remove="cartStore.removeItem(item.product.id, item.selectedPortion)"
+        />
       </div>
 
-      <!-- Footer & Checkout Button -->
-      <div v-if="cartStore.items.length > 0" class="p-5 sm:p-6 border-t border-slate-200 space-y-4 bg-slate-50/50">
-        <div class="flex items-baseline justify-between">
-          <span class="text-sm font-semibold text-slate-600">Tạm tính:</span>
-          <span class="font-heading text-xl font-extrabold text-slate-900">
+      <!-- Footer & Checkout Actions -->
+      <div v-if="cartStore.items.length > 0" class="p-5 bg-white border-t border-[#E8ECE2] space-y-3 shadow-xs">
+        <div class="flex items-baseline justify-between text-sm">
+          <span class="font-semibold text-[#576449]">Tổng tạm tính:</span>
+          <span class="font-heading text-xl font-black text-[#242424]">
             {{ formatVnd(cartStore.totalAmount) }}
           </span>
         </div>
 
-        <button
-          type="button"
-          @click="cartStore.openCheckout()"
-          class="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-700/20 transition-all min-h-[44px]"
-        >
-          <span>Tiến Hành Đặt Hàng</span>
-          <ArrowRight class="w-4 h-4" />
-        </button>
+        <div class="grid grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            @click="handleGoToCart"
+            class="py-3 px-3 rounded-2xl bg-[#FAF9F5] hover:bg-[#EBF7E5] text-[#4D6A34] font-bold text-xs border border-[#CCD7BC] flex items-center justify-center gap-1.5 transition-colors min-h-[44px] cursor-pointer"
+          >
+            <ExternalLink class="w-4 h-4" />
+            <span>Xem giỏ hàng</span>
+          </button>
+
+          <button
+            type="button"
+            @click="handleProceedCheckout"
+            class="py-3 px-3 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] active:bg-[#2D3B1E] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all min-h-[44px] cursor-pointer"
+          >
+            <span>Thanh toán</span>
+            <ArrowRight class="w-4 h-4" />
+          </button>
+        </div>
 
         <button
           type="button"
           @click="cartStore.clearCart()"
-          class="w-full text-center text-xs font-medium text-slate-400 hover:text-rose-600 transition-colors py-1"
+          class="w-full text-center text-xs font-medium text-[#8C9484] hover:text-rose-600 transition-colors py-1 cursor-pointer"
         >
           Xóa toàn bộ giỏ hàng
         </button>

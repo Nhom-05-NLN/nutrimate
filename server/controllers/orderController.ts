@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import * as orderService from '../services/orderService.js';
-import { ApiResponse, Order, CreateOrderPayload, OrderStatus } from '../types/index.js';
+import { ApiResponse, Order, CreateOrderPayload, OrderStatus, PaymentStatus } from '../types/index.js';
 
 export async function createOrder(req: Request, res: Response<ApiResponse<Order>>): Promise<void> {
   try {
@@ -70,5 +70,55 @@ export async function updateOrderStatus(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Lỗi khi cập nhật trạng thái đơn hàng';
     res.status(500).json({ success: false, message });
+  }
+}
+
+export async function updatePaymentStatus(
+  req: Request<{ id: string }, ApiResponse<Order>, { paymentStatus?: PaymentStatus; status?: OrderStatus }>,
+  res: Response<ApiResponse<Order>>
+): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { paymentStatus, status } = req.body;
+    if (!paymentStatus) {
+      res.status(400).json({ success: false, message: 'Thiếu trạng thái thanh toán' });
+      return;
+    }
+    const updated = await orderService.updatePaymentStatus(id, paymentStatus, status);
+    if (!updated) {
+      res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng để cập nhật' });
+      return;
+    }
+    res.json({
+      success: true,
+      message: `Đã cập nhật trạng thái thanh toán đơn hàng ${updated.orderCode} sang ${paymentStatus}`,
+      data: updated,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Lỗi khi cập nhật trạng thái thanh toán';
+    res.status(500).json({ success: false, message });
+  }
+}
+
+export async function cancelOrder(
+  req: Request<{ id: string }, ApiResponse<Order>, { reason?: string }>,
+  res: Response<ApiResponse<Order>>
+): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const cancelled = await orderService.cancelOrder(id, reason);
+    if (!cancelled) {
+      res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng để hủy' });
+      return;
+    }
+    res.json({
+      success: true,
+      message: `Đã hủy đơn hàng #${cancelled.orderCode} thành công`,
+      data: cancelled,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Lỗi khi hủy đơn hàng';
+    res.status(400).json({ success: false, message });
   }
 }

@@ -220,7 +220,6 @@ function handleAddToCart() {
       : '',
     selectedVariant.value?.id,
   );
-  toastStore.show('Đã thêm vào giỏ hàng', 'success', `${product.value.name} (${selectedVariant.value?.name ?? product.value.name})`);
 }
 
 function handleBuyNow() {
