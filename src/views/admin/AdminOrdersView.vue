@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { fetchOrders, patchOrderStatus } from '../../services/api';
+import { fetchOrders, patchOrderStatus, patchOrderPaymentStatus } from '../../services/api';
 import { useToastStore } from '../../stores/toastStore';
 import { Order, OrderStatus } from '../../types';
 import AdminOrderTable from '../../components/admin/orders/AdminOrderTable.vue';
@@ -95,9 +95,12 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
         orders.value[idx] = { ...orders.value[idx], ...updated };
       } else {
         orders.value[idx].status = payload.status;
-        if (payload.status === 'delivered' && orders.value[idx].paymentMethod?.toLowerCase() === 'cod') {
-          orders.value[idx].paymentStatus = 'paid';
-        }
+      }
+
+      // Khi giao hàng thành công, tự động hiểu và cập nhật đã thanh toán (Đã thu)
+      if (payload.status === 'delivered') {
+        orders.value[idx].paymentStatus = 'paid';
+        patchOrderPaymentStatus(payload.orderId, 'paid').catch(() => {});
       }
     }
 

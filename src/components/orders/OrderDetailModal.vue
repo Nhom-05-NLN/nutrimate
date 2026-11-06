@@ -249,9 +249,9 @@ function getStatusBadge(order: Order) {
             <span>Trạng thái thanh toán:</span>
             <span
               class="font-bold px-2 py-0.5 rounded-full text-xs"
-              :class="order.paymentStatus === 'paid' ? 'bg-[#EBF7E5] text-[#4D6A34]' : 'bg-amber-100 text-amber-800'"
+              :class="order.paymentStatus === 'paid' || order.status === 'delivered' ? 'bg-[#EBF7E5] text-[#4D6A34]' : 'bg-amber-100 text-amber-800'"
             >
-              {{ order.paymentStatus === 'paid' ? '✓ Đã thanh toán (PAID)' : 'Chờ thanh toán (COD)' }}
+              {{ order.paymentStatus === 'paid' || order.status === 'delivered' ? '✓ Đã thanh toán (PAID)' : 'Chờ thanh toán (COD)' }}
             </span>
           </div>
           <div class="flex justify-between">

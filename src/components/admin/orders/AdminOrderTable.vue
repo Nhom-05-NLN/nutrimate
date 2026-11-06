@@ -55,6 +55,11 @@ function formatDate(dateStr: string): string {
   }
 }
 
+function isOrderPaid(order: Order): boolean {
+  if (order.status === 'delivered') return true;
+  return order.paymentStatus === 'paid';
+}
+
 function getStatusBadge(status: OrderStatus) {
   switch (status) {
     case 'delivered':
@@ -155,9 +160,9 @@ function getStatusBadge(status: OrderStatus) {
             <div class="mt-1">
               <span
                 class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase inline-block whitespace-nowrap"
-                :class="order.paymentStatus === 'paid' ? 'bg-[#EBF7E5] text-[#4D6A34] border border-[#CCD7BC]' : 'bg-amber-100 text-amber-800 border border-amber-200'"
+                :class="isOrderPaid(order) ? 'bg-[#EBF7E5] text-[#4D6A34] border border-[#CCD7BC]' : 'bg-amber-100 text-amber-800 border border-amber-200'"
               >
-                {{ order.paymentMethod }} • {{ order.paymentStatus === 'paid' ? 'Đã thu' : 'Chưa thu' }}
+                {{ order.paymentMethod }} • {{ isOrderPaid(order) ? 'Đã thu' : 'Chưa thu' }}
               </span>
             </div>
             <div v-if="order.discountAmount" class="mt-1">
