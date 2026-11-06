@@ -232,12 +232,22 @@ export const useCartStore = defineStore('cart', () => {
     selectedKeys.value = [];
   }
 
-  function addItem(product: Product, quantity = 1, portion = 'Mặc định', silent = false) {
+  function addItem(
+    product: Product,
+    quantity = 1,
+    portion = 'Mặc định',
+    silentOrVariantId: boolean | string = false,
+    variantId?: string,
+  ) {
+    const silent = typeof silentOrVariantId === 'boolean' ? silentOrVariantId : false;
+    const selectedVariantId = typeof silentOrVariantId === 'string' ? silentOrVariantId : variantId;
     const normalizedPortion = portion || 'Mặc định';
     const key = getCartItemKey(product.id, normalizedPortion);
 
     const existing = items.value.find(
-      (i) => getCartItemKey(i.product.id, i.selectedPortion) === key
+      (i) =>
+        getCartItemKey(i.product.id, i.selectedPortion) === key &&
+        i.variantId === selectedVariantId
     );
 
     if (existing) {
@@ -248,6 +258,7 @@ export const useCartStore = defineStore('cart', () => {
         product,
         quantity,
         selectedPortion: normalizedPortion,
+        variantId: selectedVariantId,
       });
     }
 
