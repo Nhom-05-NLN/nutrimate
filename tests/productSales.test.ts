@@ -37,7 +37,7 @@ test('popular products aggregate delivered quantities and sort before pagination
   const queries: string[] = [];
   const executeQuery = (async (sql: string) => {
     queries.push(sql);
-    if (/^SELECT COUNT\(\*\)/.test(sql.trim())) return { rows: [{ count: '2' }] };
+    if (sql.trim().startsWith('SELECT COUNT(*)')) return { rows: [{ count: '2' }] };
     return {
       rows: [{
         id: 12, code: 'P12', name: 'Product', category: 'low-carb',
@@ -71,7 +71,7 @@ test('multiple categories share a parameterized OR filter before counting and pa
   const calls: { sql: string; values: unknown[] }[] = [];
   const executeQuery = (async (sql: string, values: unknown[] = []) => {
     calls.push({ sql, values: [...values] });
-    return { rows: /^SELECT COUNT\(\*\)/.test(sql.trim()) ? [{ count: '0' }] : [] };
+    return { rows: sql.trim().startsWith('SELECT COUNT(*)') ? [{ count: '0' }] : [] };
   }) as typeof queryPostgres;
   const categories = ['low-carb', 'high-protein'];
   await findProducts({ categories, page: 1, limit: 9 }, true, executeQuery);
