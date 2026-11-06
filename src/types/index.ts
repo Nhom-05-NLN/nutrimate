@@ -65,6 +65,31 @@ export interface Category {
   count?: number;
 }
 
+export interface AdminProductItem {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  price: number;
+  originalPrice?: number;
+  calo: number;
+  protein: number;
+  sugar: number;
+  carbs?: number;
+  fat?: number;
+  status: 'Đang bán' | 'Tạm ngừng';
+  image: string;
+  description?: string;
+  ingredients?: string[];
+  badges?: string[];
+  servingSize?: string;
+  stock?: number;
+  rating?: number;
+  reviewCount?: number;
+  soldCount?: number;
+  unit?: string;
+}
+
 export interface CartItem {
   product: Product;
   quantity: number;
