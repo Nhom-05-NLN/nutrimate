@@ -6,6 +6,7 @@ import { useCartStore } from '../../stores/cartStore';
 import { ChatSuggestedProduct, Product } from '../../types';
 import { useAuthStore } from '../../stores/authStore';
 import { useToastStore } from '../../stores/toastStore';
+import { formatChatMessage } from '../../utils/chatMessageFormatter';
 import {
   Bot,
   X,
@@ -71,16 +72,6 @@ function handleSend() {
 function handleQuickPrompt(promptText: string) {
   if (pendingImage.value) inputText.value = promptText;
   else chatStore.sendMessage(promptText);
-}
-
-function formatMessageText(text: string): string {
-  const disclaimer = 'Thông tin chỉ mang tính tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.';
-  const flexibleDisclaimer = disclaimer
-    .split(/\s+/)
-    .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('\\s+');
-  const repeatedDisclaimer = new RegExp(`(?:${flexibleDisclaimer})(?:\\s*(?:${flexibleDisclaimer}))+`, 'giu');
-  return text.replace(/\*\*/g, '').replace(repeatedDisclaimer, disclaimer);
 }
 
 function handleImageSelected(event: Event) {
@@ -248,7 +239,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
               alt="Ảnh thực phẩm được gửi để phân tích"
               class="mb-2 max-h-48 max-w-full rounded-xl object-contain"
             />
-            <p class="whitespace-pre-line break-words">{{ msg.sender === 'bot' ? formatMessageText(msg.text) : msg.text }}</p>
+            <p class="whitespace-pre-line break-words">{{ msg.sender === 'bot' ? formatChatMessage(msg.text) : msg.text }}</p>
           </div>
           <button v-if="msg.failed" type="button" :disabled="chatBlocked" class="text-xs text-red-700 underline" @click="chatStore.retryMessage(msg)">Gửi lại tin nhắn</button>
 

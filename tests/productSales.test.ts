@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { findProducts, findProductById } from '../server/repositories/productRepository.js';
+import { findProducts, findProductById, findChatProducts } from '../server/repositories/productRepository.js';
 import { queryPostgres } from '../server/db/index.js';
 
 test('product detail propagates database failures and never substitutes seeded stock', async () => {
@@ -85,4 +85,30 @@ test('multiple categories share a parameterized OR filter before counting and pa
     assert.deepEqual(call.values[0], categories);
   }
   assert.match(calls[1].sql, /LIMIT \$2 OFFSET \$3/);
+});
+
+test('chat suggestions filter for complete nutrition before sorting and pagination', async () => {
+  const calls: { sql: string; values: unknown[] }[] = [];
+  const executeQuery = (async (sql: string, values: unknown[] = []) => {
+    calls.push({ sql, values: [...values] });
+    if (sql.trim().startsWith('SELECT COUNT(*)')) return { rows: [{ count: '1' }] };
+    return {
+      rows: [{
+        id: 12, code: 'P12', name: 'Product', category: 'high-protein',
+        category_name: 'High-Protein', price: '10000', stock_quantity: 5,
+        calories: '165', protein: '31.5', carbs: '2', fat: '3', sugar: '0',
+        rating: '0', review_count: 0, sold_count: '0',
+      }],
+    };
+  }) as typeof queryPostgres;
+
+  const products = await findChatProducts({ sort: 'protein_desc' }, executeQuery);
+
+  assert.equal(products.length, 1);
+  assert.equal(products[0]?.nutrition.protein, 31.5);
+  for (const call of calls) {
+    assert.match(call.sql, /calories IS NOT NULL AND protein IS NOT NULL AND carbs IS NOT NULL AND fat IS NOT NULL AND sugar IS NOT NULL/);
+  }
+  assert.match(calls[1]?.sql ?? '', /WHERE status = TRUE AND calories IS NOT NULL[\s\S]*ORDER BY protein DESC\s+LIMIT/);
+  assert.deepEqual(calls[1]?.values, [50, 0]);
 });

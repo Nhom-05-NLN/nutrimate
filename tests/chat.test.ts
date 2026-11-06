@@ -237,6 +237,44 @@ test('meal suggestion answers do not append the nutrition disclaimer', async () 
   assert.equal(result.reply, 'Bạn có thể chọn các món ít calo dưới đây.');
   assert.ok(!result.reply.includes(CHAT_DISCLAIMER));
 });
+test('product suggestions use real product context even when nutrition knowledge is unmatched or matched', async () => {
+  const suggestionRepository = new MemoryRepository();
+  const owner = { userId: 1, guestHash: null } as const;
+  const conversation = await suggestionRepository.create(owner);
+  const product: Product = {
+    id: '42',
+    code: 'NM-42',
+    name: 'Đậu gà',
+    category: 'high-protein',
+    categoryName: 'Giàu đạm',
+    price: 25000,
+    image: '/images/chickpea.png',
+    description: 'Đậu gà rang',
+    ingredients: ['Đậu gà'],
+    nutrition: { servingSize: '30 g', calories: 120, protein: 8, carbs: 18, fat: 2, sugar: 1 },
+    stock: 5,
+    rating: 0,
+    reviewCount: 0,
+    badges: [],
+    bestFor: '',
+  };
+  let generated = false;
+  const suggestionService = createChatService(suggestionRepository, async messages => {
+    generated = true;
+    assert.match(messages[0]?.content ?? '', /kể cả khi knowledge_base trống hoặc không khớp/i);
+    assert.match(messages[0]?.content ?? '', /Đậu gà/);
+    return 'Bạn có thể thử Đậu gà rang: 8 g protein và 1 g đường mỗi khẩu phần.';
+  }, async () => ({
+    products: [product],
+    knowledge: '',
+    knowledgeAnswer: 'FAQ chung không trả lời yêu cầu gợi ý sản phẩm.',
+  }));
+  const result = await suggestionService.ask(owner, conversation.id, randomUUID(), 'Gợi ý món giàu protein, ít đường');
+  assert.equal(generated, true);
+  assert.match(result.reply, /Đậu gà rang/);
+  assert.deepEqual(result.suggestedProducts, [product]);
+  assert.ok(!result.reply.includes(CHAT_DISCLAIMER));
+});
 test('session bootstrap creates/restores Guest without creating conversations and rejects expired Customer JWT', async () => {
   const before = repository.records.size;
   const response = await request('/session', {});

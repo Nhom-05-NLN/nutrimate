@@ -114,6 +114,7 @@ export async function findProducts(
   filter: ProductFilterQuery,
   requirePostgres = false,
   executeQuery = queryPostgres,
+  requireCompleteNutrition = false,
 ): Promise<{ products: Product[]; total: number }> {
   const page = filter.page && filter.page > 0 ? Number(filter.page) : 1;
   const limit = filter.limit && filter.limit > 0 ? Number(filter.limit) : 12;
@@ -124,6 +125,10 @@ export async function findProducts(
       const conditions: string[] = ['status = TRUE'];
       const values: unknown[] = [];
       let paramIdx = 1;
+
+      if (requireCompleteNutrition) {
+        conditions.push('calories IS NOT NULL AND protein IS NOT NULL AND carbs IS NOT NULL AND fat IS NOT NULL AND sugar IS NOT NULL');
+      }
 
       if (filter.categories?.length) {
         conditions.push(`category = ANY($${paramIdx++}::text[])`);
@@ -204,6 +209,11 @@ export async function findProducts(
 
   let list = [...memoryProducts].filter((p) => p.status !== false);
 
+  if (requireCompleteNutrition) {
+    list = list.filter(product => [product.nutrition.calories, product.nutrition.protein,
+      product.nutrition.carbs, product.nutrition.fat, product.nutrition.sugar].every(Number.isFinite));
+  }
+
   if (filter.categories?.length) {
     list = list.filter((product) => filter.categories!.includes(product.category));
   }
@@ -255,7 +265,7 @@ export async function getTotalSoldProducts(executeQuery = queryPostgres): Promis
 }
 
 export async function findChatProducts(filter: ProductFilterQuery, executeQuery = queryPostgres): Promise<ChatSuggestedProduct[]> {
-  const result = await findProducts({ ...filter, limit: 50, page: 1 }, true, executeQuery);
+  const result = await findProducts({ ...filter, limit: 50, page: 1 }, true, executeQuery, true);
   return result.products.filter(product => [product.nutrition.calories, product.nutrition.protein,
     product.nutrition.carbs, product.nutrition.fat, product.nutrition.sugar].every(Number.isFinite)).slice(0, 3);
 }
