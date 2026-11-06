@@ -16,6 +16,7 @@ import {
   Package,
   ShoppingCart,
   Users,
+  Ticket,
   Bot,
   BarChart3,
   Settings,
@@ -349,8 +350,9 @@ const coreNavItems = [
   { path: '/admin/products', label: 'Sản phẩm', icon: Package },
   { path: '/admin/categories', label: 'Danh mục', icon: FolderTree },
   { path: '/admin/inventory', label: 'Tồn kho', icon: Boxes, badge: '4 cảnh báo' },
-  { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart, badge: '12 mới' },
+  { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
   { path: '/admin/customers', label: 'Khách hàng', icon: Users },
+  { path: '/admin/vouchers', label: 'Mã giảm giá', icon: Ticket, badge: 'Ưu đãi' },
 ];
 
 const aiNavItems = [
@@ -504,7 +506,9 @@ async function handleAdminLogout() {
               DINH DƯỠNG & TRÍ TUỆ AI
             </span>
             <RouterLink
-              v-for="item in aiNavItems" :key="item.path" :to="item.path"
+              v-for="item in aiNavItems"
+              :key="item.path"
+              :to="item.path"
               class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition-colors"
               :class="[
                 route.path === item.path
@@ -518,6 +522,7 @@ async function handleAdminLogout() {
                 <span>{{ item.label }}</span>
               </div>
               <span
+                v-if="item.badge"
                 class="px-2 py-0.5 rounded-full text-[9px] font-bold"
                 :class="route.path === item.path ? 'bg-white/20 text-white' : 'bg-[#EBF7E5] text-[#536124]'"
               >

@@ -1,4 +1,4 @@
-import { Category, Product, Order } from '../types/index.js';
+import { Category, Product, Order, ChatbotKnowledge, Voucher } from '../types/index.js';
 
 export const INITIAL_CATEGORIES: Category[] = [
   {
@@ -322,5 +322,89 @@ export const INITIAL_ORDERS: Order[] = [
     paymentStatus: 'paid',
     status: 'delivered',
     notes: 'Giao giờ hành chính giúp em ạ.',
+  },
+];
+
+export const INITIAL_CHAT_KNOWLEDGE: ChatbotKnowledge[] = [
+  {
+    id: 1,
+    intentTag: 'low_carb_keto',
+    keywordPatterns: ['keto', 'low-carb', 'low carb', 'ít tinh bột', 'giảm cân', 'bụng mỡ', 'tinh bột'],
+    answerTemplate: 'Chế độ Low-Carb / Keto tập trung cắt giảm carbohydrate tinh chế (dưới 20-50g carbs thuần/ngày) để cơ thể chuyển sang trạng thái đốt mỡ tự nhiên. NutriMate có các sản phẩm tiêu biểu như Bún Nưa Shirataki 0 Calo, Bánh Mì Nguyên Cám Hạnh Nhân và Granola Hạt Siêu Bùi.',
+    recommendedCategory: 'low-carb',
+  },
+  {
+    id: 2,
+    intentTag: 'high_protein_gym',
+    keywordPatterns: ['protein', 'đạm', 'gym', 'tập tạ', 'tăng cơ', 'siết cơ', 'thể hình', 'cơ bắp'],
+    answerTemplate: 'Để phát triển và phục hồi cơ bắp tối ưu, bạn cần nạp khoảng 1.6g - 2.2g protein trên mỗi kg thể trọng mỗi ngày. Danh mục High-Protein của NutriMate cung cấp ức gà nấu chậm sous-vide mềm ngọt (31.5g đạm), thanh protein bar hạt chia và bơ đậu phộng mộc 100%.',
+    recommendedCategory: 'high-protein',
+  },
+  {
+    id: 3,
+    intentTag: 'sugar_free_diabetes',
+    keywordPatterns: ['đường', 'tiểu đường', 'sugar', 'huyết áp', 'kiêng ngọt', 'không đường', 'thèm ngọt'],
+    answerTemplate: 'Cắt giảm đường tinh luyện giúp ổn định đường huyết, giảm mỡ nội tạng và làm chậm lão hóa. Bạn hoàn toàn có thể thưởng thức vị ngọt lành mạnh nhờ trà Kombucha men sống 0 sugar, sô-cô-la đen 85% cacao cỏ ngọt Stevia và mứt dâu rừng hạt chia.',
+    recommendedCategory: 'sugar-free',
+  },
+];
+
+export const INITIAL_VOUCHERS: Voucher[] = [
+  {
+    id: 'vouch-1',
+    code: 'HELLO_NUTRI',
+    title: 'Chào bạn mới: Giảm 30.000đ cho đơn đầu tiên',
+    description: 'Ưu đãi dành riêng cho khách hàng trải nghiệm đặt món Eat-Clean lần đầu tại NutriMate.',
+    discountType: 'fixed',
+    discountValue: 30000,
+    minOrderAmount: 150000,
+    targetType: 'first_order',
+    usageLimit: 100,
+    usedCount: 14,
+    endDate: '2027-12-31T23:59:59.000Z',
+    isActive: true,
+  },
+  {
+    id: 'vouch-2',
+    code: 'HEALTHY20',
+    title: 'Ăn Lành Sống Khỏe: Giảm ngay 20.000đ',
+    description: 'Áp dụng cho mọi đơn hàng thực phẩm dinh dưỡng từ 180.000đ.',
+    discountType: 'fixed',
+    discountValue: 20000,
+    minOrderAmount: 180000,
+    targetType: 'all',
+    usageLimit: 80,
+    usedCount: 42,
+    endDate: '2027-12-31T23:59:59.000Z',
+    isActive: true,
+  },
+  {
+    id: 'vouch-3',
+    code: 'CLEANEAT10',
+    title: 'Đại Tiệc Eat-Clean: Giảm 10% (tối đa 40k)',
+    description: 'Giảm 10% giá trị tiền hàng cho các đơn hàng từ 250.000đ, tối đa 40.000đ.',
+    discountType: 'percent',
+    discountValue: 10,
+    maxDiscountAmount: 40000,
+    minOrderAmount: 250000,
+    targetType: 'all',
+    usageLimit: 50,
+    usedCount: 29,
+    endDate: '2027-12-31T23:59:59.000Z',
+    isActive: true,
+  },
+  {
+    id: 'vouch-4',
+    code: 'NUTRI50',
+    title: 'Combo Tuần Khỏe Mạnh: Giảm 50.000đ',
+    description: 'Dành cho khách hàng đặt mua theo combo hoặc đơn hàng lớn từ 400.000đ.',
+    discountType: 'fixed',
+    discountValue: 50000,
+    minOrderAmount: 400000,
+    targetType: 'all',
+    usageLimit: 30,
+    usedCount: 7,
+    endDate: '2027-12-31T23:59:59.000Z',
+    isActive: true,
   },
 ];

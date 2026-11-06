@@ -147,7 +147,7 @@ after(async () => {
 async function upload(image = pngFixture(), authorization = 'Bearer customer-1', contentType = 'image/png') {
   return fetch(`${base}/nutrition-images`, {
     method: 'POST',
-    headers: { 'Content-Type': contentType, ...(authorization ? { Authorization: authorization } : {}) },
+    headers: { 'Content-Type': contentType, 'x-chat-save-history': 'false', ...(authorization ? { Authorization: authorization } : {}) },
     body: image,
   });
 }
@@ -258,6 +258,7 @@ test('vision adapter sends image only through the configured server-side LLM and
     carbs: 24,
     fat: 8,
     sugar: 4,
+    labelFacts: [],
   });
   await assert.rejects(
     analyzeNutritionImage(pngFixture(), 'image/png', async () => Response.json({

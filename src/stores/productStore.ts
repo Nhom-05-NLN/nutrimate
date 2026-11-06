@@ -27,6 +27,11 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
     rating: 4.9,
     reviewCount: 124,
     badges: ['Keto Friendly', 'Giàu Chất Xơ'],
+    portions: [
+      { label: 'Hũ 500g', weight: '500g', price: 185000, inStock: true, savingBadge: 'Tiết kiệm 15%' },
+      { label: 'Hũ 250g', weight: '250g', price: 105000, inStock: true },
+      { label: 'Túi refill 1000g', weight: '1000g', price: 330000, inStock: true, savingBadge: 'Tiết kiệm 25%' },
+    ],
     isFeatured: true,
     bestFor: 'Bữa sáng & Ăn xế thanh sạch',
   },
@@ -53,6 +58,10 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
     rating: 5.0,
     reviewCount: 208,
     badges: ['High-Protein', '0g Sugar'],
+    portions: [
+      { label: 'Gói 200g', weight: '200g', price: 110000, inStock: true },
+      { label: 'Combo 3 gói (600g)', weight: '600g', price: 310000, inStock: true, savingBadge: 'Tiết kiệm 20k' },
+    ],
     isFeatured: true,
     bestFor: 'Gymer nạp đạm siết cơ',
   },
@@ -157,6 +166,10 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
     rating: 4.7,
     reviewCount: 142,
     badges: ['0g Sugar', 'Keto Friendly'],
+    portions: [
+      { label: 'Hũ 350g', weight: '350g', price: 89000, inStock: true },
+      { label: 'Hũ 500g', weight: '500g', price: 120000, inStock: true, savingBadge: 'Tiết kiệm 15%' },
+    ],
     isFeatured: true,
     bestFor: 'Ăn kèm bánh mì đen & smoothie',
   },
@@ -222,10 +235,10 @@ export const useProductStore = defineStore('product', () => {
   const totalPages = ref<number>(Math.ceil(FIGMA_SEED_PRODUCTS.length / 9));
 
   const categories = ref<Category[]>([
-    { id: 'low-carb', name: 'Low-Carb & KETO', slug: 'low-carb', description: '�t tinh b?t, gi�u ch?t xo', dietType: 'low-carb', count: 18 },
-    { id: 'high-protein', name: 'High-Protein', slug: 'high-protein', description: 'Gi�u d?m si?t co', dietType: 'high-protein', count: 22 },
-    { id: 'sugar-free', name: 'Sugar-Free', slug: 'sugar-free', description: '0g du?ng tinh luy?n', dietType: 'sugar-free', count: 15 },
-    { id: 'snacks-nuts', name: 'H?t dinh du?ng', slug: 'snacks-nuts', description: 'H?t nu?ng m?c & Granola', dietType: 'snacks-nuts', count: 14 },
+    { id: 'low-carb', name: 'Low-Carb & KETO', slug: 'low-carb', description: 'Ít tinh bột, giàu chất xơ', dietType: 'low-carb', count: 18 },
+    { id: 'high-protein', name: 'High-Protein', slug: 'high-protein', description: 'Giàu đạm siết cơ', dietType: 'high-protein', count: 22 },
+    { id: 'sugar-free', name: 'Sugar-Free', slug: 'sugar-free', description: '0g đường tinh luyện', dietType: 'sugar-free', count: 15 },
+    { id: 'snacks-nuts', name: 'Hạt dinh dưỡng', slug: 'snacks-nuts', description: 'Hạt nướng mộc & Granola', dietType: 'snacks-nuts', count: 14 },
   ]);
   const selectedProduct = ref<Product | null>(null);
   const isLoading = ref<boolean>(false);

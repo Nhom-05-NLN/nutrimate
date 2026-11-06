@@ -37,8 +37,12 @@ const knowledgeColumns = `
   knowledge_id, question, answer, category, created_at, updated_at
 `;
 
-export async function getAllKnowledge(executeQuery = queryPostgres): Promise<KnowledgeBaseEntry[]> {
-  const result = await executeQuery<KnowledgeRow>(`
+export async function getAllKnowledge(
+  requirePostgresOrExecutor: boolean | typeof queryPostgres = queryPostgres,
+  executeQuery = queryPostgres,
+): Promise<KnowledgeBaseEntry[]> {
+  const queryFn = typeof requirePostgresOrExecutor === 'function' ? requirePostgresOrExecutor : executeQuery;
+  const result = await queryFn<KnowledgeRow>(`
     SELECT ${knowledgeColumns}
     FROM knowledge_base
     ORDER BY knowledge_id DESC

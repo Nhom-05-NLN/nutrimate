@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useChatStore } from '../../stores/chatStore';
 import { useCartStore } from '../../stores/cartStore';
-import { useToastStore } from '../../stores/toastStore';
 import {
   Bot,
   CheckCircle2,
@@ -11,7 +10,6 @@ import {
 
 const chatStore = useChatStore();
 const cartStore = useCartStore();
-const toastStore = useToastStore();
 
 function handleAddAiCombo() {
   cartStore.addItem(
@@ -43,7 +41,6 @@ function handleAddAiCombo() {
     1,
     'Combo 1 người'
   );
-  toastStore.show('Đã thêm combo AI vào giỏ hàng!', 'success', '1 Hũ Sữa Chua + 25g Hạt Macca (140 kcal)');
 }
 </script>
 

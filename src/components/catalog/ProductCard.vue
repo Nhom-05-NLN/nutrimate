@@ -3,7 +3,6 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Product } from '../../types';
 import { useCartStore } from '../../stores/cartStore';
-import { useToastStore } from '../../stores/toastStore';
 import { ShoppingBag, Star } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -12,7 +11,6 @@ const props = defineProps<{
 
 const router = useRouter();
 const cartStore = useCartStore();
-const toastStore = useToastStore();
 
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -24,7 +22,6 @@ const isInStock = computed(() => (props.product.stock ?? 0) > 0);
 function handleAddToCart() {
   if (!isInStock.value) return;
   cartStore.addItem(props.product, 1);
-  toastStore.show('Đã thêm vào giỏ hàng', 'success', props.product.name);
 }
 
 function goToDetail() {

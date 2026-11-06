@@ -243,7 +243,6 @@ function handleAddToCart() {
     quantity.value,
     selectedPortion.value,
   );
-  toastStore.show('Đã thêm vào giỏ hàng', 'success', `${product.value.name} (${selectedPortion.value})`);
 }
 
 function handleBuyNow() {
