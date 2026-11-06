@@ -21,6 +21,26 @@ import {
 
 const API_BASE = '/api';
 
+export interface ProductReview {
+  id: string;
+  author: string;
+  rating: number;
+  content: string;
+  createdAt: string;
+}
+
+export async function fetchProductReviews(productId: string): Promise<ProductReview[]> {
+  const res = await fetchJson<ApiResponse<ProductReview[]>>(`/products/${encodeURIComponent(productId)}/reviews`);
+  if (!res.data) throw new Error(res.message || 'Không thể tải đánh giá.');
+  return res.data;
+}
+
+export async function postProductReview(productId: string, payload: { rating: number; content: string }) {
+  return fetchJson<ApiResponse<{ id: string }>>(`/products/${encodeURIComponent(productId)}/reviews`, {
+    method: 'POST', body: JSON.stringify(payload),
+  });
+}
+
 export async function fetchProductSalesSummary(): Promise<number> {
   const res = await fetchJson<ApiResponse<{ totalSold: number }>>('/products/sales-summary');
   if (!res.data) throw new Error(res.message || 'Không thể tải lượt bán.');

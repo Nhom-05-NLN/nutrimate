@@ -257,7 +257,7 @@ export const useAdminStore = defineStore('admin', () => {
       products.value[idx] = {
         ...products.value[idx],
         ...product,
-        stock: product.stock ?? products.value[idx].stock ?? 0,
+        stock: product.stock ?? products.value[idx]?.stock ?? 0,
       };
     }
   }

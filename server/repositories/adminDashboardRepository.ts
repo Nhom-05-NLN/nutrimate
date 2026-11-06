@@ -116,15 +116,16 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
        ORDER BY days.day`,
     ),
     pool.query<CategorySalesRow>(
-      `SELECT products.category_name AS name,
+      `SELECT categories.name AS name,
               SUM(order_items.quantity)::text AS units_sold
        FROM order_items
        JOIN orders ON orders.id = order_items.order_id
-       JOIN products ON products.id = order_items.product_id
+       JOIN products ON products.product_id = order_items.product_id
+       LEFT JOIN categories ON categories.category_id = products.category_id
        WHERE orders.status = 'delivered'
          AND orders.created_at >= date_trunc('month', CURRENT_DATE)
-       GROUP BY products.category_name
-       ORDER BY SUM(order_items.quantity) DESC, products.category_name`,
+       GROUP BY categories.name
+       ORDER BY SUM(order_items.quantity) DESC, categories.name`,
     ),
     pool.query<UrgentOrderRow>(
       `SELECT orders.id, orders.order_code, orders.customer_name, orders.customer_phone,
@@ -141,9 +142,9 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
        LIMIT 5`,
     ),
     pool.query<LowStockRow>(
-      `SELECT id, code, name, stock_quantity
+      `SELECT product_id AS id, code, name, stock_quantity
        FROM products
-       WHERE is_active = TRUE AND stock_quantity <= $1
+       WHERE status = TRUE AND stock_quantity <= $1
        ORDER BY stock_quantity ASC, name
        LIMIT 5`,
       [LOW_STOCK_THRESHOLD],
