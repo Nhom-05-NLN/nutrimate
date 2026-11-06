@@ -21,112 +21,14 @@ const isLoading = ref<boolean>(true);
 const activeTab = ref<'all' | 'pending' | 'confirmed' | 'packing' | 'shipping' | 'delivered' | 'cancelled'>('all');
 const searchQuery = ref('');
 
-const INITIAL_MOCK_ORDERS: Order[] = [
-  {
-    id: 'ord-adm-1',
-    orderCode: 'NM-98234',
-    createdAt: new Date(Date.now() - 3600000 * 1.5).toISOString(),
-    customer: {
-      name: 'Nguyễn Minh Anh',
-      phone: '0912.345.678',
-      email: 'minhanh.fit@gmail.com',
-      address: 'Số 45 Đường D2, P. 25, Q. Bình Thạnh, TP.HCM',
-    },
-    items: [
-      { productId: 'prod-1', productName: 'Granola siêu hạt', productImage: '', price: 185000, quantity: 1, calories: 152, protein: 14, portion: 'Hũ 500g' },
-      { productId: 'prod-2', productName: 'Ức gà sấy thảo mộc', productImage: '', price: 110000, quantity: 2, calories: 145, protein: 32, portion: 'Gói 200g' },
-      { productId: 'prod-3', productName: 'Bơ đậu phộng mịn', productImage: '', price: 90000, quantity: 1, calories: 190, protein: 8, portion: 'Hũ 350g' },
-    ],
-    totalAmount: 495000,
-    totalCalories: 632,
-    totalProtein: 86,
-    shippingFee: 0,
-    shippingMethod: 'express_2h',
-    paymentMethod: 'vietqr',
-    paymentStatus: 'paid',
-    status: 'shipping',
-  },
-  {
-    id: 'ord-adm-2',
-    orderCode: 'NM-98235',
-    createdAt: new Date(Date.now() - 3600000 * 2.5).toISOString(),
-    customer: {
-      name: 'Trần Thanh Tâm',
-      phone: '0988.123.456',
-      email: 'thanhtam@gmail.com',
-      address: 'Chung cư Masteri Thảo Điền, TP. Thủ Đức',
-    },
-    items: [
-      { productId: 'prod-4', productName: 'Combo Eat Clean Giảm Mỡ 7 Ngày', productImage: '', price: 850000, quantity: 1, calories: 1200, protein: 120 },
-    ],
-    totalAmount: 850000,
-    totalCalories: 1200,
-    totalProtein: 120,
-    shippingFee: 25000,
-    shippingMethod: 'standard',
-    paymentMethod: 'cod',
-    paymentStatus: 'pending',
-    status: 'pending',
-  },
-  {
-    id: 'ord-adm-3',
-    orderCode: 'NM-98236',
-    createdAt: new Date(Date.now() - 3600000 * 3).toISOString(),
-    customer: {
-      name: 'Hoàng Quốc Bảo',
-      phone: '0903.456.789',
-      email: 'baohq@gmail.com',
-      address: '72 Lê Thánh Tôn, Bến Nghé, Quận 1, TP.HCM',
-    },
-    items: [
-      { productId: 'prod-5', productName: 'Bột đạm hạt bí hữu cơ', productImage: '', price: 165000, quantity: 2, calories: 310, protein: 40 },
-      { productId: 'prod-6', productName: 'Mì Konjac Shirataki', productImage: '', price: 35000, quantity: 5, calories: 50, protein: 0 },
-    ],
-    totalAmount: 505000,
-    totalCalories: 670,
-    totalProtein: 80,
-    shippingFee: 35000,
-    shippingMethod: 'express_2h',
-    paymentMethod: 'momo',
-    paymentStatus: 'paid',
-    status: 'pending',
-  },
-  {
-    id: 'ord-adm-4',
-    orderCode: 'NM-97412',
-    createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-    customer: {
-      name: 'Lê Thị Mai',
-      phone: '0977.890.123',
-      email: 'maile@gmail.com',
-      address: '12 Nguyễn Trãi, Phường 2, Quận 5, TP.HCM',
-    },
-    items: [
-      { productId: 'prod-7', productName: 'Bánh mì đen lúa mạch', productImage: '', price: 85000, quantity: 1, calories: 180, protein: 8 },
-      { productId: 'prod-8', productName: 'Hạt điều rang củi', productImage: '', price: 135000, quantity: 1, calories: 310, protein: 11 },
-    ],
-    totalAmount: 220000,
-    totalCalories: 490,
-    totalProtein: 19,
-    shippingFee: 0,
-    shippingMethod: 'standard',
-    paymentMethod: 'vietqr',
-    paymentStatus: 'paid',
-    status: 'delivered',
-  },
-];
-
 async function loadOrders() {
   isLoading.value = true;
   try {
-    const data = await fetchOrders();
-    if (data && data.length > 0) {
-      orders.value = data;
-    } else {
-      orders.value = INITIAL_MOCK_ORDERS;
-    }
-  } catch {
-    orders.value = INITIAL_MOCK_ORDERS;
+    orders.value = await fetchOrders();
+  } catch (err: unknown) {
+    orders.value = [];
+    const message = err instanceof Error ? err.message : 'Lỗi khi tải danh sách đơn hàng';
+    toastStore.show(message, 'error');
   } finally {
     isLoading.value = false;
   }

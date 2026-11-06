@@ -352,10 +352,10 @@ watch(selectedWeekStart, () => {
         <div class="flex items-center justify-between border-b border-[#F0F3EC] pb-3">
           <div>
             <div class="flex items-center gap-2">
-              <h3 class="font-heading text-sm font-bold text-[#2D3B1E]">Đơn hàng mới cần xử lý gấp</h3>
-              <span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold">{{ dashboard ? `${formatNumber(dashboard.summary.pendingOrders)} đơn chờ` : '— đơn chờ' }}</span>
+              <h3 class="font-heading text-sm font-bold text-[#2D3B1E]">Đơn mới đặt</h3>
+              <span class="px-2 py-0.5 rounded-full bg-[#EBF1E6] text-[#4D6A34] text-[10px] font-bold">{{ dashboard ? `${dashboard.urgentOrders.length} đơn gần đây` : '— đơn gần đây' }}</span>
             </div>
-            <p class="text-xs text-[#7A866E] mt-0.5">Các đơn mới nhất đang chờ xác nhận</p>
+            <p class="text-xs text-[#7A866E] mt-0.5">3 đơn được đặt gần đây nhất</p>
           </div>
           <RouterLink to="/admin/orders" class="text-xs font-bold text-[#4D6A34] hover:underline">
             Xem tất cả đơn &gt;
@@ -371,7 +371,7 @@ watch(selectedWeekStart, () => {
                 <th class="py-3 px-3">Sản phẩm chính</th>
                 <th class="py-3 px-3">Tổng tiền</th>
                 <th class="py-3 px-3">Thanh toán</th>
-                <th class="py-3 px-3">Trạng thái</th>
+                <th class="py-3 px-3 min-w-[110px] whitespace-nowrap">Trạng thái</th>
                 <th class="py-3 px-3 text-right">Hành động</th>
               </tr>
             </thead>
@@ -389,8 +389,8 @@ watch(selectedWeekStart, () => {
                     {{ formatPaymentMethod(order.paymentMethod) }}
                   </span>
                 </td>
-                <td class="py-3.5 px-3">
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold" :class="order.status === 'pending' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-800'">
+                <td class="py-3.5 px-3 whitespace-nowrap">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap" :class="order.status === 'pending' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-800'">
                     {{ formatOrderStatus(order.status) }}
                   </span>
                 </td>
@@ -401,7 +401,7 @@ watch(selectedWeekStart, () => {
                 </td>
               </tr>
               <tr v-if="!isLoading && dashboard && !dashboard.urgentOrders.length">
-                <td colspan="7" class="px-3 py-6 text-center text-xs text-[#7A866E]">Không có đơn hàng cần xử lý.</td>
+                <td colspan="7" class="px-3 py-6 text-center text-xs text-[#7A866E]">Chưa có đơn hàng nào.</td>
               </tr>
             </tbody>
           </table>

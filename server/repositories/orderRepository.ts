@@ -162,7 +162,7 @@ export async function getAllOrders(): Promise<Order[]> {
                status, total_amount, total_calories, total_protein, shipping_fee,
                discount_amount, voucher_code, notes
         FROM orders
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, id DESC
       `;
       const ordersResult = await queryPostgres<OrderRow>(ordersSql);
 
