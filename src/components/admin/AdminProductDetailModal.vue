@@ -18,30 +18,9 @@ import {
   CheckCircle2,
 } from 'lucide-vue-next';
 import { useProductStore, FIGMA_SEED_PRODUCTS } from '../../stores/productStore';
-import type { Product } from '../../types';
+import type { Product, AdminProductItem } from '../../types';
 
-export interface AdminProductItem {
-  id: string;
-  sku: string;
-  name: string;
-  category: string;
-  price: number;
-  originalPrice?: number;
-  calo: number;
-  protein: number;
-  sugar: number;
-  carbs?: number;
-  fat?: number;
-  status: 'Đang bán' | 'Tạm ngừng';
-  image: string;
-  description?: string;
-  ingredients?: string[];
-  badges?: string[];
-  servingSize?: string;
-  stock?: number;
-  rating?: number;
-  reviewCount?: number;
-}
+export type { AdminProductItem };
 
 const props = defineProps<{
   modelValue: boolean;
