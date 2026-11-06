@@ -12,11 +12,13 @@ import {
   DollarSign,
 } from 'lucide-vue-next';
 import { useToastStore } from '../../stores/toastStore';
+import { useAdminStore } from '../../stores/adminStore';
 import AdminProductDetailModal, { AdminProductItem } from '../../components/admin/AdminProductDetailModal.vue';
 import AdminProductFormModal from '../../components/admin/AdminProductFormModal.vue';
 import AdminProductDeleteModal from '../../components/admin/AdminProductDeleteModal.vue';
 
 const toastStore = useToastStore();
+const adminStore = useAdminStore();
 const searchQuery = ref('');
 const selectedCategoryFilter = ref('all');
 const selectedStatusFilter = ref('all');
@@ -25,108 +27,11 @@ function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
-// Danh mục thực phẩm
-const availableCategories = [
-  'High-Protein',
-  'Low-Carb',
-  'Sugar-Free',
-  'Hạt dinh dưỡng',
-  'Sữa và sản phẩm từ sữa',
-];
+// Danh mục lấy động từ Admin Store
+const availableCategories = computed(() => adminStore.availableCategoryNames);
 
-// Danh sách sản phẩm khởi tạo
-const products = ref<AdminProductItem[]>([
-  {
-    id: 'prod-granola',
-    sku: 'NM-GRN-01',
-    name: 'Granola Yến Mạch Siêu Hạt',
-    category: 'Hạt dinh dưỡng',
-    price: 185000,
-    originalPrice: 220000,
-    calo: 380,
-    protein: 14,
-    carbs: 42,
-    fat: 18,
-    sugar: 3,
-    status: 'Đang bán',
-    image: 'https://images.unsplash.com/photo-1517673132405-a56a62b18caf?auto=format&fit=crop&w=100&q=80',
-  },
-  {
-    id: 'prod-chicken',
-    sku: 'NM-CKN-02',
-    name: 'Ức Gà Sấy Giòn Vị Thảo Mộc',
-    category: 'High-Protein',
-    price: 65000,
-    originalPrice: 75000,
-    calo: 145,
-    protein: 32,
-    carbs: 0,
-    fat: 2.5,
-    sugar: 0,
-    status: 'Đang bán',
-    image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=100&q=80',
-  },
-  {
-    id: 'prod-peanut',
-    sku: 'NM-PNT-03',
-    name: 'Bơ Đậu Phộng Mịn Thuần Chay',
-    category: 'Low-Carb',
-    price: 120000,
-    originalPrice: 140000,
-    calo: 190,
-    protein: 8,
-    carbs: 6,
-    fat: 16,
-    sugar: 0.8,
-    status: 'Đang bán',
-    image: 'https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?auto=format&fit=crop&w=100&q=80',
-  },
-  {
-    id: 'prod-bread',
-    sku: 'NM-RYE-04',
-    name: 'Bánh Mì Đen Lúa Mạch Nguyên Cám',
-    category: 'Low-Carb',
-    price: 55000,
-    originalPrice: 65000,
-    calo: 180,
-    protein: 8,
-    carbs: 32,
-    fat: 2,
-    sugar: 1,
-    status: 'Đang bán',
-    image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=100&q=80',
-  },
-  {
-    id: 'prod-konjac',
-    sku: 'NM-KNJ-05',
-    name: 'Mì Shirataki Konjac Ăn Kiêng',
-    category: 'Sugar-Free',
-    price: 32000,
-    originalPrice: 38000,
-    calo: 10,
-    protein: 0,
-    carbs: 2.5,
-    fat: 0,
-    sugar: 0,
-    status: 'Đang bán',
-    image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=100&q=80',
-  },
-  {
-    id: 'prod-protein-bar',
-    sku: 'NM-BAR-06',
-    name: 'Thanh Protein Bar Hạnh Nhân Socola',
-    category: 'High-Protein',
-    price: 45000,
-    originalPrice: 55000,
-    calo: 210,
-    protein: 20,
-    carbs: 18,
-    fat: 8,
-    sugar: 2,
-    status: 'Đang bán',
-    image: 'https://images.unsplash.com/photo-1622484216858-a5b4819779df?auto=format&fit=crop&w=100&q=80',
-  },
-]);
+// Danh sách sản phẩm liên kết với Admin Store
+const products = computed(() => adminStore.products);
 
 // Danh sách sản phẩm sau lọc
 const filteredProducts = computed(() => {
@@ -177,14 +82,14 @@ function handleFormSubmit(payload: Omit<AdminProductItem, 'id'>) {
       id: `prod-${Date.now()}`,
       ...payload,
     };
-    products.value.unshift(newProduct);
+    adminStore.addProduct(newProduct);
     toastStore.show('Thêm sản phẩm thành công!', 'success', newProduct.name);
   } else if (formModalMode.value === 'edit' && selectedProductForForm.value) {
-    const target = products.value.find((p) => p.id === selectedProductForForm.value?.id);
-    if (target) {
-      Object.assign(target, payload);
-      toastStore.show('Cập nhật sản phẩm thành công!', 'success', target.name);
-    }
+    adminStore.updateProduct({
+      id: selectedProductForForm.value.id,
+      ...payload,
+    });
+    toastStore.show('Cập nhật sản phẩm thành công!', 'success', payload.name);
   }
 }
 
@@ -198,7 +103,7 @@ function openDeleteModal(prod: AdminProductItem) {
 }
 
 function handleConfirmDelete(prod: AdminProductItem) {
-  products.value = products.value.filter((p) => p.id !== prod.id);
+  adminStore.deleteProduct(prod.id);
   productToDelete.value = null;
   toastStore.show('Xóa sản phẩm thành công!', 'success', prod.name);
 }
@@ -221,6 +126,9 @@ function openDetailModal(prod: AdminProductItem) {
         <h1 class="font-heading text-2xl sm:text-3xl font-black text-[#2D3B1E]">
           Quản lý Sản phẩm dinh dưỡng
         </h1>
+        <p class="text-xs text-[#7A866E] mt-1">
+          Quản lý danh sách sản phẩm, giá bán, trạng thái kinh doanh và các thông tin dinh dưỡng.
+        </p>
       </div>
 
       <div class="flex items-center gap-3">
@@ -244,7 +152,7 @@ function openDetailModal(prod: AdminProductItem) {
             <Package class="w-4 h-4" />
           </div>
         </div>
-        <div class="font-heading text-2xl font-black text-[#2D3B1E]">{{ totalProductsCount }} sản phẩm</div>
+        <div class="font-heading text-2xl font-black text-[#2D3B1E]">{{ totalProductsCount }} <span class="text-xs font-normal">sản phẩm</span></div>
       </div>
 
       <div class="bg-white p-5 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-1">
@@ -254,7 +162,7 @@ function openDetailModal(prod: AdminProductItem) {
             <CheckCircle2 class="w-4 h-4" />
           </div>
         </div>
-        <div class="font-heading text-2xl font-black text-emerald-700">{{ activeProductsCount }} sản phẩm</div>
+        <div class="font-heading text-2xl font-black text-emerald-700">{{ activeProductsCount }} <span class="text-xs font-normal">sản phẩm</span></div>
       </div>
 
       <div class="bg-white p-5 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-1">
@@ -325,6 +233,7 @@ function openDetailModal(prod: AdminProductItem) {
               <th class="py-3 px-3 text-center">Tên sản phẩm</th>
               <th class="py-3 px-3 text-center">Danh mục</th>
               <th class="py-3 px-3 text-center">Giá bán</th>
+              <th class="py-3 px-3 text-center">Tồn kho</th>
               <th class="py-3 px-3 text-center">Trạng thái</th>
               <th class="py-3 px-3 text-center">Thao tác</th>
             </tr>
@@ -362,6 +271,10 @@ function openDetailModal(prod: AdminProductItem) {
                 <span v-if="item.originalPrice" class="text-[10px] text-[#7A866E] line-through block font-normal">
                   {{ formatVnd(item.originalPrice) }}
                 </span>
+              </td>
+
+              <td class="py-3.5 px-3 text-center font-semibold text-[#2D3B1E]">
+                {{ item.stock ?? 0 }}
               </td>
 
               <td class="py-3.5 px-3 text-center">

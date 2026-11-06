@@ -211,7 +211,7 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
             <FolderTree class="w-4 h-4" />
           </div>
         </div>
-        <div class="font-heading text-2xl font-black text-[#2D3B1E]">{{ totalCategoriesCount }} danh mục</div>
+        <div class="font-heading text-2xl font-black text-[#2D3B1E]">{{ totalCategoriesCount }} <span class="text-xs font-normal">danh mục</span></div>
       </div>
 
       <!-- Thẻ 2: Đang hiển thị -->
@@ -222,7 +222,7 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
             <CheckCircle2 class="w-4 h-4" />
           </div>
         </div>
-        <div class="font-heading text-2xl font-black text-emerald-700">{{ activeCategoriesCount }} danh mục</div>
+        <div class="font-heading text-2xl font-black text-emerald-700">{{ activeCategoriesCount }} <span class="text-xs font-normal">danh mục</span></div>
       </div>
 
       <!-- Thẻ 3: Đang ẩn -->
@@ -233,14 +233,14 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
             <EyeOff class="w-4 h-4" />
           </div>
         </div>
-        <div class="font-heading text-2xl font-black text-amber-700">{{ inactiveCategoriesCount }} danh mục</div>
+        <div class="font-heading text-2xl font-black text-amber-700">{{ inactiveCategoriesCount }} <span class="text-xs font-normal">danh mục</span></div>
       </div>
     </div>
 
     <!-- Main Table Card -->
     <div class="bg-white rounded-3xl border border-[#E3E8DC] shadow-2xs overflow-hidden">
       <!-- Search & Filters Toolbar -->
-      <div class="p-5 border-b border-[#ECEFE7] flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="p-5 border-b border-[#ECEFE7] flex flex-col md:flex-row items-center gap-4">
         <div class="relative w-full md:w-80">
           <Search class="w-4 h-4 text-[#7A866E] absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -251,7 +251,7 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
           />
         </div>
 
-        <div class="flex items-center gap-3 w-full md:w-auto justify-end flex-wrap">
+        <div class="flex items-center gap-3 w-full md:w-auto flex-wrap">
           <div class="relative">
           <select
             v-model="selectedStatusFilter"

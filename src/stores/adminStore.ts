@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onScopeDispose } from 'vue';
 import type { AdminProductItem } from '../types';
 
 export interface AdminCategoryItem {
@@ -175,8 +175,54 @@ export const INITIAL_ADMIN_CATEGORIES: AdminCategoryItem[] = [
 ];
 
 export const useAdminStore = defineStore('admin', () => {
-  const products = ref<AdminProductItem[]>([...INITIAL_ADMIN_PRODUCTS]);
+  const products = ref<AdminProductItem[]>(INITIAL_ADMIN_PRODUCTS.map((product) => ({ ...product })));
   const categories = ref<AdminCategoryItem[]>([...INITIAL_ADMIN_CATEGORIES]);
+  const stockStorageKey = 'nutrimate.inventory.stock.v1';
+  const savedStocks = ref<Record<string, number>>({});
+
+  function readSavedStocks() {
+    try {
+      const data: unknown = JSON.parse(localStorage.getItem(stockStorageKey) || '{}');
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return;
+      savedStocks.value = Object.fromEntries(
+        Object.entries(data).filter(([, stock]) =>
+          typeof stock === 'number' && Number.isSafeInteger(stock) && stock >= 0
+        )
+      );
+      for (const product of products.value) {
+        const stock = savedStocks.value[product.sku];
+        if (stock !== undefined) product.stock = stock;
+      }
+    } catch {
+      // Keep the current inventory if browser storage is unavailable.
+    }
+  }
+
+  readSavedStocks();
+
+  function handleStockStorage(event: StorageEvent) {
+    if (event.key === stockStorageKey) readSavedStocks();
+  }
+  window.addEventListener('storage', handleStockStorage);
+  onScopeDispose(() => window.removeEventListener('storage', handleStockStorage));
+
+  watch(
+    () => products.value.map((product) => [product.sku, product.stock] as const),
+    (stocks) => {
+      for (const [sku, stock] of stocks) {
+        if (stock !== undefined) savedStocks.value[sku] = stock;
+      }
+      try {
+        const serialized = JSON.stringify(savedStocks.value);
+        if (localStorage.getItem(stockStorageKey) !== serialized) {
+          localStorage.setItem(stockStorageKey, serialized);
+        }
+      } catch {
+        // In-memory updates still work when storage is unavailable.
+      }
+    },
+    { flush: 'post' }
+  );
 
   // Đếm số sản phẩm thực tế theo tên danh mục
   function getProductCountByCategory(categoryName: string): number {
@@ -208,7 +254,11 @@ export const useAdminStore = defineStore('admin', () => {
   function updateProduct(product: AdminProductItem) {
     const idx = products.value.findIndex((p: AdminProductItem) => p.id === product.id);
     if (idx !== -1) {
-      products.value[idx] = { ...product };
+      products.value[idx] = {
+        ...products.value[idx],
+        ...product,
+        stock: product.stock ?? products.value[idx].stock ?? 0,
+      };
     }
   }
 
