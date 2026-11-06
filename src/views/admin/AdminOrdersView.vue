@@ -343,16 +343,24 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
           >
             Giao thành công ({{ orders.filter(o => o.status === 'delivered').length }})
           </button>
+          <button
+            type="button"
+            @click="activeTab = 'cancelled'"
+            class="px-3.5 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer"
+            :class="activeTab === 'cancelled' ? 'bg-[#4D6A34] text-white shadow-2xs' : 'text-[#7A866E] hover:text-[#2D3B1E]'"
+          >
+            Đã hủy ({{ orders.filter(o => o.status === 'cancelled').length }})
+          </button>
         </div>
 
         <!-- Search Input -->
-        <div class="relative w-full md:w-64">
+        <div class="relative w-full md:w-72">
           <Search class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A866E]" />
           <input
             type="text"
             v-model="searchQuery"
-            placeholder="Tìm mã đơn, tên, SĐT..."
-            class="w-full pl-9 pr-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-xs font-medium text-[#242424] placeholder-[#8C9882] focus:bg-white focus:border-[#4D6A34] outline-none transition-all"
+            placeholder="Tìm theo mã đơn, tên, SĐT..."
+            class="w-full pl-9 pr-4 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs text-[#2D3B1E] placeholder:text-[#7A866E] outline-none focus:border-[#4D6A34] transition-colors"
           />
         </div>
       </div>
