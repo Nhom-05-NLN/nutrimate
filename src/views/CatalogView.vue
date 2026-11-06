@@ -11,7 +11,17 @@ const productStore = useProductStore();
 const isFilterModalOpen = ref(false);
 
 const searchInput = ref(productStore.filter.search || '');
-const selectedCategory = ref(productStore.filter.category || 'all');
+const selectedCategories = computed(() => productStore.filter.categories?.length
+  ? productStore.filter.categories
+  : productStore.filter.category && productStore.filter.category !== 'all'
+    ? [productStore.filter.category]
+    : []);
+
+function isCategorySelected(category: string) {
+  return category === 'all'
+    ? selectedCategories.value.length === 0
+    : selectedCategories.value.includes(category);
+}
 const sortBy = ref<'popular' | 'price-asc' | 'price-desc' | 'calories-asc' | 'rating-desc'>('popular');
 
 // Các tiêu chí lọc
@@ -26,7 +36,7 @@ const filters = ref<AdvancedFilters>({
 });
 
 onMounted(() => {
-  productStore.loadProducts();
+  productStore.setSort('sold_desc');
   if (productStore.categories.length === 0) {
     productStore.loadCategories();
   }
@@ -47,7 +57,7 @@ function handleSortChange(event: Event) {
   sortBy.value = val;
 
   const mapping: Record<string, string> = {
-    popular: 'newest',
+    popular: 'sold_desc',
     'price-asc': 'price_asc',
     'price-desc': 'price_desc',
     'calories-asc': 'calories_asc',
@@ -84,8 +94,14 @@ function clearSearch() {
 }
 
 function handleCategoryChange(cat: string) {
-  selectedCategory.value = cat;
-  productStore.setCategory(cat);
+  if (cat === 'all') {
+    productStore.setCategories([]);
+    return;
+  }
+  const nextCategories = selectedCategories.value.includes(cat)
+    ? selectedCategories.value.filter(category => category !== cat)
+    : [...selectedCategories.value, cat];
+  productStore.setCategories(nextCategories);
 }
 
 function resetAllFilters() {
@@ -237,7 +253,7 @@ const endItem = computed(() => {
       <h1 class="font-heading text-3xl sm:text-4xl font-black text-[#2D3B1E]">
         Thực phẩm dinh dưỡng &amp; Ăn kiêng
       </h1>
-      <p class="pt-2 font-light">Khám phá các sản phẩm ăn kiêng, thực phẩm giàu dinh dưỡng và lựa chọn lành mạnh cho lối sống cân bằng.</p>
+      <p class="pt-2 text-sm text-[#7A866E]">Khám phá các sản phẩm ăn kiêng, thực phẩm giàu dinh dưỡng và lựa chọn lành mạnh cho lối sống cân bằng.</p>
     </div>
 
     <!-- Search Bar & Controls -->
@@ -290,9 +306,10 @@ const endItem = computed(() => {
         :key="cat.key"
         type="button"
         @click="handleCategoryChange(cat.key)"
+        :aria-pressed="isCategorySelected(cat.key)"
         class="px-3 rounded-[8px] text-xs font-semibold transition-all shrink-0 min-h-[35px] flex items-center gap-2 cursor-pointer"
         :class="
-          selectedCategory === cat.key
+          isCategorySelected(cat.key)
             ? 'bg-[#4D6A34] text-white shadow-xs'
             : 'bg-white text-[#576449] border border-[#E3E8DC] hover:bg-[#FAF9F5]'
         "

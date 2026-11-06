@@ -222,8 +222,8 @@ export const useProductStore = defineStore('product', () => {
   const totalPages = ref<number>(Math.ceil(FIGMA_SEED_PRODUCTS.length / 9));
 
   const categories = ref<Category[]>([
-    { id: 'low-carb', name: 'Low-Carb & KETO', slug: 'low-carb', description: 'Ít tinh b?t, giàu ch?t xo', dietType: 'low-carb', count: 18 },
-    { id: 'high-protein', name: 'High-Protein', slug: 'high-protein', description: 'Giàu d?m si?t co', dietType: 'high-protein', count: 22 },
+    { id: 'low-carb', name: 'Low-Carb & KETO', slug: 'low-carb', description: 'ï¿½t tinh b?t, giï¿½u ch?t xo', dietType: 'low-carb', count: 18 },
+    { id: 'high-protein', name: 'High-Protein', slug: 'high-protein', description: 'Giï¿½u d?m si?t co', dietType: 'high-protein', count: 22 },
     { id: 'sugar-free', name: 'Sugar-Free', slug: 'sugar-free', description: '0g du?ng tinh luy?n', dietType: 'sugar-free', count: 15 },
     { id: 'snacks-nuts', name: 'H?t dinh du?ng', slug: 'snacks-nuts', description: 'H?t nu?ng m?c & Granola', dietType: 'snacks-nuts', count: 14 },
   ]);
@@ -272,9 +272,17 @@ export const useProductStore = defineStore('product', () => {
     } catch {
       // Fallback to local FIGMA_SEED_PRODUCTS
       const offset = (currentPage.value - 1) * pageSize.value;
-      products.value = FIGMA_SEED_PRODUCTS.slice(offset, offset + pageSize.value);
-      totalProducts.value = FIGMA_SEED_PRODUCTS.length;
-      totalPages.value = Math.ceil(FIGMA_SEED_PRODUCTS.length / pageSize.value);
+      const fallbackProducts = FIGMA_SEED_PRODUCTS.filter((product) =>
+        filter.value.categories?.length
+          ? filter.value.categories.includes(product.category)
+          : !filter.value.category || filter.value.category === 'all' || product.category === filter.value.category
+      );
+      if (filter.value.sort === 'sold_desc') {
+        fallbackProducts.sort((a, b) => (b.soldCount ?? 0) - (a.soldCount ?? 0) || a.id.localeCompare(b.id));
+      }
+      products.value = fallbackProducts.slice(offset, offset + pageSize.value);
+      totalProducts.value = fallbackProducts.length;
+      totalPages.value = Math.max(1, Math.ceil(fallbackProducts.length / pageSize.value));
     } finally {
       isLoading.value = false;
     }
@@ -304,7 +312,15 @@ export const useProductStore = defineStore('product', () => {
     loadProducts(1);
   }
 
+  function setCategories(categories: string[]) {
+    filter.value.categories = [...categories];
+    filter.value.category = 'all';
+    currentPage.value = 1;
+    loadProducts(1);
+  }
+
   function setCategory(cat: string) {
+    filter.value.categories = [];
     filter.value.category = cat;
     currentPage.value = 1;
     loadProducts(1);
@@ -368,6 +384,7 @@ export const useProductStore = defineStore('product', () => {
     prevPage,
     setSort,
     setCategory,
+    setCategories,
     setSearch,
     setCalorieFilter,
     setProteinFilter,

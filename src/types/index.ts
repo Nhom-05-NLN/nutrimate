@@ -200,6 +200,7 @@ export interface AdminDashboardData {
 }
 
 export interface ProductFilterQuery {
+  categories?: string[];
   category?: string;
   diet?: string;
   search?: string;
