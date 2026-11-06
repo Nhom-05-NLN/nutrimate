@@ -101,22 +101,6 @@ const recommendationError = ref("");
 const failedProductImages = ref<string[]>([]);
 const waterCurrentMl = computed(() => diary.value?.totals.waterMl ?? 0);
 const waterTargetMl = 2200;
-const reminderTime = computed(() => {
-  if (selectedDate.value !== today || waterCurrentMl.value >= waterTargetMl)
-    return null;
-  const now = new Date();
-  const deadline = new Date(now);
-  deadline.setHours(16, 0, 0, 0);
-  if (now >= deadline) return null;
-
-  const remainingMl = waterTargetMl - waterCurrentMl.value;
-  const glasses = Math.ceil(remainingMl / 250);
-  const glassLabel = glasses === 1 ? "1 ly" : `${glasses} ly`;
-  return {
-    text: `Còn ${remainingMl.toLocaleString("vi-VN")} ml (${glassLabel}) để đạt mục tiêu hôm nay.`,
-    deadline: "16:00",
-  };
-});
 const waterGlasses = computed(() =>
   Array.from({ length: 8 }, (_, index) => ({
     ml: index === 7 ? "200ml" : "250ml",
@@ -130,6 +114,13 @@ const mealOptions: { id: MealType; title: string; emoji: string }[] = [
   { id: "snack", title: "Bữa Xế / Snack", emoji: "🕒" },
   { id: "dinner", title: "Bữa Tối", emoji: "🌙" },
 ];
+function currentMealType(now = new Date()): MealType {
+  const hour = now.getHours();
+  if (hour >= 5 && hour < 11) return "breakfast";
+  if (hour >= 11 && hour < 15) return "lunch";
+  if (hour >= 17 && hour < 21) return "dinner";
+  return "snack";
+}
 const mealsByType = computed(() =>
   mealOptions.map((meal) => {
     const items = (diary.value?.meals ?? []).filter(
@@ -416,7 +407,7 @@ function addScanResultToDiary() {
     return;
   mealForm.value = {
     date: selectedDate.value,
-    mealType: "snack",
+    mealType: currentMealType(),
     foodName: "Món ăn từ ảnh (ước lượng AI)",
     calories: scanResult.value.predictedCalories,
     protein: scanResult.value.predictedProtein,
@@ -469,7 +460,7 @@ async function loadMealProducts() {
 function chooseMealProduct(product: Product) {
   mealForm.value = {
     date: selectedDate.value,
-    mealType: "breakfast",
+    mealType: currentMealType(),
     foodName: product.name,
     calories: product.nutrition.calories,
     protein: product.nutrition.protein,
@@ -1217,20 +1208,19 @@ async function addWater(amount: number) {
             class="p-3 rounded-2xl bg-[#EBF7E5] text-xs text-[#2D3B1E] flex items-center gap-2"
           >
             <Bell class="w-4 h-4 text-[#536124] shrink-0" />
-            <span v-if="reminderTime"
-              >Nhắc nhở: {{ reminderTime.text }} Uống trước
-              {{ reminderTime.deadline }}.</span
-            >
-            <span v-else-if="selectedDate !== today"
-              >Nhắc nhở chỉ áp dụng cho ngày hôm nay.</span
+            <span v-if="selectedDate !== today"
+              >Mục tiêu uống nước trong ngày: 2.200 ml. Hãy chia đều lượng
+              nước uống trong ngày.</span
             >
             <span v-else-if="waterCurrentMl >= waterTargetMl"
-              >Bạn đã đạt mục tiêu uống nước hôm nay.</span
+              >Bạn đã hoàn thành mục tiêu uống nước hôm nay. Hãy duy trì
+              thói quen uống nước đều đặn.</span
             >
-            <span v-else
-              >Không còn nhắc uống trước 16:00 hôm nay. Hãy tiếp tục uống nước
-              đều đặn.</span
-            >
+            <span v-else>
+              Bạn còn
+              {{ (waterTargetMl - waterCurrentMl).toLocaleString("vi-VN") }} ml
+              nữa để hoàn thành. Hãy uống từng chút và chia đều trong ngày.
+            </span>
           </div>
         </div>
       </div>
