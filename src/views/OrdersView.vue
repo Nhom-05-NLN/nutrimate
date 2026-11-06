@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCartStore } from '../stores/cartStore';
 import { useToastStore } from '../stores/toastStore';
@@ -13,6 +13,7 @@ import MomoPaymentModal from '../components/checkout/MomoPaymentModal.vue';
 import {
   ChevronRight,
   Search,
+  X,
   PackageX,
   ShoppingBag,
   Sparkles,
@@ -155,11 +156,68 @@ onMounted(() => {
   loadUserOrders();
 });
 
+function removeVietnameseTones(str: string): string {
+  return str
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
 // Lọc đơn hàng theo tab trạng thái và tìm kiếm (CN_22)
 const filteredOrders = computed(() => {
   let list = orders.value;
 
-  if (activeTab.value !== 'all') {
+  const rawQ = searchQuery.value.trim();
+
+  if (rawQ) {
+    const qLower = rawQ.toLowerCase();
+    const qCleanAlphanumeric = qLower.replace(/[^a-z0-9]/gi, '');
+    const qNoTones = removeVietnameseTones(qLower);
+
+    list = list.filter((o) => {
+      // 1. Khớp mã đơn hàng (hỗ trợ #NM-123456, NM123456, 123456, NM 123456)
+      const orderCodeLower = o.orderCode.toLowerCase();
+      const orderCodeAlphanumeric = orderCodeLower.replace(/[^a-z0-9]/gi, '');
+      const matchCode =
+        orderCodeLower.includes(qLower) ||
+        `#${orderCodeLower}`.includes(qLower) ||
+        (qCleanAlphanumeric.length > 0 && orderCodeAlphanumeric.includes(qCleanAlphanumeric));
+
+      // 2. Khớp tên món ăn (hỗ trợ tiếng Việt có dấu và không dấu)
+      const matchItem = o.items?.some((i) => {
+        if (!i.productName) return false;
+        const nameLower = i.productName.toLowerCase();
+        const nameNoTones = removeVietnameseTones(nameLower);
+        return nameLower.includes(qLower) || nameNoTones.includes(qNoTones);
+      });
+
+      // 3. Khớp thông tin khách hàng nếu có
+      const customerNameLower = o.customer?.name?.toLowerCase() || '';
+      const customerNameNoTones = removeVietnameseTones(customerNameLower);
+      const customerPhone = o.customer?.phone?.replace(/[^0-9]/g, '') || '';
+      const matchCustomer =
+        customerNameLower.includes(qLower) ||
+        customerNameNoTones.includes(qNoTones) ||
+        (qCleanAlphanumeric.length >= 3 && customerPhone.includes(qCleanAlphanumeric));
+
+      return Boolean(matchCode || matchItem || matchCustomer);
+    });
+
+    // Nếu đang ở tab trạng thái cụ thể, lọc tiếp theo tab nếu tab đó có kết quả
+    if (activeTab.value !== 'all') {
+      const tabFiltered = list.filter((o) => {
+        if (activeTab.value === 'shipping') {
+          return o.status === 'shipping' || o.status === 'packing' || o.status === 'confirmed';
+        }
+        return o.status === activeTab.value;
+      });
+      // Nếu tab hiện tại có kết quả thì dùng tabFiltered, ngược lại giữ list để không làm người dùng tưởng mất đơn
+      if (tabFiltered.length > 0) {
+        list = tabFiltered;
+      }
+    }
+  } else if (activeTab.value !== 'all') {
     if (activeTab.value === 'shipping') {
       list = list.filter((o) => o.status === 'shipping' || o.status === 'packing' || o.status === 'confirmed');
     } else {
@@ -167,16 +225,19 @@ const filteredOrders = computed(() => {
     }
   }
 
-  if (searchQuery.value.trim()) {
-    const q = searchQuery.value.trim().toLowerCase();
-    list = list.filter((o) => {
-      const matchCode = o.orderCode.toLowerCase().includes(q);
-      const matchItem = o.items.some((i) => i.productName.toLowerCase().includes(q));
-      return matchCode || matchItem;
-    });
-  }
-
   return list;
+});
+
+// Tự động đồng bộ widget tracking khi kết quả tìm kiếm thay đổi
+watch(filteredOrders, (newList) => {
+  if (newList.length > 0) {
+    const isCurrentInList = newList.some((o) => o.id === selectedOrderForTracking.value?.id);
+    if (!isCurrentInList) {
+      selectedOrderForTracking.value = newList[0];
+    }
+  } else {
+    selectedOrderForTracking.value = null;
+  }
 });
 
 // Counts cho từng tab
@@ -302,8 +363,17 @@ async function handleCancelOrder(order: Order) {
           type="text"
           v-model="searchQuery"
           placeholder="Tìm theo mã đơn #NM..., tên món..."
-          class="w-full pl-11 pr-4 py-3 rounded-2xl bg-white border border-[#E3E8DC] text-sm text-[#242424] placeholder-[#8C9882] focus:border-[#4D6A34] focus:ring-2 focus:ring-[#4D6A34]/20 outline-none shadow-2xs transition-all"
+          class="w-full pl-11 pr-10 py-3 rounded-2xl bg-white border border-[#E3E8DC] text-sm text-[#242424] placeholder-[#8C9882] focus:border-[#4D6A34] focus:ring-2 focus:ring-[#4D6A34]/20 outline-none shadow-2xs transition-all"
         />
+        <button
+          v-if="searchQuery"
+          type="button"
+          @click="searchQuery = ''"
+          class="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#7A866E] hover:text-[#242424] p-1 cursor-pointer transition-colors"
+          aria-label="Xóa từ khóa tìm kiếm"
+        >
+          <X class="w-4 h-4" />
+        </button>
       </div>
     </div>
 
