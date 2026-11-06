@@ -277,7 +277,6 @@ export const useAuthStore = defineStore('auth', () => {
     activeStorage = storage;
     sessionInitialized = true;
     isAuthModalOpen.value = false;
-    toast.show(`Chào mừng ${profile.name} đã đăng nhập NutriMate!`);
   }
 
   async function logout(): Promise<void> {
