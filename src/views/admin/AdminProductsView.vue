@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { fetchProductSalesSummary } from '../../services/api';
 import {
   Package,
   Search,
@@ -9,7 +10,8 @@ import {
   Trash2,
   RotateCcw,
   CheckCircle2,
-  DollarSign,
+  ShoppingBag,
+  ChevronDown,
 } from 'lucide-vue-next';
 import { useToastStore } from '../../stores/toastStore';
 import { useAdminStore } from '../../stores/adminStore';
@@ -22,6 +24,12 @@ const adminStore = useAdminStore();
 const searchQuery = ref('');
 const selectedCategoryFilter = ref('all');
 const selectedStatusFilter = ref('all');
+
+function resetFilters() {
+  searchQuery.value = '';
+  selectedCategoryFilter.value = 'all';
+  selectedStatusFilter.value = 'all';
+}
 
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -53,11 +61,23 @@ const filteredProducts = computed(() => {
 // Thống kê nhanh
 const totalProductsCount = computed(() => products.value.length);
 const activeProductsCount = computed(() => products.value.filter((p) => p.status === 'Đang bán').length);
-const averageSellingPrice = computed(() => {
-  if (products.value.length === 0) return '0';
-  const total = products.value.reduce((sum, p) => sum + p.price, 0);
-  return Math.round(total / products.value.length).toLocaleString('vi-VN');
-});
+const totalSoldProductsCount = ref<number | null>(null);
+const salesLoading = ref(true);
+const salesError = ref(false);
+
+async function loadSalesSummary() {
+  salesLoading.value = true;
+  salesError.value = false;
+  try {
+    totalSoldProductsCount.value = await fetchProductSalesSummary();
+  } catch {
+    salesError.value = true;
+  } finally {
+    salesLoading.value = false;
+  }
+}
+
+onMounted(loadSalesSummary);
 
 // TRẠNG THÁI MODAL THÊM / SỬA 
 const isFormModalOpen = ref(false);
@@ -167,60 +187,70 @@ function openDetailModal(prod: AdminProductItem) {
 
       <div class="bg-white p-5 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-1">
         <div class="flex items-center justify-between text-xs text-[#7A866E]">
-          <span>Giá bán trung bình</span>
+          <span>Số sản phẩm đã bán</span>
           <div class="w-8 h-8 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center">
-            <DollarSign class="w-4 h-4" />
+            <ShoppingBag class="w-4 h-4" />
           </div>
         </div>
-        <div class="font-heading text-2xl font-black text-[#536124]">{{ averageSellingPrice }} VNĐ</div>
+        <div v-if="salesLoading" class="mt-2 text-xs text-[#7A866E]">Đang tải...</div>
+        <div v-else-if="salesError" class="font-heading text-2xl font-black text-[#536124]">-</div>
+        <div v-else class="font-heading text-2xl font-black text-[#536124]">{{ totalSoldProductsCount?.toLocaleString('vi-VN') }} sản phẩm</div>
       </div>
     </div>
 
     <!-- Products Table & Filter Block -->
     <div class="bg-white rounded-3xl border border-[#E3E8DC] shadow-2xs p-6 space-y-6">
       <!-- Search & Filters Bar -->
-      <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex flex-wrap items-center gap-3">
         <div class="flex flex-wrap items-center gap-3 flex-1">
           <!-- Ô Tìm kiếm -->
           <div class="relative w-full sm:w-64">
-            <Search class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A866E]" />
+            <Search class="w-4 h-4 text-[#7A866E] absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               v-model="searchQuery"
               placeholder="Tìm theo tên sản phẩm, SKU..."
-              class="w-full pl-10 pr-3 py-2 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-xs text-[#2D3B1E] focus:outline-[#536124]"
+              class="w-full pl-10 pr-4 py-2 rounded-xl border border-[#CCD7BC] bg-[#FAF9F5] text-xs text-[#2D3B1E] placeholder:text-stone-400 focus:outline-hidden focus:border-[#536124] transition-colors"
             />
           </div>
 
           <!-- Lọc danh mục -->
-          <select
-            v-model="selectedCategoryFilter"
-            class="px-3 py-2 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-xs text-[#2D3B1E] focus:outline-[#536124]"
-          >
-            <option value="all">Tất cả danh mục</option>
-            <option v-for="cat in availableCategories" :key="cat" :value="cat">
-              {{ cat }}
-            </option>
-          </select>
+          <div class="relative">
+            <select
+              v-model="selectedCategoryFilter"
+              class="appearance-none pl-3 pr-9 py-2 rounded-xl border border-[#CCD7BC] bg-[#FAF9F5] text-xs text-[#2D3B1E] focus:outline-hidden focus:border-[#536124]"
+            >
+              <option value="all">Tất cả danh mục</option>
+              <option v-for="cat in availableCategories" :key="cat" :value="cat">
+                {{ cat }}
+              </option>
+            </select>
+            <ChevronDown aria-hidden="true" class="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#7A866E]" />
+          </div>
 
           <!-- Lọc trạng thái -->
-          <select
-            v-model="selectedStatusFilter"
-            class="px-3 py-2 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-xs text-[#2D3B1E] focus:outline-[#536124]"
-          >
-            <option value="all">Tất cả trạng thái</option>
-            <option value="Đang bán">Đang bán</option>
-            <option value="Tạm ngừng">Tạm ngừng</option>
-          </select>
+          <div class="relative">
+            <select
+              v-model="selectedStatusFilter"
+              class="appearance-none pl-3 pr-9 py-2 rounded-xl border border-[#CCD7BC] bg-[#FAF9F5] text-xs text-[#2D3B1E] focus:outline-hidden focus:border-[#536124]"
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="Đang bán">Đang bán</option>
+              <option value="Tạm ngừng">Tạm ngừng</option>
+            </select>
+            <ChevronDown aria-hidden="true" class="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#7A866E]" />
+          </div>
         </div>
 
         <button
+          v-if="searchQuery || selectedCategoryFilter !== 'all' || selectedStatusFilter !== 'all'"
           type="button"
-          @click="searchQuery = ''; selectedCategoryFilter = 'all'; selectedStatusFilter = 'all'"
-          class="p-2 rounded-xl border border-[#DEE5D4] text-[#7A866E] hover:bg-[#FAF9F5] cursor-pointer"
+          @click="resetFilters"
+          class="px-3 py-2 rounded-xl text-xs font-bold text-[#536124] hover:bg-[#EBF1E6] flex items-center gap-1.5 transition-colors cursor-pointer"
           title="Đặt lại bộ lọc"
         >
-          <RotateCcw class="w-4 h-4" />
+          <RotateCcw class="w-3.5 h-3.5" />
+          <span>Đặt lại</span>
         </button>
       </div>
 
@@ -246,7 +276,7 @@ function openDetailModal(prod: AdminProductItem) {
             >
               <!-- Cột 1: Mã SKU -->
               <td class="py-3.5 px-3">
-                <span class="text-xs font-mono bg-[#EBF1E6] font-semibold text-[#536124] px-2 py-1 rounded-lg">
+                <span class="text-xs text-center font-mono bg-[#EBF1E6] font-semibold text-[#536124] px-2 py-1 rounded-lg">
                   {{ item.sku }}
                 </span>
               </td>
@@ -268,9 +298,6 @@ function openDetailModal(prod: AdminProductItem) {
 
               <td class="py-3.5 px-3 font-bold  text-center text-[#2D3B1E]">
                 <span>{{ formatVnd(item.price) }}</span>
-                <span v-if="item.originalPrice" class="text-[10px] text-[#7A866E] line-through block font-normal">
-                  {{ formatVnd(item.originalPrice) }}
-                </span>
               </td>
 
               <td class="py-3.5 px-3 text-center font-semibold text-[#2D3B1E]">

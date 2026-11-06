@@ -234,6 +234,16 @@ export async function findProducts(
   };
 }
 
+export async function getTotalSoldProducts(executeQuery = queryPostgres): Promise<number> {
+  const result = await executeQuery<{ total_sold: string }>(`
+    SELECT COALESCE(SUM(oi.quantity), 0) AS total_sold
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    WHERE o.status = 'delivered'
+  `);
+  return Number(result.rows[0]?.total_sold ?? 0);
+}
+
 export async function findChatProducts(filter: ProductFilterQuery, executeQuery = queryPostgres): Promise<ChatSuggestedProduct[]> {
   const schema = await executeQuery<{ column_name: string }>(
     `SELECT column_name

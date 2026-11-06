@@ -21,6 +21,12 @@ import {
 
 const API_BASE = '/api';
 
+export async function fetchProductSalesSummary(): Promise<number> {
+  const res = await fetchJson<ApiResponse<{ totalSold: number }>>('/products/sales-summary');
+  if (!res.data) throw new Error(res.message || 'Không thể tải lượt bán.');
+  return res.data.totalSold;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
