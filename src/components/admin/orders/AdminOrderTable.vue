@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { Order, OrderStatus } from '../../../types';
+import { Order, OrderStatus, PaymentStatus } from '../../../types';
 import {
   Package,
   Truck,
@@ -10,6 +10,7 @@ import {
   XCircle,
   ChevronDown,
   AlertCircle,
+  CreditCard,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -19,6 +20,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'updateStatus', payload: { orderId: string; status: OrderStatus }): void;
+  (e: 'updatePaymentStatus', payload: { orderId: string; paymentStatus: PaymentStatus }): void;
   (e: 'viewDetail', order: Order): void;
 }>();
 
@@ -34,6 +36,11 @@ function toggleDropdown(id: string) {
 
 function handleSelectStatus(orderId: string, status: OrderStatus) {
   emit('updateStatus', { orderId, status });
+  activeDropdownId.value = null;
+}
+
+function handleTogglePayment(orderId: string, paymentStatus: PaymentStatus) {
+  emit('updatePaymentStatus', { orderId, paymentStatus });
   activeDropdownId.value = null;
 }
 
@@ -62,7 +69,7 @@ function getStatusBadge(status: OrderStatus) {
     case 'shipping':
       return { text: 'Đang vận chuyển 2H', class: 'bg-emerald-50 text-emerald-800 border-emerald-200', icon: Truck };
     case 'packing':
-      return { text: 'Đang đóng gói 4°C', class: 'bg-sky-50 text-sky-800 border-sky-200', icon: Package };
+      return { text: 'Đang đóng gói', class: 'bg-sky-50 text-sky-800 border-sky-200', icon: Package };
     case 'confirmed':
       return { text: 'Đã duyệt đơn', class: 'bg-indigo-50 text-indigo-800 border-indigo-200', icon: CheckCircle2 };
     case 'cancelled':
@@ -153,12 +160,15 @@ function getStatusBadge(status: OrderStatus) {
               {{ formatVnd(order.totalAmount) }}
             </span>
             <div class="mt-1">
-              <span
-                class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase inline-block whitespace-nowrap"
+              <button
+                type="button"
+                @click="handleTogglePayment(order.id, order.paymentStatus === 'paid' ? 'pending' : 'paid')"
+                class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase inline-block whitespace-nowrap cursor-pointer transition-opacity hover:opacity-80"
                 :class="order.paymentStatus === 'paid' ? 'bg-[#EBF7E5] text-[#4D6A34] border border-[#CCD7BC]' : 'bg-amber-100 text-amber-800 border border-amber-200'"
+                :title="`Nhấp để chuyển thành ${order.paymentStatus === 'paid' ? 'Chưa thu' : 'Đã thu'}`"
               >
                 {{ order.paymentMethod }} • {{ order.paymentStatus === 'paid' ? 'Đã thu' : 'Chưa thu' }}
-              </span>
+              </button>
             </div>
             <div v-if="order.discountAmount" class="mt-1">
               <span class="px-2 py-0.5 rounded-md bg-purple-50 text-[10px] font-bold text-purple-700 inline-block whitespace-nowrap" :title="order.voucherCode">
@@ -174,7 +184,7 @@ function getStatusBadge(status: OrderStatus) {
                 <AlertTriangle class="w-3 h-3 text-rose-600" />
                 <span>GIAO GẤP 2H</span>
               </span>
-              <span class="text-[11px] text-[#7A866E] block">Thùng giữ lạnh 4°C</span>
+              <span class="text-[11px] text-[#7A866E] block">Đóng gói chuyên dụng</span>
             </div>
             <div v-else class="space-y-0.5">
               <span class="font-medium text-[#2D3B1E] text-xs block whitespace-nowrap">Giao tiêu chuẩn</span>
@@ -215,7 +225,7 @@ function getStatusBadge(status: OrderStatus) {
               <!-- Dropdown Menu Cập Nhật Trạng Thái (CN_24) -->
               <div
                 v-if="activeDropdownId === order.id"
-                class="absolute right-0 mt-1 w-52 rounded-2xl bg-white border border-[#E3E8DC] shadow-xl z-30 py-1.5 animate-in fade-in zoom-in-95 duration-100"
+                class="absolute right-0 mt-1 w-56 rounded-2xl bg-white border border-[#E3E8DC] shadow-xl z-30 py-1.5 animate-in fade-in zoom-in-95 duration-100"
               >
                 <button
                   type="button"
@@ -232,7 +242,7 @@ function getStatusBadge(status: OrderStatus) {
                   class="w-full px-3.5 py-2 text-left text-xs font-semibold hover:bg-[#F6F8F3] text-sky-700 flex items-center gap-2 cursor-pointer"
                 >
                   <Package class="w-3.5 h-3.5" />
-                  <span>Đang đóng gói 4°C</span>
+                  <span>Đang đóng gói</span>
                 </button>
 
                 <button
@@ -251,6 +261,28 @@ function getStatusBadge(status: OrderStatus) {
                 >
                   <CheckCircle2 class="w-3.5 h-3.5" />
                   <span>Giao thành công</span>
+                </button>
+
+                <div class="my-1 border-t border-[#F0F3EC]"></div>
+
+                <!-- Tùy chọn thu tiền COD / thanh toán -->
+                <button
+                  v-if="order.paymentStatus !== 'paid'"
+                  type="button"
+                  @click="handleTogglePayment(order.id, 'paid')"
+                  class="w-full px-3.5 py-2 text-left text-xs font-semibold hover:bg-emerald-50 text-emerald-700 flex items-center gap-2 cursor-pointer"
+                >
+                  <CreditCard class="w-3.5 h-3.5" />
+                  <span>Xác nhận đã thu tiền</span>
+                </button>
+                <button
+                  v-else
+                  type="button"
+                  @click="handleTogglePayment(order.id, 'pending')"
+                  class="w-full px-3.5 py-2 text-left text-xs font-semibold hover:bg-amber-50 text-amber-700 flex items-center gap-2 cursor-pointer"
+                >
+                  <CreditCard class="w-3.5 h-3.5" />
+                  <span>Đánh dấu chưa thu tiền</span>
                 </button>
 
                 <div class="my-1 border-t border-[#F0F3EC]"></div>

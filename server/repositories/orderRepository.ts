@@ -219,7 +219,10 @@ export async function getAllOrders(): Promise<Order[]> {
         voucherCode: row.voucher_code || undefined,
         shippingMethod: (row.shipping_method as Order['shippingMethod']) || 'standard',
         paymentMethod: row.payment_method as Order['paymentMethod'],
-        paymentStatus: row.payment_status as Order['paymentStatus'],
+        paymentStatus:
+          row.status === 'delivered' && row.payment_method?.toLowerCase() === 'cod'
+            ? 'paid'
+            : (row.payment_status as Order['paymentStatus']),
         status: row.status as OrderStatus,
         notes: row.notes || undefined,
       }));
@@ -291,7 +294,10 @@ export async function getOrderById(id: string): Promise<Order | null> {
         voucherCode: orderRow.voucher_code || undefined,
         shippingMethod: (orderRow.shipping_method as Order['shippingMethod']) || 'standard',
         paymentMethod: orderRow.payment_method as Order['paymentMethod'],
-        paymentStatus: orderRow.payment_status as Order['paymentStatus'],
+        paymentStatus:
+          orderRow.status === 'delivered' && orderRow.payment_method?.toLowerCase() === 'cod'
+            ? 'paid'
+            : (orderRow.payment_status as Order['paymentStatus']),
         status: orderRow.status as OrderStatus,
         notes: orderRow.notes || undefined,
       };
@@ -393,6 +399,10 @@ export async function updateOrderStatus(id: string, status: OrderStatus, notes?:
       const sql = `
         UPDATE orders
         SET status = $1,
+            payment_status = CASE
+              WHEN $1 = 'delivered' AND LOWER(payment_method) = 'cod' THEN 'paid'
+              ELSE payment_status
+            END,
             notes = COALESCE($3, notes),
             updated_at = CURRENT_TIMESTAMP
         WHERE id::text = $2 OR order_code = $2
@@ -411,6 +421,9 @@ export async function updateOrderStatus(id: string, status: OrderStatus, notes?:
   const order = memoryOrders.find((o) => o.id === id || o.orderCode === id);
   if (order) {
     order.status = status;
+    if (status === 'delivered' && order.paymentMethod?.toLowerCase() === 'cod') {
+      order.paymentStatus = 'paid';
+    }
     if (notes) {
       order.notes = notes;
     }
