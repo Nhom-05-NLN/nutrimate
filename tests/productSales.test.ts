@@ -21,10 +21,14 @@ test('popular products aggregate delivered quantities and sort before pagination
   const result = await findProducts({ sort: 'sold_desc', page: 2, limit: 1 }, true, executeQuery);
   assert.equal(result.products[0].soldCount, 17);
   assert.equal(result.total, 2);
+  assert.match(queries[0], /p\.status IS TRUE/);
+  assert.match(queries[1], /p\.status IS TRUE/);
+  assert.doesNotMatch(queries.join('\n'), /is_active/);
   assert.match(queries[1], /SUM\(oi.quantity\)/);
   assert.match(queries[1], /o.status = 'delivered'/);
-  assert.match(queries[1], /oi.product_id = products.id/);
-  assert.match(queries[1], /ORDER BY sold_count DESC, id ASC\s+LIMIT/);
+  assert.match(queries[1], /oi.product_id = p\.product_id/);
+  assert.match(queries[1], /p\.product_id::text AS id/);
+  assert.match(queries[1], /ORDER BY sold_count DESC, p\.product_id ASC\s+LIMIT/);
 });
 
 test('multiple categories share a parameterized OR filter before counting and pagination', async () => {
@@ -36,7 +40,9 @@ test('multiple categories share a parameterized OR filter before counting and pa
   const categories = ['low-carb', 'high-protein'];
   await findProducts({ categories, page: 1, limit: 9 }, true, executeQuery);
   for (const call of calls) {
-    assert.match(call.sql, /category = ANY\(\$1::text\[\]\)/);
+    assert.match(call.sql, /p\.status IS TRUE/);
+    assert.doesNotMatch(call.sql, /is_active/);
+    assert.match(call.sql, /END = ANY\(\$1::text\[\]\)/);
     assert.deepEqual(call.values[0], categories);
   }
   assert.match(calls[1].sql, /LIMIT \$2 OFFSET \$3/);

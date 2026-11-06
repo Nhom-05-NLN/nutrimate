@@ -302,6 +302,48 @@ test('provider parses compatible response and rejects empty/error/timeout respon
     for (const fake of [async () => Response.json({ choices: [] }), async () => new Response('Secret provider failure', { status: 500 })]) {
       await assert.rejects(generateChatReply([], fake), (error: unknown) => error instanceof ChatError && error.status === 502 && !error.message.includes('Secret'));
     }
+    const messages = [{ role: 'user' as const, content: 'Xin tư vấn' }];
+    let groqCalls = 0;
+    const groqFallback = async (received: LlmMessage[]) => {
+      groqCalls++;
+      assert.deepEqual(received, messages);
+      return 'Phản hồi dự phòng từ Groq';
+    };
+    assert.equal(
+      await generateChatReply(messages, async () => Response.json({}, { status: 429 }), groqFallback),
+      'Phản hồi dự phòng từ Groq',
+    );
+    assert.equal(groqCalls, 1);
+    assert.equal(
+      await generateChatReply(messages, async () => Response.json({}, { status: 403 }), groqFallback),
+      'Phản hồi dự phòng từ Groq',
+    );
+    assert.equal(groqCalls, 2);
+    await assert.rejects(
+      generateChatReply(messages, async () => Response.json({}, { status: 400 }), groqFallback),
+      (error: unknown) => error instanceof ChatError && error.status === 502,
+    );
+    assert.equal(groqCalls, 2);
+    await assert.rejects(
+      generateChatReply(messages, async () => Response.json({}, { status: 429 }), async () => {
+        throw new Error('Private Groq error');
+      }),
+      (error: unknown) => error instanceof ChatError
+        && error.status === 503
+        && error.message.includes('Groq')
+        && !error.message.includes('Private'),
+    );
+    await assert.rejects(
+      generateChatReply([], async () => Response.json(
+        { error: { status: 'RESOURCE_EXHAUSTED', message: 'do not expose provider details' } },
+        { status: 503 },
+      )),
+      (error: unknown) => error instanceof ChatError && error.status === 502 && !error.message.includes('provider details'),
+    );
+    assert.equal(
+      await generateChatReply(messages, async () => new Response('Unauthorized', { status: 401 }), groqFallback),
+      'Phản hồi dự phòng từ Groq',
+    );
     await assert.rejects(generateChatReply([], async () => { throw new DOMException('timeout', 'TimeoutError'); }), (error: unknown) => error instanceof ChatError && error.status === 504);
     config.chat.apiKey = '';
     await assert.rejects(generateChatReply([], good), (error: unknown) => error instanceof ChatError && error.status === 503);

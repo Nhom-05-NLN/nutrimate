@@ -24,7 +24,7 @@ interface ProductRow {
   original_price: string | null;
   image_url: string | null;
   description: string | null;
-  ingredients: string[] | null;
+  ingredients: string[] | string | null;
   serving_size: string | null;
   calories: string;
   protein: string;
@@ -56,7 +56,11 @@ function mapRowToProduct(row: ProductRow): Product {
     image: row.image_url || '',
     imageURL: row.image_url || '',
     description: row.description || '',
-    ingredients: row.ingredients || [],
+    ingredients: Array.isArray(row.ingredients)
+      ? row.ingredients
+      : row.ingredients
+        ? row.ingredients.split(',').map((item) => item.trim()).filter(Boolean)
+        : [],
     usageInstruction: 'Bảo quản nơi thoáng mát, dùng trực tiếp sau khi mở bao bì.',
     status: true,
     nutrition: {
@@ -81,6 +85,51 @@ function mapRowToProduct(row: ProductRow): Product {
   };
 }
 
+const productCategoryCode = `CASE
+  WHEN LOWER(COALESCE(c.name, '')) LIKE '%low-carb%' THEN 'low-carb'
+  WHEN LOWER(COALESCE(c.name, '')) LIKE '%high-protein%' THEN 'high-protein'
+  WHEN LOWER(COALESCE(c.name, '')) LIKE '%sugar-free%' THEN 'sugar-free'
+  ELSE 'all'
+END`;
+
+const productQueryFrom = `
+  FROM products p
+  LEFT JOIN categories c ON c.category_id = p.category_id
+  LEFT JOIN LATERAL (
+    SELECT serving_size, calories, protein, carbs, fat, sugar, fiber, sodium
+    FROM nutrition_facts
+    WHERE product_id = p.product_id
+    ORDER BY nutrition_fact_id DESC
+    LIMIT 1
+  ) nf ON TRUE
+`;
+
+function productSelectSql(where: string, orderBy?: string): string {
+  return `
+    SELECT p.product_id::text AS id, p.code, p.name, ${productCategoryCode} AS category,
+           c.name AS category_name, p.price, NULL::numeric AS original_price,
+           p.image_url, p.description, p.ingredients, nf.serving_size,
+           COALESCE(nf.calories, 0)::text AS calories,
+           COALESCE(nf.protein, 0)::text AS protein,
+           COALESCE(nf.carbs, 0)::text AS carbs,
+           COALESCE(nf.fat, 0)::text AS fat,
+           COALESCE(nf.sugar, 0)::text AS sugar,
+           nf.fiber::text AS fiber, nf.sodium::text AS sodium,
+           p.stock_quantity, 0::text AS rating, 0 AS review_count,
+           ARRAY[]::text[] AS badges, FALSE AS is_featured,
+           NULL::text AS best_for,
+           COALESCE((
+             SELECT SUM(oi.quantity)
+             FROM order_items oi
+             JOIN orders o ON o.order_id = oi.order_id
+             WHERE oi.product_id = p.product_id AND o.status = 'delivered'
+           ), 0) AS sold_count
+    ${productQueryFrom}
+    WHERE ${where}
+    ${orderBy ?? ''}
+  `;
+}
+
 export async function findProducts(
   filter: ProductFilterQuery,
   requirePostgres = false,
@@ -92,85 +141,68 @@ export async function findProducts(
 
   if (requirePostgres || isDbConnected()) {
     try {
-      const conditions: string[] = ['is_active = TRUE'];
+      const conditions: string[] = ['p.status IS TRUE'];
       const values: unknown[] = [];
       let paramIdx = 1;
 
       if (filter.categories?.length) {
-        conditions.push(`category = ANY($${paramIdx++}::text[])`);
+        conditions.push(`${productCategoryCode} = ANY($${paramIdx++}::text[])`);
         values.push(filter.categories);
       }
 
       if (!filter.categories?.length && filter.category && filter.category !== 'all') {
-        conditions.push(`category = $${paramIdx++}`);
+        conditions.push(`${productCategoryCode} = $${paramIdx++}`);
         values.push(filter.category);
       }
 
       if (filter.diet && filter.diet !== 'all') {
-        conditions.push(`category = $${paramIdx++}`);
+        conditions.push(`${productCategoryCode} = $${paramIdx++}`);
         values.push(filter.diet);
       }
 
       if (filter.maxCalories && filter.maxCalories > 0) {
-        conditions.push(`calories <= $${paramIdx++}`);
+        conditions.push(`COALESCE(nf.calories, 0) <= $${paramIdx++}`);
         values.push(filter.maxCalories);
       }
 
       if (filter.maxCarbs && filter.maxCarbs > 0) {
-        conditions.push(`carbs <= $${paramIdx++}`);
+        conditions.push(`COALESCE(nf.carbs, 0) <= $${paramIdx++}`);
         values.push(filter.maxCarbs);
       }
 
       if (filter.maxSugar && filter.maxSugar > 0) {
-        conditions.push(`sugar <= $${paramIdx++}`);
+        conditions.push(`COALESCE(nf.sugar, 0) <= $${paramIdx++}`);
         values.push(filter.maxSugar);
       }
 
       if (filter.minProtein && filter.minProtein > 0) {
-        conditions.push(`protein >= $${paramIdx++}`);
+        conditions.push(`COALESCE(nf.protein, 0) >= $${paramIdx++}`);
         values.push(filter.minProtein);
       }
 
       if (filter.search && filter.search.trim() !== '') {
-        conditions.push(`(LOWER(name) LIKE $${paramIdx} OR LOWER(description) LIKE $${paramIdx})`);
+        conditions.push(`(LOWER(p.name) LIKE $${paramIdx} OR LOWER(p.description) LIKE $${paramIdx})`);
         values.push(`%${filter.search.trim().toLowerCase()}%`);
         paramIdx++;
       }
 
-      // Count query
-      const countSql = `SELECT COUNT(*) FROM products WHERE ${conditions.join(' AND ')}`;
+      const countSql = `SELECT COUNT(*) ${productQueryFrom} WHERE ${conditions.join(' AND ')}`;
       const countResult = await executeQuery<{ count: string }>(countSql, values);
       const total = parseInt(countResult.rows[0]?.count || '0', 10);
 
-      // Sorting
-      let orderBy = 'ORDER BY is_featured DESC, id ASC';
-      if (filter.sort === 'price_asc') orderBy = 'ORDER BY price ASC';
-      else if (filter.sort === 'price_desc') orderBy = 'ORDER BY price DESC';
-      else if (filter.sort === 'calories_asc') orderBy = 'ORDER BY calories ASC';
-      else if (filter.sort === 'calories_desc') orderBy = 'ORDER BY calories DESC';
-      else if (filter.sort === 'protein_desc') orderBy = 'ORDER BY protein DESC';
-      else if (filter.sort === 'carbs_asc') orderBy = 'ORDER BY carbs ASC';
-      else if (filter.sort === 'sugar_asc') orderBy = 'ORDER BY sugar ASC';
-      else if (filter.sort === 'sold_desc') orderBy = 'ORDER BY sold_count DESC, id ASC';
-      else if (filter.sort === 'rating_desc') orderBy = 'ORDER BY rating DESC';
-      else if (filter.sort === 'newest') orderBy = 'ORDER BY id DESC';
+      let orderBy = 'ORDER BY p.product_id ASC';
+      if (filter.sort === 'price_asc') orderBy = 'ORDER BY p.price ASC';
+      else if (filter.sort === 'price_desc') orderBy = 'ORDER BY p.price DESC';
+      else if (filter.sort === 'calories_asc') orderBy = 'ORDER BY nf.calories ASC NULLS LAST';
+      else if (filter.sort === 'calories_desc') orderBy = 'ORDER BY nf.calories DESC NULLS LAST';
+      else if (filter.sort === 'protein_desc') orderBy = 'ORDER BY nf.protein DESC NULLS LAST';
+      else if (filter.sort === 'carbs_asc') orderBy = 'ORDER BY nf.carbs ASC NULLS LAST';
+      else if (filter.sort === 'sugar_asc') orderBy = 'ORDER BY nf.sugar ASC NULLS LAST';
+      else if (filter.sort === 'sold_desc') orderBy = 'ORDER BY sold_count DESC, p.product_id ASC';
+      else if (filter.sort === 'newest') orderBy = 'ORDER BY p.product_id DESC';
 
-      const sql = `
-        SELECT id, code, name, category, category_name, price, original_price,
-               image_url, description, ingredients, serving_size, calories,
-               protein, carbs, fat, sugar, fiber, sodium, stock_quantity,
-               rating, review_count, badges, is_featured, best_for,
-               COALESCE((
-                 SELECT SUM(oi.quantity)
-                 FROM order_items oi
-                 JOIN orders o ON o.id = oi.order_id
-                 WHERE oi.product_id = products.id AND o.status = 'delivered'
-               ), 0) AS sold_count
-        FROM products
-        WHERE ${conditions.join(' AND ')}
-        ${orderBy}
-        LIMIT $${paramIdx++} OFFSET $${paramIdx++}
-      `;
+      const sql = `${productSelectSql(conditions.join(' AND '), orderBy)}
+        LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
       values.push(limit, offset);
 
       const result = await executeQuery<ProductRow>(sql, values);
@@ -259,15 +291,26 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
       product.nutrition.fat, product.nutrition.sugar].every(Number.isFinite)).slice(0, 3);
   }
 
-  if (!columns.has('product_id') || !columns.has('base_price') || !columns.has('status')) {
+  if (!columns.has('product_id') || !columns.has('price') || !columns.has('status')) {
     throw new Error('Schema PostgreSQL không có cấu trúc sản phẩm được NutriBot hỗ trợ.');
   }
 
   const conditions = ['p.status IS TRUE'];
   const values: unknown[] = [];
+  if (filter.categories?.length) {
+    values.push(filter.categories);
+    conditions.push(`${productCategoryCode} = ANY($${values.length}::text[])`);
+  } else if (filter.category && filter.category !== 'all') {
+    values.push(filter.category);
+    conditions.push(`${productCategoryCode} = $${values.length}`);
+  }
+  if (filter.diet && filter.diet !== 'all') {
+    values.push(filter.diet);
+    conditions.push(`${productCategoryCode} = $${values.length}`);
+  }
   if (filter.search?.trim()) {
     values.push(`%${filter.search.trim()}%`);
-    conditions.push(`(p.name ILIKE $${values.length} OR p.description ILIKE $${values.length})`);
+    conditions.push(`(p.name ILIKE $${values.length} OR COALESCE(p.description, '') ILIKE $${values.length})`);
   }
   if (filter.maxCalories && filter.maxCalories > 0) {
     values.push(filter.maxCalories);
@@ -289,6 +332,7 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
   const result = await executeQuery<{
     id: number;
     name: string;
+    category: string;
     category_name: string | null;
     price: string;
     description: string | null;
@@ -301,11 +345,12 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
     sugar: string | null;
     stock: number;
   }>(
-    `SELECT p.product_id AS id, p.name, p.base_price AS price,
-            NULL::text AS category_name,
+    `SELECT p.product_id AS id, p.name, ${productCategoryCode} AS category,
+            c.name AS category_name, p.price,
             p.description, p.image_url, nf.serving_size, nf.calories, nf.protein,
-            nf.carbs, nf.fat, nf.sugar, COALESCE(stock.quantity, 0)::int AS stock
+            nf.carbs, nf.fat, nf.sugar, p.stock_quantity::int AS stock
      FROM products p
+     LEFT JOIN categories c ON c.category_id = p.category_id
      LEFT JOIN LATERAL (
        SELECT serving_size, calories, protein, carbs, fat, sugar
        FROM nutrition_facts
@@ -313,11 +358,6 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
        ORDER BY nutrition_fact_id DESC
        LIMIT 1
      ) nf ON TRUE
-     LEFT JOIN LATERAL (
-       SELECT SUM(i.quantity) AS quantity
-       FROM inventory i
-       WHERE i.product_id = p.product_id
-     ) stock ON TRUE
      WHERE ${conditions.join(' AND ')}
        AND nf.serving_size IS NOT NULL AND nf.calories IS NOT NULL
        AND nf.protein IS NOT NULL AND nf.carbs IS NOT NULL
@@ -331,7 +371,7 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
     id: String(row.id),
     code: '',
     name: row.name,
-    category: 'all',
+    category: (row.category as Product['category']) || 'all',
     categoryName: row.category_name || 'Khác',
     price: Number(row.price),
     image: row.image_url || '',
@@ -359,21 +399,8 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
 export async function findProductById(id: string): Promise<Product | null> {
   if (isDbConnected()) {
     try {
-      const sql = `
-        SELECT id, code, name, category, category_name, price, original_price,
-               image_url, description, ingredients, serving_size, calories,
-               protein, carbs, fat, sugar, fiber, sodium, stock_quantity,
-               rating, review_count, badges, is_featured, best_for,
-               COALESCE((
-                 SELECT SUM(oi.quantity)
-                 FROM order_items oi
-                 JOIN orders o ON o.id = oi.order_id
-                 WHERE oi.product_id = products.id AND o.status = 'delivered'
-               ), 0) AS sold_count
-        FROM products
-        WHERE (id::text = $1 OR code = $1) AND is_active = TRUE
-        LIMIT 1
-      `;
+      const sql = `${productSelectSql('(p.product_id::text = $1 OR p.code = $1) AND p.status IS TRUE')}
+        LIMIT 1`;
       const result = await queryPostgres<ProductRow>(sql, [id]);
       const row = result.rows[0];
       if (row) {
@@ -401,7 +428,7 @@ export async function createProduct(newProd: Product): Promise<Product> {
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
           $16, $17, $18, $19, $20, $21, $22, $23, $24
-        ) RETURNING id
+        ) RETURNING product_id AS id
       `;
       const slug = newProd.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now();
       const values = [

@@ -16,12 +16,26 @@ export async function getAllCategories(): Promise<Category[]> {
   if (isDbConnected()) {
     try {
       const sql = `
-        SELECT c.id, c.name, c.slug, c.description, c.diet_type, c.icon,
-               COUNT(p.id) as product_count
+        SELECT c.category_id AS id, c.name,
+               CASE
+                 WHEN LOWER(c.name) LIKE '%low-carb%' THEN 'low-carb'
+                 WHEN LOWER(c.name) LIKE '%high-protein%' THEN 'high-protein'
+                 WHEN LOWER(c.name) LIKE '%sugar-free%' THEN 'sugar-free'
+                 ELSE 'all'
+               END AS slug,
+               c.description,
+               CASE
+                 WHEN LOWER(c.name) LIKE '%low-carb%' THEN 'low-carb'
+                 WHEN LOWER(c.name) LIKE '%high-protein%' THEN 'high-protein'
+                 WHEN LOWER(c.name) LIKE '%sugar-free%' THEN 'sugar-free'
+                 ELSE 'all'
+               END AS diet_type,
+               NULL::text AS icon,
+               COUNT(p.product_id) as product_count
         FROM categories c
-        LEFT JOIN products p ON p.category = c.slug AND p.is_active = TRUE
-        GROUP BY c.id, c.name, c.slug, c.description, c.diet_type, c.icon
-        ORDER BY c.sort_order ASC, c.id ASC
+        LEFT JOIN products p ON p.category_id = c.category_id AND p.status IS TRUE
+        GROUP BY c.category_id, c.name, c.description
+        ORDER BY c.category_id ASC
       `;
       const result = await queryPostgres<CategoryRow>(sql);
       if (result.rows.length > 0) {

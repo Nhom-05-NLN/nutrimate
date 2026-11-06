@@ -7,6 +7,7 @@ import {
   fetchCaloriePlan,
   fetchNutritionDiary,
   fetchProducts,
+  deleteNutritionMeal,
   postNutritionImage,
   postNutritionMeal,
   postNutritionWater,
@@ -32,6 +33,7 @@ import {
   PieChart,
   Bell,
   Check,
+  Trash2,
 } from "lucide-vue-next";
 
 const cartStore = useCartStore();
@@ -521,6 +523,22 @@ async function saveMeal() {
   } catch (error: unknown) {
     toastStore.show(
       error instanceof Error ? error.message : "Không thể lưu món ăn.",
+      "error",
+    );
+  } finally {
+    isSavingDiary.value = false;
+  }
+}
+
+async function removeMeal(id: number, foodName: string) {
+  if (!window.confirm(`Xóa "${foodName}" khỏi nhật ký bữa ăn ngày này?`)) return;
+  isSavingDiary.value = true;
+  try {
+    diary.value = await deleteNutritionMeal(id, selectedDate.value);
+    toastStore.show("Đã xóa món ăn khỏi nhật ký.", "success");
+  } catch (error: unknown) {
+    toastStore.show(
+      error instanceof Error ? error.message : "Không thể xóa món ăn.",
       "error",
     );
   } finally {
@@ -1293,14 +1311,26 @@ async function addWater(amount: number) {
             <li
               v-for="item in meal.items"
               :key="item.id"
-              class="rounded-xl bg-[#FAF9F5] p-3"
+              class="flex items-start justify-between gap-2 rounded-xl bg-[#FAF9F5] p-3"
             >
-              <strong class="block">{{ item.foodName }}</strong>
-              <span class="text-[#7A866E]"
-                >{{ item.calories }} kcal · {{ item.protein }}g đạm ·
-                {{ item.carbs }}g carbs · {{ item.fat }}g fat ·
-                {{ item.sugar }}g sugar</span
+              <div class="min-w-0">
+                <strong class="block">{{ item.foodName }}</strong>
+                <span class="text-[#7A866E]"
+                  >{{ item.calories }} kcal · {{ item.protein }}g đạm ·
+                  {{ item.carbs }}g carbs · {{ item.fat }}g fat ·
+                  {{ item.sugar }}g sugar</span
+                >
+              </div>
+              <button
+                type="button"
+                :disabled="isSavingDiary"
+                :aria-label="`Xóa ${item.foodName} khỏi nhật ký`"
+                title="Xóa món ăn"
+                class="shrink-0 rounded-lg p-1 text-[#7A866E] hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                @click="removeMeal(item.id, item.foodName)"
               >
+                <Trash2 class="h-4 w-4" />
+              </button>
             </li>
           </ul>
           <button
