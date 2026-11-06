@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useCartStore } from '../../stores/cartStore';
+import { useAuthStore } from '../../stores/authStore';
 import { useToastStore } from '../../stores/toastStore';
 import { postOrder } from '../../services/api';
 import { PaymentMethod, Order } from '../../types';
@@ -16,6 +17,7 @@ import {
 } from 'lucide-vue-next';
 
 const cartStore = useCartStore();
+const authStore = useAuthStore();
 const toastStore = useToastStore();
 
 const customerName = ref('');
@@ -64,7 +66,7 @@ async function handlePlaceOrder() {
       notes: notes.value.trim(),
     };
 
-    const newOrder = await postOrder(payload);
+    const newOrder = await postOrder(payload, authStore.accessToken);
     completedOrder.value = newOrder;
     cartStore.clearCart();
     toastStore.show(`Đặt hàng thành công! Mã đơn: ${newOrder.orderCode}`);
