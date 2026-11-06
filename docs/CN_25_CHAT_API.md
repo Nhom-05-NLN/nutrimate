@@ -12,6 +12,9 @@ Cấu hình riêng trong `.env`, không commit file hoặc khóa:
 LLM_API_KEY=<khoa-cua-nha-cung-cap>
 LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 LLM_MODEL=gemini-2.5-flash
+GROQ_API_KEY=<khoa-groq-du-phong>
+GROQ_MODEL=openai/gpt-oss-20b
+GROQ_VISION_MODEL=qwen/qwen3.8-27b
 JWT_SECRET=<bi-mat-HS256-dung-chung-voi-module-dang-nhap-it-nhat-32-ky-tu>
 ```
 
@@ -20,6 +23,8 @@ JWT_SECRET=<bi-mat-HS256-dung-chung-voi-module-dang-nhap-it-nhat-32-ky-tu>
 Adapter tham chiếu [OpenAI Docs — Create chat completion](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create); mức tương thích của từng nhà cung cấp cần kiểm thử bằng model được cấu hình.
 
 Cấu hình được chọn cho dự án là `gemini-2.5-flash` qua [Gemini OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai). `LLM_API_KEY` phải là khóa Gemini hợp lệ; khóa của nhà cung cấp khác không dùng được cho endpoint này.
+
+Khi Gemini trả HTTP 401, 403 hoặc 429, chat văn bản tự chuyển sang Groq bằng `GROQ_API_KEY` và `GROQ_MODEL`, truyền nguyên ngữ cảnh đã tạo cho Gemini. Nếu Groq chưa cấu hình hoặc cũng lỗi, hội thoại giữ nguyên và API trả lỗi để khách có thể thử lại; không ghi một câu trả lời giả vào lịch sử. Phân tích ảnh cũng chuyển sang `GROQ_VISION_MODEL` khi Gemini bị từ chối, hết hạn mức, model không khả dụng, gặp lỗi máy chủ hoặc lỗi kết nối. Model vision mặc định là `qwen/qwen3.8-27b`; có thể đổi bằng biến môi trường riêng mà không ảnh hưởng model chat. Ảnh được gửi trực tiếp dạng base64 tới API Groq qua backend; không ghi ảnh hoặc khóa API vào log.
 
 Áp dụng migration trên **database NutriMate hiện có** bằng công cụ PostgreSQL. Nếu database chưa có bảng chat cũ, chạy `server/db/migrations/001_chat.sql`. Nếu đã có `chat_sessions` và `chat_messages` dạng cũ (`session_id`, `question`, `response`), chạy migration tương thích `server/db/migrations/003_chat_conversation_schema_compat.sql` thay vì `001_chat.sql`:
 

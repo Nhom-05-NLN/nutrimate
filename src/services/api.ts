@@ -439,6 +439,15 @@ export async function postNutritionMeal(payload: CreateNutritionDiaryMeal): Prom
   return response.data;
 }
 
+export async function deleteNutritionMeal(id: number, date: string): Promise<NutritionDiaryDay> {
+  const response = await fetchJson<ApiResponse<NutritionDiaryDay>>(
+    `/nutrition-diary/meals/${encodeURIComponent(id)}?date=${encodeURIComponent(date)}`,
+    { method: 'DELETE' },
+  );
+  if (!response.data) throw new Error(response.message || 'Không thể xóa món ăn.');
+  return response.data;
+}
+
 export async function postNutritionWater(date: string, amountMl: number): Promise<NutritionDiaryDay> {
   const response = await fetchJson<ApiResponse<NutritionDiaryDay>>('/nutrition-diary/water', { method: 'POST', body: JSON.stringify({ date, amountMl }) });
   if (!response.data) throw new Error(response.message || 'Không thể lưu lượng nước.');

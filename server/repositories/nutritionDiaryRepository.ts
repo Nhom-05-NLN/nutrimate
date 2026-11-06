@@ -1,5 +1,6 @@
 import { getPool, isDbConnected } from '../db/index.js';
 import { MealType, NutritionDiaryDay } from '../types/nutritionDiary.js';
+import type { Pool } from 'pg';
 
 interface MealRow {
   id: number; meal_type: MealType; food_name: string; calories: number;
@@ -68,6 +69,54 @@ export async function addMeal(userId: string, date: string, mealType: MealType,
       total_fat = COALESCE(total_fat, 0) + $5, total_sugar = COALESCE(total_sugar, 0) + $6 WHERE diary_id = $1`,
     [diaryId, calories, protein, carbs, fat, sugar]);
     await client.query('COMMIT');
+  } catch (error: unknown) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function removeMeal(userId: string, date: string, entryId: number, database?: Pool): Promise<boolean> {
+  if (!database && !isDbConnected()) throw new Error('PostgreSQL hiện không khả dụng.');
+  const client = await (database ?? getPool()).connect();
+  try {
+    await client.query('BEGIN');
+    const diary = await client.query<{ diary_id: number }>(
+      `SELECT d.diary_id
+       FROM nutrition_diary d
+       JOIN diary_entries e ON e.diary_id = d.diary_id
+       WHERE d.customer_id = $1 AND d.date = $2 AND e.entry_id = $3
+       FOR UPDATE OF d`,
+      [userId, date, entryId],
+    );
+    const diaryId = diary.rows[0]?.diary_id;
+    if (diaryId === undefined) {
+      await client.query('COMMIT');
+      return false;
+    }
+
+    const deleted = await client.query(
+      'DELETE FROM diary_entries WHERE entry_id = $1 AND diary_id = $2 RETURNING entry_id',
+      [entryId, diaryId],
+    );
+    if (deleted.rowCount !== 1) {
+      await client.query('COMMIT');
+      return false;
+    }
+
+    await client.query(
+      `UPDATE nutrition_diary
+       SET total_calories = COALESCE((SELECT SUM(calories) FROM diary_entries WHERE diary_id = $1), 0),
+           total_protein = COALESCE((SELECT SUM(protein) FROM diary_entries WHERE diary_id = $1), 0),
+           total_carbs = COALESCE((SELECT SUM(carbs) FROM diary_entries WHERE diary_id = $1), 0),
+           total_fat = COALESCE((SELECT SUM(fat) FROM diary_entries WHERE diary_id = $1), 0),
+           total_sugar = COALESCE((SELECT SUM(sugar) FROM diary_entries WHERE diary_id = $1), 0)
+       WHERE diary_id = $1`,
+      [diaryId],
+    );
+    await client.query('COMMIT');
+    return true;
   } catch (error: unknown) {
     await client.query('ROLLBACK');
     throw error;

@@ -144,7 +144,6 @@ CREATE TABLE IF NOT EXISTS products (
     review_count INT DEFAULT 0,
     badges TEXT[] DEFAULT ARRAY['Mới'],
     is_featured BOOLEAN DEFAULT FALSE,
-    is_active BOOLEAN DEFAULT TRUE,
     status BOOLEAN DEFAULT TRUE,
     best_for TEXT,
     serving_size VARCHAR(50) DEFAULT '1 khẩu phần',
@@ -424,6 +423,28 @@ ALTER TABLE categories
     ADD COLUMN IF NOT EXISTS icon VARCHAR(50),
     ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0;
 
+DO $$
+DECLARE
+    has_status BOOLEAN;
+    has_legacy_is_active BOOLEAN;
+BEGIN
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'products' AND column_name = 'status'
+    ) INTO has_status;
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'products' AND column_name = 'is_active'
+    ) INTO has_legacy_is_active;
+
+    IF NOT has_status THEN
+        ALTER TABLE products ADD COLUMN status BOOLEAN DEFAULT TRUE;
+        IF has_legacy_is_active THEN
+            UPDATE products SET status = is_active;
+        END IF;
+    END IF;
+END $$;
+
 ALTER TABLE products 
     ADD COLUMN IF NOT EXISTS id INT,
     ADD COLUMN IF NOT EXISTS category_id INT REFERENCES categories(category_id) ON DELETE SET NULL,
@@ -446,7 +467,6 @@ ALTER TABLE products
     ADD COLUMN IF NOT EXISTS review_count INT DEFAULT 0,
     ADD COLUMN IF NOT EXISTS badges TEXT[] DEFAULT ARRAY['Mới'],
     ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE,
-    ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS best_for TEXT;
 
 ALTER TABLE nutrition_facts
