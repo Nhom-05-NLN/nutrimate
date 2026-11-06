@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
@@ -68,34 +68,130 @@ function storedFilename(row: NutritionImageRow): string {
   return match[1];
 }
 
+function isMissingFile(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT';
+}
+
+function isFileAlreadyCreated(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'EEXIST';
+}
+
+function isContentHashConflict(error: unknown): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && error.code === '23505'
+    && 'constraint' in error
+    && error.constraint === 'idx_nutrition_images_customer_content_sha256';
+}
+
+function imageReply(prediction: NutritionImagePrediction): string {
+  const disclaimer = 'Thông tin chỉ mang tính tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.';
+  return prediction.status === 'unrecognized'
+    ? `Mình chưa nhận diện được thực phẩm trong ảnh.\n\n${disclaimer}`
+    : `Ước tính dinh dưỡng cho khẩu phần trong ảnh\n\n• Năng lượng: ${prediction.predictedCalories ?? '—'} kcal\n• Protein: ${prediction.predictedProtein ?? '—'} g\n• Carbs: ${prediction.predictedCarbs ?? '—'} g\n• Chất béo: ${prediction.predictedFat ?? '—'} g\n• Đường: ${prediction.predictedSugar ?? '—'} g\n\n${disclaimer}`;
+}
+
 export function createNutritionImageService(
   imageRepository = repository,
   predict: (image: Buffer, mime: SupportedImageMime, question: string) => Promise<ImageNutritionEstimate> = (image, mime, question) => analyzeNutritionImage(image, mime, fetch, question),
   storageDir = config.nutritionImage.storageDir,
   conversations = new ChatConversationRepository(),
 ) {
+  async function findExistingImage(userId: number, contentSha256: string): Promise<NutritionImageRow | null> {
+    const existing = await imageRepository.findNutritionImageByHash(userId, contentSha256);
+    if (existing) return existing;
+
+    const unhashedImages = await imageRepository.listUnhashedNutritionImages(userId);
+    for (const candidate of unhashedImages) {
+      let existingImage: Buffer;
+      try {
+        existingImage = await readFile(path.join(storageDir, storedFilename(candidate)));
+      } catch (error) {
+        if (isMissingFile(error)) continue;
+        throw error;
+      }
+
+      const existingHash = createHash('sha256').update(existingImage).digest('hex');
+      let indexed: NutritionImageRow | null;
+      try {
+        indexed = await imageRepository.setNutritionImageHashIfMissing(candidate.image_id, userId, existingHash);
+      } catch (error) {
+        if (!isContentHashConflict(error)) throw error;
+        indexed = null;
+      }
+
+      if (existingHash !== contentSha256) continue;
+      if (indexed) return indexed;
+      return await imageRepository.findNutritionImageByHash(userId, contentSha256);
+    }
+    return null;
+  }
+
+  async function ensureImageFile(imagePath: string, image: Buffer): Promise<void> {
+    try {
+      await readFile(imagePath);
+    } catch (error) {
+      if (!isMissingFile(error)) throw error;
+      try {
+        await writeFile(imagePath, image, { flag: 'wx', mode: 0o600 });
+      } catch (writeError) {
+        if (!isFileAlreadyCreated(writeError)) throw writeError;
+      }
+    }
+  }
+
   return {
     async analyze(userId: number, conversationId: string, requestId: string, image: unknown, declaredType: string, question = '', saveToChat = true): Promise<NutritionImagePrediction> {
       if (!Buffer.isBuffer(image) || image.length === 0) throw new ChatError(400, 'Chưa nhận được ảnh cần phân tích.');
       if (image.length > config.nutritionImage.maxUploadBytes) throw new ChatError(413, 'Ảnh vượt quá dung lượng tối đa 5 MB.');
       const mimeType = imageMimeType(image, declaredType);
-      const filename = `${randomUUID()}${imageTypes[mimeType]}`;
-      const imageUrl = `/api/chat/nutrition-images/${filename}`;
-      await mkdir(storageDir, { recursive: true });
-      const filePath = path.join(storageDir, filename);
-      await writeFile(filePath, image, { flag: 'wx', mode: 0o600 });
+      const contentSha256 = createHash('sha256').update(image).digest('hex');
+      let record = await findExistingImage(userId, contentSha256);
+      let isNewRecord = false;
+      let filename: string;
+      let imageUrl: string;
+      let filePath: string;
 
-      let record: NutritionImageRow;
-      try {
-        record = await imageRepository.createNutritionImage(userId, imageUrl);
-      } catch (error) {
-        try {
-          await unlink(filePath);
-        } catch {
-          console.error('[NutritionImage] Could not remove an upload after database insert failure.');
+      if (record) {
+        if (record.status === 'processing') throw new ChatError(409, 'Ảnh này đang được phân tích. Vui lòng thử lại sau.');
+        filename = storedFilename(record);
+        imageUrl = record.image_url;
+        filePath = path.join(storageDir, filename);
+        await ensureImageFile(filePath, image);
+        if (record.status === 'completed' || record.status === 'unrecognized') {
+          const prediction = toPrediction(record);
+          if (saveToChat) {
+            await conversations.saveImageAnalysis(conversationId, userId, requestId, record.image_id, imageReply(prediction), question);
+          }
+          return prediction;
         }
-        throw error;
+        await imageRepository.markNutritionImageProcessing(record.image_id, userId);
+      } else {
+        filename = `${randomUUID()}${imageTypes[mimeType]}`;
+        imageUrl = `/api/chat/nutrition-images/${filename}`;
+        await mkdir(storageDir, { recursive: true });
+        filePath = path.join(storageDir, filename);
+        await writeFile(filePath, image, { flag: 'wx', mode: 0o600 });
+        isNewRecord = true;
       }
+
+      if (isNewRecord) {
+        try {
+          record = await imageRepository.createNutritionImage(userId, imageUrl, contentSha256);
+        } catch (error) {
+          try {
+            await unlink(filePath);
+          } catch {
+            console.error('[NutritionImage] Could not remove an upload after database insert failure.');
+          }
+          if (isContentHashConflict(error)) {
+            throw new ChatError(409, 'Ảnh này vừa được tải lên và đang được xử lý. Vui lòng thử lại sau.');
+          }
+          throw error;
+        }
+      }
+      if (!record) throw new Error('Could not resolve nutrition image record.');
 
       let completed: NutritionImageRow;
       let labelFacts: ImageNutritionEstimate['labelFacts'] = [];
@@ -138,12 +234,14 @@ export function createNutritionImageService(
         try {
           await conversations.saveImageAnalysis(conversationId, userId, requestId, completed.image_id, reply, question);
         } catch (error) {
-          await imageRepository.deleteNutritionImage(completed.image_id, userId).catch(() => {
-            console.error('[NutritionImage] Could not remove an upload after chat history save failure.');
-          });
-          await unlink(filePath).catch(() => {
-            console.error('[NutritionImage] Could not remove an upload after chat history save failure.');
-          });
+          if (isNewRecord) {
+            await imageRepository.deleteNutritionImage(completed.image_id, userId).catch(() => {
+              console.error('[NutritionImage] Could not remove an upload after chat history save failure.');
+            });
+            await unlink(filePath).catch(() => {
+              console.error('[NutritionImage] Could not remove an upload after chat history save failure.');
+            });
+          }
           throw error;
         }
       }

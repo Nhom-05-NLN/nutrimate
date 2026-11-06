@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import express from 'express';
 import { config } from '../config.js';
-import { resolveChatOwner } from '../middleware/chatIdentity.js';
+import { resolveNutritionImageOwner } from '../middleware/chatIdentity.js';
 import { ChatError, UUID_PATTERN } from '../types/chat.js';
 import type { ApiResponse } from '../types/index.js';
 import type { NutritionImagePrediction } from '../types/nutritionImage.js';
@@ -15,7 +15,19 @@ function checkSameOrigin(req: Request): void {
 
 function failure(res: Response, error: unknown): void {
   const code = error instanceof ChatError ? error.status : 503;
-  if (!(error instanceof ChatError)) console.error('[NutritionImage] Request failed.');
+  if (!(error instanceof ChatError)) {
+    const errorType = error instanceof Error
+      ? error.name.replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 40) || 'Error'
+      : typeof error;
+    const errorCode = typeof error === 'object'
+      && error !== null
+      && 'code' in error
+      && typeof error.code === 'string'
+      && /^[A-Z0-9_]{1,32}$/.test(error.code)
+      ? ` (${error.code})`
+      : '';
+    console.error(`[NutritionImage] Request failed: ${errorType}${errorCode}.`);
+  }
   res.status(code).json({
     success: false,
     message: error instanceof ChatError ? error.message : 'Không thể xử lý ảnh lúc này. Vui lòng thử lại.',
@@ -24,7 +36,7 @@ function failure(res: Response, error: unknown): void {
 
 export function createNutritionImageController(
   service: NutritionImageService = createNutritionImageService(),
-  identity = resolveChatOwner,
+  identity = resolveNutritionImageOwner,
 ) {
   return {
     authorize: async (req: Request, res: Response, next: NextFunction): Promise<void> => {

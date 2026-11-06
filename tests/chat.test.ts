@@ -66,6 +66,7 @@ const service = createChatService(repository, async messages => {
 });
 const identity = createChatIdentity(async id => id === 9 ? 'admin' : id <= 2 ? 'customer' : undefined);
 const controller = createChatController(service, identity);
+const customerOnlyIdentity = createChatIdentity(async id => id === 9 ? 'admin' : id <= 2 ? 'customer' : undefined, ['customer']);
 const app = express();
 app.use(express.json());
 app.post('/api/chat/session', controller.session);
@@ -74,6 +75,14 @@ app.get('/api/chat/conversations', controller.list);
 app.get('/api/chat/conversations/:id/messages', controller.history);
 app.post('/api/chat/conversations/:id/messages', controller.ask);
 app.post('/api/chat/ask', controller.ask);
+app.get('/api/chat/customer-only', (req, res, next) => {
+  void customerOnlyIdentity(req, res)
+    .then(() => res.sendStatus(204))
+    .catch(error => {
+      if (error instanceof ChatError) res.status(error.status).json({ success: false, message: error.message });
+      else next(error);
+    });
+});
 const server = app.listen(0, '127.0.0.1');
 let base = '';
 before(async () => {
@@ -230,6 +239,10 @@ test('admin can use chat while conversation ownership stays isolated by account'
     message: 'Tư vấn dinh dưỡng',
   }, jwt('9'))).status, 200);
   assert.equal((await request(`/conversations/${adminConversationId}/messages`, undefined, jwt('1'))).status, 404);
+});
+test('customer-only identity rejects Admin before protected work runs', async () => {
+  assert.equal((await request('/customer-only', undefined, jwt('9'))).status, 403);
+  assert.equal((await request('/customer-only', undefined, jwt('1'))).status, 204);
 });
 test('invalid/expired JWT is rejected, never downgraded to Guest', async () => {
   for (const token of ['bad', jwt('1', 1), jwt('1', Math.floor(Date.now() / 1000) + 60, 'wrong')]) {
