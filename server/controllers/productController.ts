@@ -1,6 +1,15 @@
 import { Request, Response } from 'express';
 import * as productService from '../services/productService.js';
+import { getTotalSoldProducts } from '../repositories/productRepository.js';
 import { ApiResponse, Product, ProductFilterQuery, PaginatedProductResponse } from '../types/index.js';
+
+export async function getSalesSummary(_req: Request, res: Response): Promise<void> {
+  try {
+    res.json({ success: true, data: { totalSold: await getTotalSoldProducts() } });
+  } catch {
+    res.status(503).json({ success: false, message: 'Không thể tải lượt bán từ cơ sở dữ liệu.' });
+  }
+}
 
 export async function getProducts(req: Request, res: Response<PaginatedProductResponse | ApiResponse<Product[]>>): Promise<void> {
   try {
