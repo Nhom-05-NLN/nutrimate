@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCartStore, getCartItemKey } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import { useVoucherStore } from '../stores/voucherStore';
-import { postOrder } from '../services/api';
+import { fetchUserAddresses, postOrder } from '../services/api';
 import { CustomerInfo, Order, PaymentMethod, CreateOrderPayload, Voucher } from '../types';
 import ShippingAddressForm from '../components/checkout/ShippingAddressForm.vue';
 import VietQrModal from '../components/checkout/VietQrModal.vue';
@@ -44,16 +44,85 @@ const showVietQrModal = ref(false);
 const showMomoModal = ref(false);
 const createdOrder = ref<Order | null>(null);
 
-onMounted(() => {
-  voucherStore.loadVouchers();
-});
+function getInitialDefaultAddress(): string {
+  if (authStore.currentUser?.defaultAddress?.isDefault) {
+    return authStore.currentUser.defaultAddress.address;
+  }
+  return '';
+}
 
 const customer = ref<CustomerInfo>({
-  name: authStore.currentUser?.name || 'Nguyễn Minh Anh',
-  phone: authStore.currentUser?.phone || '0912 345 678',
-  email: authStore.currentUser?.email || 'minhanh.fit@gmail.com',
-  address: 'Số 45 Đường D2, Phường 25, Quận Bình Thạnh, TP. Hồ Chí Minh',
-  note: 'Giao giờ hành chính, gọi trước 15 phút giúp mình',
+  name:
+    authStore.currentUser?.defaultAddress?.receiverName ||
+    authStore.currentUser?.name ||
+    '',
+  phone:
+    authStore.currentUser?.defaultAddress?.receiverPhone ||
+    authStore.currentUser?.phone ||
+    '',
+  email: authStore.currentUser?.email || '',
+  address: getInitialDefaultAddress(),
+  note: '',
+});
+
+async function syncCustomerFromAccount() {
+  if (authStore.currentUser) {
+    if (!customer.value.name) {
+      customer.value.name =
+        authStore.currentUser.defaultAddress?.receiverName ||
+        authStore.currentUser.name ||
+        '';
+    }
+    if (!customer.value.phone) {
+      customer.value.phone =
+        authStore.currentUser.defaultAddress?.receiverPhone ||
+        authStore.currentUser.phone ||
+        '';
+    }
+    if (!customer.value.email) {
+      customer.value.email = authStore.currentUser.email || '';
+    }
+  }
+
+  if (authStore.currentUser || authStore.accessToken) {
+    try {
+      const addresses = await fetchUserAddresses();
+      authStore.setAddresses(addresses);
+      const defaultAddr = addresses.find((a) => a.isDefault);
+      if (defaultAddr) {
+        customer.value.address = defaultAddr.address;
+        if (defaultAddr.receiverName) customer.value.name = defaultAddr.receiverName;
+        if (defaultAddr.receiverPhone) customer.value.phone = defaultAddr.receiverPhone;
+      } else {
+        customer.value.address = '';
+      }
+    } catch {
+      const defaultAddr = authStore.currentUser?.defaultAddress;
+      if (defaultAddr?.isDefault) {
+        customer.value.address = defaultAddr.address;
+        if (defaultAddr.receiverName) customer.value.name = defaultAddr.receiverName;
+        if (defaultAddr.receiverPhone) customer.value.phone = defaultAddr.receiverPhone;
+      } else {
+        customer.value.address = '';
+      }
+    }
+  } else {
+    customer.value.address = '';
+  }
+}
+
+watch(
+  () => authStore.currentUser,
+  (user) => {
+    if (user) {
+      void syncCustomerFromAccount();
+    }
+  },
+);
+
+onMounted(() => {
+  voucherStore.loadVouchers();
+  void syncCustomerFromAccount();
 });
 
 function formatVnd(amount: number): string {

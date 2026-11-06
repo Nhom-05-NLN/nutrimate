@@ -277,6 +277,7 @@ async function loadAddresses() {
   addressError.value = '';
   try {
     addresses.value = await fetchUserAddresses();
+    authStore.setAddresses(addresses.value);
   } catch (error: unknown) {
     addressError.value = error instanceof Error ? error.message : 'Không thể tải địa chỉ nhận hàng.';
   } finally {

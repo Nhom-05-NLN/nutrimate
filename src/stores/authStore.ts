@@ -7,6 +7,7 @@ import {
   fetchCurrentUser,
   postLogout,
   RegisteredUser,
+  ShippingAddress,
   updateCurrentUser,
   updateCurrentUserAvatar,
   updateCurrentUserDietPreferences,
@@ -159,7 +160,10 @@ export const useAuthStore = defineStore('auth', () => {
           : profileDefaults.avatar
       ),
       role: user.role,
-      defaultAddress: user.defaultAddress ?? cachedProfile?.defaultAddress ?? null,
+      defaultAddress:
+        (user.defaultAddress?.isDefault ? user.defaultAddress : null) ??
+        (cachedProfile?.defaultAddress?.isDefault ? cachedProfile.defaultAddress : null) ??
+        null,
       dietPreferences: user.dietPreferences ?? cachedProfile?.dietPreferences ?? [],
     };
   }
@@ -300,6 +304,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function setAddresses(addressList: ShippingAddress[]) {
+    if (currentUser.value) {
+      currentUser.value = {
+        ...currentUser.value,
+        addresses: addressList,
+        defaultAddress: addressList.find((a) => a.isDefault) ?? null,
+      };
+      activeStorage?.setItem(authStorageKey, JSON.stringify(currentUser.value));
+    }
+  }
+
   return {
     accessToken,
     currentUser,
@@ -311,6 +326,7 @@ export const useAuthStore = defineStore('auth', () => {
     updateDietPreferences,
     updateAvatar,
     updateAccountProfile,
+    setAddresses,
     login,
     logout,
   };
