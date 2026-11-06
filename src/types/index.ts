@@ -65,6 +65,31 @@ export interface Category {
   count?: number;
 }
 
+export interface AdminProductItem {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  price: number;
+  originalPrice?: number;
+  calo: number;
+  protein: number;
+  sugar: number;
+  carbs?: number;
+  fat?: number;
+  status: 'Đang bán' | 'Tạm ngừng';
+  image: string;
+  description?: string;
+  ingredients?: string[];
+  badges?: string[];
+  servingSize?: string;
+  stock?: number;
+  rating?: number;
+  reviewCount?: number;
+  soldCount?: number;
+  unit?: string;
+}
+
 export interface CartItem {
   product: Product;
   quantity: number;
@@ -168,7 +193,7 @@ export interface Order {
 
 export interface AdminDashboardData {
   summary: {
-    monthlyRevenue: number;
+    weeklyRevenue: number;
     revenueChangePercent: number | null;
     totalOrders: number;
     deliveredOrderPercent: number;
@@ -176,13 +201,11 @@ export interface AdminDashboardData {
     totalCustomers: number;
     newCustomers: number;
     customersWithBmi: number;
-    monthlyChatMessages: number;
+    weeklyChatMessages: number;
   };
   weeklySales: {
     date: string;
     revenue: number;
-    productRevenue: number;
-    aiRecommendedRevenue: number;
     orders: number;
   }[];
   categories: {
@@ -210,6 +233,7 @@ export interface AdminDashboardData {
 }
 
 export interface ProductFilterQuery {
+  categories?: string[];
   category?: string;
   diet?: string;
   search?: string;

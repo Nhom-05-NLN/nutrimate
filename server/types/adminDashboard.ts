@@ -1,6 +1,6 @@
 export interface AdminDashboardData {
   summary: {
-    monthlyRevenue: number;
+    weeklyRevenue: number;
     revenueChangePercent: number | null;
     totalOrders: number;
     deliveredOrderPercent: number;
@@ -8,13 +8,11 @@ export interface AdminDashboardData {
     totalCustomers: number;
     newCustomers: number;
     customersWithBmi: number;
-    monthlyChatMessages: number;
+    weeklyChatMessages: number;
   };
   weeklySales: {
     date: string;
     revenue: number;
-    productRevenue: number;
-    aiRecommendedRevenue: number;
     orders: number;
   }[];
   categories: {

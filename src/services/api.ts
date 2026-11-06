@@ -25,12 +25,20 @@ import {
 
 const API_BASE = '/api';
 
+export async function fetchProductSalesSummary(): Promise<number> {
+  const res = await fetchJson<ApiResponse<{ totalSold: number }>>('/products/sales-summary');
+  if (!res.data) throw new Error(res.message || 'Không thể tải lượt bán.');
+  return res.data.totalSold;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
-export async function fetchAdminDashboard(): Promise<AdminDashboardData> {
-  const res = await fetchJson<ApiResponse<AdminDashboardData>>('/admin/dashboard');
+export async function fetchAdminDashboard(weekStart: string): Promise<AdminDashboardData> {
+  const res = await fetchJson<ApiResponse<AdminDashboardData>>(
+    `/admin/dashboard?week=${encodeURIComponent(weekStart)}`,
+  );
   if (!res.data) {
     throw new Error(res.message || 'Không thể tải dữ liệu dashboard.');
   }
@@ -83,6 +91,7 @@ export async function fetchCategories(): Promise<Category[]> {
 
 export async function fetchProducts(filter: ProductFilterQuery = {}): Promise<PaginatedProductResult> {
   const query = new URLSearchParams();
+  if (filter.categories?.length) query.set('categories', filter.categories.join(','));
   if (filter.category && filter.category !== 'all') {
     query.set('category', filter.category);
   }
