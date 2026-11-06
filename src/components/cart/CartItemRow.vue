@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { CartItem } from '../../types';
 import { Trash2, Plus, Minus } from 'lucide-vue-next';
 
@@ -30,6 +30,52 @@ function formatVnd(amount: number): string {
 const itemTotal = computed(() => props.item.product.price * props.item.quantity);
 const itemCalories = computed(() => Math.round(props.item.product.nutrition.calories * props.item.quantity));
 const itemProtein = computed(() => Math.round(props.item.product.nutrition.protein * props.item.quantity * 10) / 10);
+
+const quantityInput = ref<string>(String(props.item.quantity));
+
+watch(
+  () => props.item.quantity,
+  (newVal) => {
+    quantityInput.value = String(newVal);
+  }
+);
+
+function handleInput(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const cleanVal = target.value.replace(/\D/g, '');
+  quantityInput.value = cleanVal;
+  target.value = cleanVal;
+
+  if (cleanVal !== '') {
+    const num = parseInt(cleanVal, 10);
+    const maxStock = props.item.product.stock ?? 999;
+    if (num > 0) {
+      const validNum = Math.min(num, maxStock);
+      emit('updateQuantity', validNum);
+    }
+  }
+}
+
+function handleBlur() {
+  const num = parseInt(quantityInput.value, 10);
+  const maxStock = props.item.product.stock ?? 999;
+  if (!num || num <= 0) {
+    quantityInput.value = '1';
+    emit('updateQuantity', 1);
+  } else if (num > maxStock) {
+    quantityInput.value = String(maxStock);
+    emit('updateQuantity', maxStock);
+  } else {
+    quantityInput.value = String(num);
+    emit('updateQuantity', num);
+  }
+}
+
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter') {
+    (event.target as HTMLInputElement).blur();
+  }
+}
 </script>
 
 <template>
@@ -86,7 +132,18 @@ const itemProtein = computed(() => Math.round(props.item.product.nutrition.prote
         >
           <Minus class="w-3.5 h-3.5 stroke-[2.5]" />
         </button>
-        <span class="w-7 text-center text-xs font-black text-[#242424]">{{ item.quantity }}</span>
+        <input
+          type="text"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          :value="quantityInput"
+          @input="handleInput"
+          @blur="handleBlur"
+          @focus="($event.target as HTMLInputElement).select()"
+          @keydown="handleKeydown"
+          class="w-8 text-center text-xs font-black text-[#242424] bg-transparent outline-none focus:bg-white rounded transition-colors p-0 border-0"
+          aria-label="Số lượng sản phẩm"
+        />
         <button
           type="button"
           @click="emit('updateQuantity', item.quantity + 1)"
@@ -160,7 +217,18 @@ const itemProtein = computed(() => Math.round(props.item.product.nutrition.prote
           >
             <Minus class="w-3.5 h-3.5 stroke-[2.5]" />
           </button>
-          <span class="w-8 text-center text-sm font-black text-[#242424]">{{ item.quantity }}</span>
+          <input
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            :value="quantityInput"
+            @input="handleInput"
+            @blur="handleBlur"
+            @focus="($event.target as HTMLInputElement).select()"
+            @keydown="handleKeydown"
+            class="w-10 text-center text-sm font-black text-[#242424] bg-transparent outline-none focus:bg-[#FAF9F5] rounded-lg transition-colors p-0 border-0"
+            aria-label="Số lượng sản phẩm"
+          />
           <button
             type="button"
             @click="emit('updateQuantity', item.quantity + 1)"
