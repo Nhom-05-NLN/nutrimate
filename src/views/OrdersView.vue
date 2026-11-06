@@ -281,14 +281,9 @@ async function handleCancelOrder(order: Order) {
     <!-- Header & Search (CN_22) -->
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-5">
       <div>
-        <div class="flex items-center gap-3.5">
-          <h1 class="font-heading text-2xl sm:text-3xl lg:text-4xl font-black text-[#242424]">
-            Đơn hàng của tôi
-          </h1>
-          <span class="px-3.5 py-1 rounded-full bg-[#EBF7E5] text-xs font-bold text-[#4D6A34] border border-[#CCD7BC]">
-            {{ orders.length }} đơn hàng
-          </span>
-        </div>
+        <h1 class="font-heading text-2xl sm:text-3xl lg:text-4xl font-black text-[#242424]">
+          Đơn hàng của tôi
+        </h1>
         <p class="text-sm text-[#7A866E] mt-1.5 leading-relaxed">
           Theo dõi hành trình giao thực phẩm giữ lạnh 4°C và quản lý lịch sử dinh dưỡng của bạn.
         </p>
