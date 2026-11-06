@@ -91,7 +91,7 @@ async function handleConfirmPayment() {
   try {
     const updated = await patchOrderPaymentStatus(props.order.id, 'paid', 'confirmed');
     isPaidSuccess.value = true;
-    toastStore.show('Thanh toán đơn hàng thành công!', 'success', `Mã đơn: ${updated.orderCode}`);
+    toastStore.show('Thanh toán thành công!', 'success', `Đơn hàng #${updated.orderCode} đã được chuyển sang chế biến`);
     emit('paymentSuccess', updated);
 
     // Chuyển sang trang theo dõi đơn sau 1.8s

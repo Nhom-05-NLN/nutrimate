@@ -250,10 +250,11 @@ function handlePayNow(order: Order) {
 }
 
 async function handlePaymentSuccess(updatedOrder: Order) {
-  toastStore.show('Thanh toán thành công!', 'success', `Đơn hàng #${updatedOrder.orderCode} đã được chuyển sang chế biến`);
-  showVietQrModal.value = false;
-  showMomoModal.value = false;
+  // Modal thanh toán đã phát thông báo duy nhất, chỉ đồng bộ lại dữ liệu đơn hàng
   await loadUserOrders();
+  if (selectedOrderForTracking.value?.id === updatedOrder.id) {
+    selectedOrderForTracking.value = updatedOrder;
+  }
 }
 
 async function handleCancelOrder(order: Order) {
