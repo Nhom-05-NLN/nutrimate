@@ -83,14 +83,9 @@ const suggestedUpsells = [
 
     <!-- Header Title -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div class="flex items-center gap-3.5">
-        <h1 class="font-heading text-2xl sm:text-3xl lg:text-4xl font-black text-[#242424]">
-          Giỏ hàng của bạn
-        </h1>
-        <span class="px-3.5 py-1 rounded-full bg-[#EBF7E5] text-xs font-bold text-[#4D6A34] border border-[#CCD7BC]">
-          {{ cartStore.totalCount }} món
-        </span>
-      </div>
+      <h1 class="font-heading text-2xl sm:text-3xl lg:text-4xl font-black text-[#242424]">
+        Giỏ hàng của bạn
+      </h1>
 
       <button
         v-if="cartStore.items.length > 0"
