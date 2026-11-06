@@ -197,8 +197,13 @@ function handleOpenDetail(order: Order) {
 // Chức năng "Mua lại" (Re-order - CN_22)
 function handleReorder(order: Order) {
   for (const item of order.items) {
+    const resolvedId =
+      item.productId && item.productId !== 'null' && item.productId !== 'undefined'
+        ? item.productId
+        : `prod-reorder-${encodeURIComponent(item.productName)}`;
+
     const mockProduct: Product = {
-      id: item.productId,
+      id: resolvedId,
       code: 'NM-REORDER',
       name: item.productName,
       category: 'snacks-nuts',
@@ -221,7 +226,7 @@ function handleReorder(order: Order) {
       badges: ['Mua lại'],
       bestFor: 'Bữa ăn kiêng',
     };
-    cartStore.addItem(mockProduct, item.quantity, item.portion || 'Tiêu chuẩn');
+    cartStore.addItem(mockProduct, item.quantity, item.portion || 'Tiêu chuẩn', true);
   }
 
   toastStore.show(
