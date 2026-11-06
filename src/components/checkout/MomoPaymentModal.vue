@@ -139,7 +139,7 @@ async function handleConfirmPayment() {
 
     setTimeout(() => {
       emit('close');
-      router.push('/orders');
+      router.push({ path: '/orders', query: { code: updated.orderCode } });
     }, 1800);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Lỗi khi xác thực thanh toán MoMo';

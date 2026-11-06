@@ -90,24 +90,18 @@ async function syncCustomerFromAccount() {
       authStore.setAddresses(addresses);
       const defaultAddr = addresses.find((a) => a.isDefault);
       if (defaultAddr) {
-        customer.value.address = defaultAddr.address;
-        if (defaultAddr.receiverName) customer.value.name = defaultAddr.receiverName;
-        if (defaultAddr.receiverPhone) customer.value.phone = defaultAddr.receiverPhone;
-      } else {
-        customer.value.address = '';
+        if (!customer.value.address) customer.value.address = defaultAddr.address;
+        if (defaultAddr.receiverName && !customer.value.name) customer.value.name = defaultAddr.receiverName;
+        if (defaultAddr.receiverPhone && !customer.value.phone) customer.value.phone = defaultAddr.receiverPhone;
       }
     } catch {
       const defaultAddr = authStore.currentUser?.defaultAddress;
       if (defaultAddr?.isDefault) {
-        customer.value.address = defaultAddr.address;
-        if (defaultAddr.receiverName) customer.value.name = defaultAddr.receiverName;
-        if (defaultAddr.receiverPhone) customer.value.phone = defaultAddr.receiverPhone;
-      } else {
-        customer.value.address = '';
+        if (!customer.value.address) customer.value.address = defaultAddr.address;
+        if (defaultAddr.receiverName && !customer.value.name) customer.value.name = defaultAddr.receiverName;
+        if (defaultAddr.receiverPhone && !customer.value.phone) customer.value.phone = defaultAddr.receiverPhone;
       }
     }
-  } else {
-    customer.value.address = '';
   }
 }
 
@@ -267,8 +261,8 @@ async function handleFinishOrder() {
       // Mở modal MoMo để quét mã ví điện tử MoMo
       showMomoModal.value = true;
     } else {
-      toastStore.show('Đặt hàng thành công!', 'success', `Mã đơn hàng: #${newOrder.orderCode}`, 'Theo dõi đơn', '/orders');
-      router.push('/orders');
+      toastStore.show('Đặt hàng thành công!', 'success', `Mã đơn hàng: #${newOrder.orderCode}`, 'Theo dõi đơn', `/orders?code=${newOrder.orderCode}`);
+      router.push({ path: '/orders', query: { code: newOrder.orderCode } });
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Lỗi khi tạo đơn hàng';
@@ -282,7 +276,7 @@ function handlePaymentModalClose() {
   showVietQrModal.value = false;
   showMomoModal.value = false;
   if (createdOrder.value) {
-    router.push('/orders');
+    router.push({ path: '/orders', query: { code: createdOrder.value.orderCode } });
   }
 }
 </script>
@@ -412,11 +406,11 @@ function handlePaymentModalClose() {
               <input type="radio" value="express_2h" v-model="shippingMethod" class="accent-[#4D6A34] w-4.5 h-4.5 mt-1 cursor-pointer" />
               <div>
                 <div class="flex items-center gap-2.5">
-                  <span class="text-sm font-bold text-[#242424]">Giao siêu tốc 2H (Giữ lạnh chuyên dụng 4°C)</span>
+                  <span class="text-sm font-bold text-[#242424]">Giao siêu tốc 2H (Giao nhanh nội thành)</span>
                   <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">Tươi sống</span>
                 </div>
                 <p class="text-xs text-[#7A866E] mt-1 leading-relaxed">
-                  Được vận chuyển trong thùng giữ nhiệt 4°C, bảo vệ độ tươi ngon của bơ hạt và ức gà tươi sấy.
+                  Vận chuyển hỏa tốc, bảo vệ trọn vẹn độ tươi ngon và dưỡng chất của thực phẩm.
                 </p>
               </div>
             </div>

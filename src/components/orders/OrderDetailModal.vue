@@ -89,7 +89,7 @@ function getStatusBadge(order: Order) {
     case 'shipping':
       return { text: '🛵 Đang vận chuyển 2H', class: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
     case 'packing':
-      return { text: '📦 Đang đóng thùng giữ lạnh', class: 'bg-sky-50 text-sky-800 border-sky-200' };
+      return { text: '📦 Đang đóng gói', class: 'bg-sky-50 text-sky-800 border-sky-200' };
     case 'confirmed':
       return { text: '✓ Đã xác nhận đơn', class: 'bg-indigo-50 text-indigo-800 border-indigo-200' };
     default:

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useCartStore } from '../stores/cartStore';
 import { useToastStore } from '../stores/toastStore';
 import { fetchOrders, cancelOrderApi } from '../services/api';
@@ -20,6 +20,7 @@ import {
 } from 'lucide-vue-next';
 
 const router = useRouter();
+const route = useRoute();
 const cartStore = useCartStore();
 const toastStore = useToastStore();
 
@@ -133,6 +134,22 @@ const DEFAULT_ORDERS: Order[] = [
   },
 ];
 
+function applyTrackingSelection() {
+  const queryCode = (route.query.code as string) || (route.query.orderCode as string);
+  if (queryCode && orders.value.length > 0) {
+    const matched = orders.value.find(
+      (o) => o.orderCode.toLowerCase() === queryCode.toLowerCase() || o.id === queryCode
+    );
+    if (matched) {
+      selectedOrderForTracking.value = matched;
+      return;
+    }
+  }
+
+  // Mặc định chọn đơn mới nhất (vừa đặt) hoặc đơn đầu tiên trong danh sách
+  selectedOrderForTracking.value = orders.value[0] || null;
+}
+
 async function loadUserOrders() {
   isLoading.value = true;
   try {
@@ -146,11 +163,16 @@ async function loadUserOrders() {
     orders.value = DEFAULT_ORDERS;
   } finally {
     isLoading.value = false;
-    // Mặc định chọn đơn đang giao hoặc đơn đầu tiên để hiển thị tracking widget
-    const shippingOrder = orders.value.find((o) => o.status === 'shipping' || o.status === 'packing');
-    selectedOrderForTracking.value = shippingOrder || orders.value[0] || null;
+    applyTrackingSelection();
   }
 }
+
+watch(
+  () => [route.query.code, route.query.orderCode],
+  () => {
+    applyTrackingSelection();
+  }
+);
 
 onMounted(() => {
   loadUserOrders();
@@ -352,7 +374,7 @@ async function handleCancelOrder(order: Order) {
           Đơn hàng của tôi
         </h1>
         <p class="text-sm text-[#7A866E] mt-1.5 leading-relaxed">
-          Theo dõi hành trình giao thực phẩm giữ lạnh 4°C và quản lý lịch sử dinh dưỡng của bạn.
+          Theo dõi hành trình giao thực phẩm và quản lý lịch sử dinh dưỡng của bạn.
         </p>
       </div>
 
