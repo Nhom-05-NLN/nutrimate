@@ -170,10 +170,11 @@ const suggestedUpsells = [
               />
               <span>Chọn tất cả ({{ cartStore.items.length }} món)</span>
             </label>
-            <div class="hidden sm:flex items-center gap-14 pr-6">
-              <span>Đơn giá</span>
-              <span>Số lượng</span>
-              <span>Thành tiền</span>
+            <div class="hidden sm:flex items-center gap-6">
+              <span class="w-24 text-right shrink-0">Đơn giá</span>
+              <span class="w-32 text-center shrink-0">Số lượng</span>
+              <span class="w-28 text-right shrink-0">Thành tiền</span>
+              <div class="w-11 shrink-0" aria-hidden="true"></div>
             </div>
           </div>
 
