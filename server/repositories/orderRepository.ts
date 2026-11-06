@@ -398,9 +398,9 @@ export async function updateOrderStatus(id: string, status: OrderStatus, notes?:
     try {
       const sql = `
         UPDATE orders
-        SET status = $1,
+        SET status = $1::varchar,
             payment_status = CASE
-              WHEN $1 = 'delivered' AND LOWER(payment_method) = 'cod' THEN 'paid'
+              WHEN $1::varchar = 'delivered' AND LOWER(payment_method) = 'cod' THEN 'paid'
               ELSE payment_status
             END,
             notes = COALESCE($3, notes),
