@@ -12,18 +12,64 @@ export interface NutritionImagePredictionValues {
 }
 
 const columns = `image_id, customer_id, image_url, ocr_text, upload_date, status,
-  predicted_calories, predicted_protein, predicted_carbs, predicted_fat, predicted_sugar`;
+  predicted_calories, predicted_protein, predicted_carbs, predicted_fat, predicted_sugar, content_sha256`;
 
-export async function createNutritionImage(userId: number, imageUrl: string): Promise<NutritionImageRow> {
+export async function createNutritionImage(userId: number, imageUrl: string, contentSha256: string): Promise<NutritionImageRow> {
   const result = await queryPostgres<NutritionImageRow>(
-    `INSERT INTO nutrition_images (customer_id, image_url, upload_date, status)
-     VALUES ($1, $2, CURRENT_TIMESTAMP, 'processing')
+    `INSERT INTO nutrition_images (customer_id, image_url, upload_date, status, content_sha256)
+     VALUES ($1, $2, CURRENT_TIMESTAMP, 'processing', $3)
      RETURNING ${columns}`,
-    [userId, imageUrl],
+    [userId, imageUrl, contentSha256],
   );
   const row = result.rows[0];
   if (!row) throw new Error('Could not create nutrition image record.');
   return row;
+}
+
+export async function findNutritionImageByHash(userId: number, contentSha256: string): Promise<NutritionImageRow | null> {
+  const result = await queryPostgres<NutritionImageRow>(
+    `SELECT ${columns}
+     FROM nutrition_images
+     WHERE customer_id = $1 AND content_sha256 = $2`,
+    [userId, contentSha256],
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function listUnhashedNutritionImages(userId: number): Promise<NutritionImageRow[]> {
+  const result = await queryPostgres<NutritionImageRow>(
+    `SELECT ${columns}
+     FROM nutrition_images
+     WHERE customer_id = $1 AND content_sha256 IS NULL
+     ORDER BY upload_date DESC`,
+    [userId],
+  );
+  return result.rows;
+}
+
+export async function setNutritionImageHashIfMissing(
+  imageId: number,
+  userId: number,
+  contentSha256: string,
+): Promise<NutritionImageRow | null> {
+  const result = await queryPostgres<NutritionImageRow>(
+    `UPDATE nutrition_images
+     SET content_sha256 = $3
+     WHERE image_id = $1 AND customer_id = $2 AND content_sha256 IS NULL
+     RETURNING ${columns}`,
+    [imageId, userId, contentSha256],
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function markNutritionImageProcessing(imageId: number, userId: number): Promise<void> {
+  const result = await queryPostgres(
+    `UPDATE nutrition_images
+     SET status = 'processing'
+     WHERE image_id = $1 AND customer_id = $2 AND status = 'failed'`,
+    [imageId, userId],
+  );
+  if (!result.rowCount) throw new Error('Could not retry nutrition image analysis.');
 }
 
 export async function finishNutritionImage(

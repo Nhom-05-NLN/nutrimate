@@ -18,6 +18,7 @@ export interface NutritionImageRow {
   image_id: number;
   customer_id: number;
   image_url: string;
+  content_sha256: string | null;
   ocr_text: string | null;
   upload_date: Date | string;
   status: NutritionImageStatus;

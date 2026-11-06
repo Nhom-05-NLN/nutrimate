@@ -400,10 +400,15 @@ CREATE TABLE IF NOT EXISTS nutrition_images (
     predicted_protein DOUBLE PRECISION,
     predicted_carbs DOUBLE PRECISION,
     predicted_fat DOUBLE PRECISION,
-    predicted_sugar DOUBLE PRECISION
+    predicted_sugar DOUBLE PRECISION,
+    content_sha256 CHAR(64)
 );
+ALTER TABLE nutrition_images ADD COLUMN IF NOT EXISTS content_sha256 CHAR(64);
 COMMENT ON TABLE nutrition_images IS 'Lưu ảnh thực phẩm đã tải lên, trạng thái xử lý OCR và kết quả dinh dưỡng dự đoán.';
 CREATE INDEX IF NOT EXISTS idx_nutrition_images_customer_date ON nutrition_images(customer_id, upload_date DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nutrition_images_customer_content_sha256
+    ON nutrition_images(customer_id, content_sha256)
+    WHERE content_sha256 IS NOT NULL;
 
 -- ================================================================
 -- 5. NÂNG CẤP & ĐỒNG BỘ CỘT CHO BẢNG ĐÃ TỒN TẠI (IDEMPOTENT MIGRATION)

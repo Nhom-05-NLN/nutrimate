@@ -72,6 +72,10 @@ psql -v ON_ERROR_STOP=1 -f server/db/migrations/007_admin_login_notifications.sq
 psql -v ON_ERROR_STOP=1 -f server/db/migrations/008_user_diet_preferences.sql
 #    Backend tự áp dụng thay đổi cần thiết cho hồ sơ sức khỏe và nhật ký cá nhân khi khởi động.
 psql -v ON_ERROR_STOP=1 -f server/db/migrations/010_ai_recommended_order_items.sql
+#    Đánh dấu ảnh dinh dưỡng bằng SHA-256 để tái sử dụng ảnh trùng trong cùng tài khoản.
+psql -v ON_ERROR_STOP=1 -f server/db/migrations/011_nutrition_image_deduplication.sql
+#    Cho phép Customer và Admin lưu ảnh NutriBot theo tài khoản users của chính mình.
+psql -v ON_ERROR_STOP=1 -f server/db/migrations/012_nutrition_image_admin_ownership.sql
 
 # 6. Khởi chạy dự án ở chế độ phát triển
 npm run dev
