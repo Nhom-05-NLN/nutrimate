@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { fetchOrders, patchOrderStatus, patchOrderPaymentStatus } from '../../services/api';
+import { fetchOrders, patchOrderStatus } from '../../services/api';
 import { useToastStore } from '../../stores/toastStore';
-import { Order, OrderStatus, PaymentStatus } from '../../types';
+import { Order, OrderStatus } from '../../types';
 import AdminOrderTable from '../../components/admin/orders/AdminOrderTable.vue';
 import {
   ShoppingCart,
@@ -108,31 +108,6 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
     );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Lỗi khi cập nhật trạng thái';
-    toastStore.show(msg, 'error');
-  }
-}
-
-// Cập nhật trạng thái thanh toán (CN_24)
-async function handleUpdatePaymentStatus(payload: { orderId: string; paymentStatus: PaymentStatus }) {
-  try {
-    const updated = await patchOrderPaymentStatus(payload.orderId, payload.paymentStatus);
-
-    const idx = orders.value.findIndex((o) => o.id === payload.orderId || o.orderCode === payload.orderId);
-    if (idx !== -1) {
-      if (updated) {
-        orders.value[idx] = { ...orders.value[idx], ...updated };
-      } else {
-        orders.value[idx].paymentStatus = payload.paymentStatus;
-      }
-    }
-
-    toastStore.show(
-      'Cập nhật thanh toán thành công!',
-      'success',
-      `Đơn #${updated?.orderCode || payload.orderId}: ${payload.paymentStatus === 'paid' ? 'Đã thu' : 'Chưa thu'}`
-    );
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Lỗi khi cập nhật thanh toán';
     toastStore.show(msg, 'error');
   }
 }
@@ -304,7 +279,6 @@ async function handleUpdatePaymentStatus(payload: { orderId: string; paymentStat
         :orders="filteredOrders"
         :is-loading="isLoading"
         @update-status="handleUpdateStatus"
-        @update-payment-status="handleUpdatePaymentStatus"
       />
     </div>
   </div>
