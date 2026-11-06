@@ -31,6 +31,7 @@ export interface Product {
   stock: number;
   rating: number;
   reviewCount: number;
+  soldCount?: number;
   badges: string[];
   isFeatured?: boolean;
   bestFor: string;
@@ -87,6 +88,7 @@ export interface Order {
 }
 
 export interface ProductFilterQuery {
+  categories?: string[];
   category?: string;
   diet?: string;
   search?: string;
@@ -96,7 +98,7 @@ export interface ProductFilterQuery {
   minProtein?: number;
   page?: number;
   limit?: number;
-  sort?: 'price_asc' | 'price_desc' | 'calories_asc' | 'calories_desc' | 'protein_desc' | 'carbs_asc' | 'sugar_asc' | 'rating_desc' | 'newest';
+  sort?: 'price_asc' | 'price_desc' | 'calories_asc' | 'calories_desc' | 'protein_desc' | 'carbs_asc' | 'sugar_asc' | 'rating_desc' | 'sold_desc' | 'newest';
 }
 
 export interface PaginatedProductResponse {

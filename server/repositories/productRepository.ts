@@ -36,6 +36,7 @@ interface ProductRow {
   stock_quantity: number;
   rating: string;
   review_count: number;
+  sold_count: string | number;
   badges: string[] | null;
   is_featured: boolean;
   best_for: string | null;
@@ -71,6 +72,7 @@ function mapRowToProduct(row: ProductRow): Product {
     stock: row.stock_quantity,
     rating: parseFloat(row.rating),
     reviewCount: row.review_count,
+    soldCount: Number(row.sold_count ?? 0),
     badges: row.badges || [],
     isFeatured: row.is_featured,
     bestFor: row.best_for || '',
@@ -94,7 +96,12 @@ export async function findProducts(
       const values: unknown[] = [];
       let paramIdx = 1;
 
-      if (filter.category && filter.category !== 'all') {
+      if (filter.categories?.length) {
+        conditions.push(`category = ANY($${paramIdx++}::text[])`);
+        values.push(filter.categories);
+      }
+
+      if (!filter.categories?.length && filter.category && filter.category !== 'all') {
         conditions.push(`category = $${paramIdx++}`);
         values.push(filter.category);
       }
@@ -144,6 +151,7 @@ export async function findProducts(
       else if (filter.sort === 'protein_desc') orderBy = 'ORDER BY protein DESC';
       else if (filter.sort === 'carbs_asc') orderBy = 'ORDER BY carbs ASC';
       else if (filter.sort === 'sugar_asc') orderBy = 'ORDER BY sugar ASC';
+      else if (filter.sort === 'sold_desc') orderBy = 'ORDER BY sold_count DESC, id ASC';
       else if (filter.sort === 'rating_desc') orderBy = 'ORDER BY rating DESC';
       else if (filter.sort === 'newest') orderBy = 'ORDER BY id DESC';
 
@@ -151,7 +159,13 @@ export async function findProducts(
         SELECT id, code, name, category, category_name, price, original_price,
                image_url, description, ingredients, serving_size, calories,
                protein, carbs, fat, sugar, fiber, sodium, stock_quantity,
-               rating, review_count, badges, is_featured, best_for
+               rating, review_count, badges, is_featured, best_for,
+               COALESCE((
+                 SELECT SUM(oi.quantity)
+                 FROM order_items oi
+                 JOIN orders o ON o.id = oi.order_id
+                 WHERE oi.product_id = products.id AND o.status = 'delivered'
+               ), 0) AS sold_count
         FROM products
         WHERE ${conditions.join(' AND ')}
         ${orderBy}
@@ -174,7 +188,11 @@ export async function findProducts(
   // Fallback in-memory filter
   let list = [...memoryProducts].filter((p) => p.status !== false);
 
-  if (filter.category && filter.category !== 'all') {
+  if (filter.categories?.length) {
+    list = list.filter((product) => filter.categories!.includes(product.category));
+  }
+
+  if (!filter.categories?.length && filter.category && filter.category !== 'all') {
     list = list.filter((p) => p.category === filter.category);
   }
 
@@ -203,6 +221,7 @@ export async function findProducts(
   else if (filter.sort === 'protein_desc') list.sort((a, b) => b.nutrition.protein - a.nutrition.protein);
   else if (filter.sort === 'carbs_asc') list.sort((a, b) => a.nutrition.carbs - b.nutrition.carbs);
   else if (filter.sort === 'sugar_asc') list.sort((a, b) => a.nutrition.sugar - b.nutrition.sugar);
+  else if (filter.sort === 'sold_desc') list.sort((a, b) => (b.soldCount ?? 0) - (a.soldCount ?? 0) || a.id.localeCompare(b.id));
   else if (filter.sort === 'rating_desc') list.sort((a, b) => b.rating - a.rating);
   else if (filter.sort === 'newest') list.sort((a, b) => b.id.localeCompare(a.id));
 
@@ -334,7 +353,13 @@ export async function findProductById(id: string): Promise<Product | null> {
         SELECT id, code, name, category, category_name, price, original_price,
                image_url, description, ingredients, serving_size, calories,
                protein, carbs, fat, sugar, fiber, sodium, stock_quantity,
-               rating, review_count, badges, is_featured, best_for
+               rating, review_count, badges, is_featured, best_for,
+               COALESCE((
+                 SELECT SUM(oi.quantity)
+                 FROM order_items oi
+                 JOIN orders o ON o.id = oi.order_id
+                 WHERE oi.product_id = products.id AND o.status = 'delivered'
+               ), 0) AS sold_count
         FROM products
         WHERE (id::text = $1 OR code = $1) AND is_active = TRUE
         LIMIT 1

@@ -72,6 +72,7 @@ export async function fetchCategories(): Promise<Category[]> {
 
 export async function fetchProducts(filter: ProductFilterQuery = {}): Promise<PaginatedProductResult> {
   const query = new URLSearchParams();
+  if (filter.categories?.length) query.set('categories', filter.categories.join(','));
   if (filter.category && filter.category !== 'all') {
     query.set('category', filter.category);
   }

@@ -6,6 +6,9 @@ export async function getProducts(req: Request, res: Response<PaginatedProductRe
   try {
     const { category, diet, search, maxCalories, minProtein, page, limit, sort } = req.query;
     const filter: ProductFilterQuery = {
+      categories: typeof req.query.categories === 'string'
+        ? [...new Set(req.query.categories.split(',').map(value => value.trim()).filter(value => value && value !== 'all'))]
+        : undefined,
       category: typeof category === 'string' ? category : undefined,
       diet: typeof diet === 'string' ? diet : undefined,
       search: typeof search === 'string' ? search : undefined,
