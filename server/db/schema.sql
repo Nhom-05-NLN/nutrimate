@@ -129,6 +129,17 @@ CREATE TABLE IF NOT EXISTS product_reviews (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS product_variants (
+    variant_id SERIAL PRIMARY KEY,
+    product_id INT NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
+    variant_name VARCHAR(200) NOT NULL,
+    weight NUMERIC(12, 2),
+    price NUMERIC(12, 2) NOT NULL CHECK (price >= 0),
+    status BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 7. Bảng đơn đặt hàng.
 CREATE TABLE IF NOT EXISTS orders (
     id SERIAL PRIMARY KEY,
