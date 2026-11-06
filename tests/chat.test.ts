@@ -8,7 +8,8 @@ import { config } from '../server/config.js';
 import { createChatController } from '../server/controllers/chatController.js';
 import { createChatIdentity, verifyCustomerJwt } from '../server/middleware/chatIdentity.js';
 import { ChatConversationRepository } from '../server/repositories/chatConversationRepository.js';
-import { asksForProductSuggestions, boundedContext, createChatService, matchKnowledgeBase } from '../server/services/chatService.js';
+import { findChatOrderByCode } from '../server/repositories/orderRepository.js';
+import { asksForProductSuggestions, boundedContext, createChatService, findRequestedOrderCode, matchKnowledgeBase } from '../server/services/chatService.js';
 import { generateChatReply, type LlmMessage } from '../server/services/chatLlmService.js';
 import { CHAT_DISCLAIMER, ChatError, type ChatOwner, type Conversation, type StoredChatMessage } from '../server/types/chat.js';
 import { getAllKnowledge } from '../server/repositories/chatRepository.js';
@@ -131,6 +132,81 @@ test('knowledge retrieval matches Vietnamese questions with accents and avoids u
   assert.equal(matchKnowledgeBase('Tôi nên ăn gì khi bị tiểu đường?', entries)?.answer, 'Câu trả lời từ tri thức.');
   assert.equal(matchKnowledgeBase('Toi nen an gi khi bi tieu duong?', entries)?.answer, 'Câu trả lời từ tri thức.');
   assert.equal(matchKnowledgeBase('Có giao hàng nhanh không?', entries), undefined);
+});
+test('order lookup scopes the parameterized query to the authenticated user', async () => {
+  const calls: { sql: string; params?: unknown[] }[] = [];
+  const execute: typeof queryPostgres = async <T extends import('pg').QueryResultRow = import('pg').QueryResultRow>(
+    sql: string,
+    params?: unknown[],
+  ) => {
+    calls.push({ sql, params });
+    const rows = calls.length === 1
+      ? [{ order_id: 17, order_code: 'NM-123456', order_date: '2026-11-06T10:00:00Z', status: 'shipping', payment_status: 'paid', total_amount: '287000' }]
+      : [{ product_name: 'Bún Shirataki', quantity: 2 }];
+    return {
+      rows: rows as T[],
+      rowCount: rows.length,
+      command: 'SELECT',
+      oid: 0,
+      fields: [],
+    };
+  };
+  const order = await findChatOrderByCode('NM-123456', 41, execute);
+  assert.equal(order?.status, 'shipping');
+  assert.equal(order?.items[0]?.productName, 'Bún Shirataki');
+  assert.match(calls[0]?.sql || '', /order_code = \$1 AND \(user_id = \$2 OR customer_id = \$2\)/);
+  assert.deepEqual(calls[0]?.params, ['NM-123456', 41]);
+  assert.deepEqual(calls[1]?.params, [17]);
+});
+test('legacy order lookup requires an unowned order and a unique account match', async () => {
+  const calls: { sql: string; params?: unknown[] }[] = [];
+  const execute: typeof queryPostgres = async <T extends import('pg').QueryResultRow = import('pg').QueryResultRow>(
+    sql: string,
+    params?: unknown[],
+  ) => {
+    calls.push({ sql, params });
+    const rows = calls.length === 2
+      ? [{ order_id: 18, order_code: 'NM-654321', order_date: '2026-11-06T10:00:00Z', status: 'confirmed', payment_status: 'paid', total_amount: '120000' }]
+      : calls.length === 3 ? [{ product_name: 'Granola', quantity: 1 }] : [];
+    return {
+      rows: rows as T[],
+      rowCount: rows.length,
+      command: calls.length === 2 ? 'UPDATE' : 'SELECT',
+      oid: 0,
+      fields: [],
+    };
+  };
+  const order = await findChatOrderByCode('NM-654321', 41, execute);
+  assert.equal(order?.orderCode, 'NM-654321');
+  assert.match(calls[1]?.sql || '', /user_id IS NULL/);
+  assert.match(calls[1]?.sql || '', /customer_id IS NULL/);
+  assert.match(calls[1]?.sql || '', /customer_email/);
+  assert.match(calls[1]?.sql || '', /customer_phone/);
+  assert.match(calls[1]?.sql || '', /customer_name/);
+  assert.match(calls[1]?.sql || '', /REGEXP_REPLACE/);
+  assert.deepEqual(calls[1]?.params, ['NM-654321', 41]);
+});
+test('order questions use the button order code and allow same-conversation follow-up', () => {
+  const history: StoredChatMessage[] = [
+    { id: '1', role: 'user', content: 'Kiểm tra giúp mình tiến độ đơn hàng #NM-123456 nhé', requestId: '1', createdAt: '', suggestedProducts: [] },
+    { id: '2', role: 'assistant', content: 'Đơn đang giao.', requestId: '1', createdAt: '', suggestedProducts: [] },
+  ];
+  assert.equal(findRequestedOrderCode(history[0]!.content, []), 'NM-123456');
+  assert.equal(findRequestedOrderCode('Đơn này khi nào giao tới?', history), 'NM-123456');
+  assert.equal(findRequestedOrderCode('Gợi ý món ăn giàu protein', history), undefined);
+});
+test('matched order context is returned directly without asking the AI', async () => {
+  const orderRepository = new MemoryRepository();
+  const owner = { userId: 1, guestHash: null } as const;
+  const conversation = await orderRepository.create(owner);
+  let generated = false;
+  const orderService = createChatService(orderRepository, async () => {
+    generated = true;
+    return 'AI không được gọi';
+  }, async () => ({ products: [], knowledge: '', orderAnswer: 'Đơn hàng đang được giao.' }));
+  const result = await orderService.ask(owner, conversation.id, randomUUID(), 'Kiểm tra đơn hàng #NM-123456');
+  assert.equal(generated, false);
+  assert.equal(result.reply, 'Đơn hàng đang được giao.');
 });
 test('product cards are requested only when the customer asks for food suggestions', () => {
   assert.equal(asksForProductSuggestions('Gợi ý món giàu protein, ít đường'), true);

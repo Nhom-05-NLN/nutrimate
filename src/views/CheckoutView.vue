@@ -185,7 +185,7 @@ async function handleFinishOrder() {
       notes: customer.value.note,
     };
 
-    const newOrder = await postOrder(payload);
+    const newOrder = await postOrder(payload, authStore.accessToken);
     createdOrder.value = newOrder;
 
     // Dọn giỏ hàng sau khi tạo đơn thành công

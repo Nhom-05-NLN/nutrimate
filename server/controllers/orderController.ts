@@ -1,11 +1,14 @@
 import { Request, Response } from 'express';
 import * as orderService from '../services/orderService.js';
 import { ApiResponse, Order, CreateOrderPayload, OrderStatus, PaymentStatus } from '../types/index.js';
+import { resolveChatOwner } from '../middleware/chatIdentity.js';
+import { ChatError } from '../types/chat.js';
 
 export async function createOrder(req: Request, res: Response<ApiResponse<Order>>): Promise<void> {
   try {
     const payload = req.body as CreateOrderPayload;
-    const order = await orderService.createOrder(payload);
+    const owner = req.get('authorization') ? await resolveChatOwner(req, res) : null;
+    const order = await orderService.createOrder(payload, owner?.userId ?? null);
     res.status(201).json({
       success: true,
       message: `Đặt hàng thành công! Mã đơn: ${order.orderCode}`,
@@ -13,7 +16,8 @@ export async function createOrder(req: Request, res: Response<ApiResponse<Order>
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Lỗi khi tạo đơn hàng';
-    res.status(400).json({ success: false, message });
+    const status = err instanceof ChatError ? err.status : 400;
+    res.status(status).json({ success: false, message });
   }
 }
 

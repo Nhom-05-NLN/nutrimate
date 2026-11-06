@@ -4,6 +4,122 @@ import { isDbConnected, queryPostgres, getPool } from '../db/index.js';
 
 let memoryOrders: Order[] = [...INITIAL_ORDERS];
 
+export interface ChatOrderSummary {
+  orderCode: string;
+  createdAt: string;
+  status: string;
+  paymentStatus: string;
+  totalAmount: number;
+  items: { productName: string; quantity: number }[];
+}
+
+interface ChatOrderRow {
+  order_id: number;
+  order_code: string;
+  order_date: string;
+  status: string;
+  payment_status: string;
+  total_amount: string;
+}
+
+interface ChatOrderItemRow {
+  product_name: string;
+  quantity: number;
+}
+
+async function getChatOrderItems(
+  orderId: number,
+  executeQuery: typeof queryPostgres,
+): Promise<{ productName: string; quantity: number }[]> {
+  const result = await executeQuery<ChatOrderItemRow>(
+    `SELECT product_name, quantity
+     FROM order_items
+     WHERE order_id = $1
+     ORDER BY order_item_id`,
+    [orderId],
+  );
+  return result.rows.map(item => ({ productName: item.product_name, quantity: item.quantity }));
+}
+
+function toChatOrderSummary(order: ChatOrderRow): Omit<ChatOrderSummary, 'items'> {
+  return {
+    orderCode: order.order_code,
+    createdAt: order.order_date,
+    status: order.status,
+    paymentStatus: order.payment_status,
+    totalAmount: Number(order.total_amount),
+  };
+}
+
+export async function findChatOrderByCode(
+  orderCode: string,
+  userId: number,
+  executeQuery: typeof queryPostgres = queryPostgres,
+): Promise<ChatOrderSummary | null> {
+  let result = await executeQuery<ChatOrderRow>(
+    `SELECT order_id, order_code, order_date, status, payment_status, total_amount
+     FROM orders
+     WHERE order_code = $1 AND (user_id = $2 OR customer_id = $2)
+     LIMIT 1`,
+    [orderCode, userId],
+  );
+  if (!result.rows[0]) {
+    result = await executeQuery<ChatOrderRow>(
+      `UPDATE orders AS order_row
+       SET user_id = account.id
+       FROM users AS account
+       WHERE order_row.order_code = $1
+         AND account.id = $2
+         AND account.role = 'customer'
+         AND order_row.user_id IS NULL
+         AND order_row.customer_id IS NULL
+         AND LENGTH(BTRIM(COALESCE(order_row.customer_phone, order_row.receiver_phone, ''))) > 0
+         AND LENGTH(BTRIM(COALESCE(order_row.customer_email, order_row.receiver_email, ''))) > 0
+         AND LENGTH(BTRIM(COALESCE(order_row.customer_name, order_row.receiver_name, ''))) > 0
+         AND (
+           (
+             LOWER(BTRIM(COALESCE(order_row.customer_email, order_row.receiver_email))) = LOWER(BTRIM(account.email))
+             AND REGEXP_REPLACE(COALESCE(order_row.customer_phone, order_row.receiver_phone), '[^0-9]', '', 'g')
+                 = REGEXP_REPLACE(account.phone, '[^0-9]', '', 'g')
+           )
+           OR (
+             LOWER(BTRIM(COALESCE(order_row.customer_name, order_row.receiver_name))) = LOWER(BTRIM(account.full_name))
+             AND REGEXP_REPLACE(COALESCE(order_row.customer_phone, order_row.receiver_phone), '[^0-9]', '', 'g')
+                 = REGEXP_REPLACE(account.phone, '[^0-9]', '', 'g')
+           )
+         )
+         AND NOT EXISTS (
+           SELECT 1
+           FROM users AS other_account
+           WHERE other_account.id <> account.id
+             AND other_account.role = 'customer'
+             AND (
+               (
+                 LOWER(BTRIM(COALESCE(order_row.customer_email, order_row.receiver_email))) = LOWER(BTRIM(other_account.email))
+                 AND REGEXP_REPLACE(COALESCE(order_row.customer_phone, order_row.receiver_phone), '[^0-9]', '', 'g')
+                     = REGEXP_REPLACE(other_account.phone, '[^0-9]', '', 'g')
+               )
+               OR (
+                 LOWER(BTRIM(COALESCE(order_row.customer_name, order_row.receiver_name))) = LOWER(BTRIM(other_account.full_name))
+                 AND REGEXP_REPLACE(COALESCE(order_row.customer_phone, order_row.receiver_phone), '[^0-9]', '', 'g')
+                     = REGEXP_REPLACE(other_account.phone, '[^0-9]', '', 'g')
+               )
+             )
+         )
+       RETURNING order_row.order_id, order_row.order_code, order_row.order_date,
+                 order_row.status, order_row.payment_status, order_row.total_amount`,
+      [orderCode, userId],
+    );
+  }
+  const order = result.rows[0];
+  if (!order) return null;
+
+  return {
+    ...toChatOrderSummary(order),
+    items: await getChatOrderItems(order.order_id, executeQuery),
+  };
+}
+
 interface OrderRow {
   id: string;
   order_code: string;
@@ -189,7 +305,7 @@ export async function getOrderById(id: string): Promise<Order | null> {
   return found || null;
 }
 
-export async function createOrder(order: Order): Promise<Order> {
+export async function createOrder(order: Order, ownerUserId: number | null = null): Promise<Order> {
   if (isDbConnected()) {
     const client = await getPool().connect();
     try {
@@ -197,14 +313,15 @@ export async function createOrder(order: Order): Promise<Order> {
 
       const orderSql = `
         INSERT INTO orders (
-          order_code, customer_name, customer_phone, customer_email,
+          user_id, order_code, customer_name, customer_phone, customer_email,
           shipping_address, shipping_method, payment_method, payment_status, status,
           total_amount, total_calories, total_protein, shipping_fee,
           discount_amount, voucher_code, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         RETURNING id
       `;
       const orderValues = [
+        ownerUserId,
         order.orderCode,
         order.customer.name,
         order.customer.phone,
@@ -253,9 +370,14 @@ export async function createOrder(order: Order): Promise<Order> {
 
       await client.query('COMMIT');
     } catch (err: unknown) {
-      await client.query('ROLLBACK');
-      const msg = err instanceof Error ? err.message : 'Create order error';
-      console.warn('[OrderRepository Create Fallback]:', msg);
+      const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : 'unknown';
+      console.warn('[OrderRepository Create Failed]:', code);
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        console.warn('[OrderRepository Create Failed]: transaction rollback failed');
+      }
+      throw new Error('Không thể lưu đơn hàng. Vui lòng thử lại.');
     } finally {
       client.release();
     }

@@ -158,9 +158,13 @@ export async function fetchProductById(id: string): Promise<Product> {
   return res.data;
 }
 
-export async function postOrder(payload: CreateOrderPayload): Promise<Order> {
+export async function postOrder(payload: CreateOrderPayload, accessToken?: string | null): Promise<Order> {
   const res = await fetchJson<ApiResponse<Order>>('/orders', {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
     body: JSON.stringify(payload),
   });
   if (!res.data) {
