@@ -1,55 +1,21 @@
 <script setup lang="ts">
+import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useProductStore } from '../../stores/productStore';
-import {
-  Flame,
-  Dumbbell,
-  CandyOff,
-  Sparkles,
-  ArrowRight,
-} from 'lucide-vue-next';
+import { Leaf, ArrowRight } from 'lucide-vue-next';
 
 const router = useRouter();
 const productStore = useProductStore();
 
-interface CategoryItem {
-  key: string;
-  title: string;
-  desc: string;
-  count: string;
-  icon: typeof Flame;
-}
+const categories = computed(() => productStore.categories.map(category => ({
+  key: category.id,
+  title: category.name,
+  desc: category.description,
+  count: `${category.count ?? 0} Sản phẩm`,
+  icon: Leaf,
+})));
 
-const categories: CategoryItem[] = [
-  {
-    key: 'low-carb',
-    title: 'Low-Carb & Keto',
-    desc: 'Giảm tinh bột tối đa, đốt mỡ tự nhiên và duy trì năng lượng bền bỉ.',
-    count: '48+ Sản phẩm',
-    icon: Flame,
-  },
-  {
-    key: 'high-protein',
-    title: 'High-Protein (Tăng cơ)',
-    desc: 'Ức gà, whey sạch, protein bars hỗ trợ phục hồi và phát triển cơ bắp.',
-    count: '62+ Sản phẩm',
-    icon: Dumbbell,
-  },
-  {
-    key: 'sugar-free',
-    title: 'Sugar-Free (Không đường)',
-    desc: 'Ngọt dịu từ cỏ ngọt stevia, an toàn cho đường huyết và kiểm soát cân nặng.',
-    count: '35+ Sản phẩm',
-    icon: CandyOff,
-  },
-  {
-    key: 'snacks-nuts',
-    title: 'Healthy Snacks & Hạt',
-    desc: 'Hạt sấy mộc nguyên vị, granola giòn rụm cho bữa xế lành mạnh không lo béo.',
-    count: '54+ Sản phẩm',
-    icon: Sparkles,
-  },
-];
+onMounted(() => productStore.loadCategories());
 
 function selectCategory(catKey: string) {
   productStore.setCategory(catKey);

@@ -28,11 +28,21 @@ export interface ProductPortionOption {
   inStock: boolean;
 }
 
+export interface ProductVariant {
+  id: string;
+  productId: string;
+  name: string;
+  weight: number | null;
+  price: number;
+  status: boolean;
+}
+
 export interface Product {
+  variants?: ProductVariant[];
   id: string;
   code: string;
   name: string;
-  category: DietCategory;
+  category: string;
   categoryName: string;
   price: number;
   originalPrice?: number;
@@ -91,6 +101,7 @@ export interface AdminProductItem {
 }
 
 export interface CartItem {
+  variantId?: string;
   product: Product;
   quantity: number;
   selectedPortion?: string;

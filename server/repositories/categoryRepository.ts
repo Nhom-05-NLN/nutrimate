@@ -5,10 +5,7 @@ import { isDbConnected, queryPostgres } from '../db/index.js';
 interface CategoryRow {
   id: string;
   name: string;
-  slug: string;
   description: string;
-  diet_type: string;
-  icon: string | null;
   product_count?: string;
 }
 
@@ -16,22 +13,21 @@ export async function getAllCategories(): Promise<Category[]> {
   if (isDbConnected()) {
     try {
       const sql = `
-        SELECT c.id, c.name, c.slug, c.description, c.diet_type, c.icon,
-               COUNT(p.id) as product_count
+        SELECT c.category_id AS id, c.name, c.description,
+               COUNT(p.product_id) as product_count
         FROM categories c
-        LEFT JOIN products p ON p.category = c.slug AND p.is_active = TRUE
-        GROUP BY c.id, c.name, c.slug, c.description, c.diet_type, c.icon
-        ORDER BY c.sort_order ASC, c.id ASC
+        LEFT JOIN products p ON p.category_id = c.category_id AND p.status = TRUE
+        GROUP BY c.category_id, c.name, c.description
+        ORDER BY c.category_id ASC
       `;
       const result = await queryPostgres<CategoryRow>(sql);
       if (result.rows.length > 0) {
         return result.rows.map((row) => ({
           id: String(row.id),
           name: row.name,
-          slug: row.slug,
+          slug: String(row.id),
           description: row.description || '',
-          dietType: row.diet_type as Category['dietType'],
-          icon: row.icon || undefined,
+          dietType: 'all' as const,
           count: parseInt(row.product_count || '0', 10),
         }));
       }

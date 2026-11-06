@@ -37,19 +37,13 @@ const filters = ref<AdvancedFilters>({
 
 onMounted(() => {
   productStore.setSort('sold_desc');
-  if (productStore.categories.length === 0) {
-    productStore.loadCategories();
-  }
+  productStore.loadCategories();
 });
 
-const categoryTabs = [
+const categoryTabs = computed(() => [
   { key: 'all', label: 'Tất cả' },
-  { key: 'low-carb', label: 'Low-Carb' },
-  { key: 'high-protein', label: 'High-Protein' },
-  { key: 'sugar-free', label: 'Sugar-Free' },
-  { key: 'snacks-nuts', label: 'Hạt dinh dưỡng' },
-  { key: 'dairy', label: 'Sữa và sản phẩm từ sữa'},
-];
+  ...productStore.categories.map(category => ({ key: category.id, label: category.name })),
+]);
 
 function handleSortChange(event: Event) {
   const target = event.target as HTMLSelectElement;

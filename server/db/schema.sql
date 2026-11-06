@@ -84,50 +84,61 @@ COMMENT ON TABLE health_profiles IS 'Lưu hồ sơ sức khỏe, chỉ số cơ 
 
 -- 5. Bảng danh mục thực phẩm ăn kiêng.
 CREATE TABLE IF NOT EXISTS categories (
-    id SERIAL PRIMARY KEY,
+    category_id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    slug VARCHAR(100) UNIQUE NOT NULL,
-    description TEXT,
-    diet_type VARCHAR(50) NOT NULL CHECK (diet_type IN ('low-carb', 'high-protein', 'sugar-free', 'all')),
-    icon VARCHAR(50),
-    sort_order INT DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    description TEXT
 );
 COMMENT ON TABLE categories IS 'Lưu danh mục sản phẩm và loại chế độ ăn tương ứng.';
 
 -- 6. Bảng sản phẩm và thông tin dinh dưỡng.
 CREATE TABLE IF NOT EXISTS products (
-    id SERIAL PRIMARY KEY,
-    category_id INT REFERENCES categories(id) ON DELETE SET NULL,
+    product_id SERIAL PRIMARY KEY,
+    category_id INT REFERENCES categories(category_id) ON DELETE SET NULL,
     code VARCHAR(50) UNIQUE NOT NULL,
     name VARCHAR(200) NOT NULL,
-    slug VARCHAR(220) UNIQUE NOT NULL,
-    category VARCHAR(50) NOT NULL,
-    category_name VARCHAR(100) NOT NULL,
     price NUMERIC(12, 2) NOT NULL,
-    original_price NUMERIC(12, 2),
-    stock_quantity INT DEFAULT 50,
-    serving_size VARCHAR(50) DEFAULT '1 khẩu phần',
-    calories NUMERIC(6, 1) NOT NULL,
-    protein NUMERIC(6, 1) NOT NULL,
-    carbs NUMERIC(6, 1) NOT NULL,
-    fat NUMERIC(6, 1) NOT NULL,
-    sugar NUMERIC(6, 1) DEFAULT 0,
-    fiber NUMERIC(6, 1) DEFAULT 0,
-    sodium NUMERIC(6, 1) DEFAULT 0,
-    rating NUMERIC(3, 2) DEFAULT 5.0,
-    review_count INT DEFAULT 0,
-    badges TEXT[] DEFAULT ARRAY['Mới'],
-    ingredients TEXT[] DEFAULT ARRAY[]::TEXT[],
+    stock_quantity INT DEFAULT 0,
+    ingredients TEXT NOT NULL DEFAULT '',
     description TEXT,
-    best_for TEXT,
+    usage_instruction TEXT,
     image_url TEXT,
-    is_featured BOOLEAN DEFAULT FALSE,
-    is_active BOOLEAN DEFAULT TRUE,
+    status BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-COMMENT ON TABLE products IS 'Lưu thông tin sản phẩm, giá bán, tồn kho và thành phần dinh dưỡng.';
+
+CREATE TABLE IF NOT EXISTS nutrition_facts (
+    nutrition_fact_id SERIAL PRIMARY KEY,
+    product_id INT NOT NULL UNIQUE REFERENCES products(product_id) ON DELETE CASCADE,
+    serving_size VARCHAR(50) NOT NULL,
+    calories DOUBLE PRECISION NOT NULL,
+    protein DOUBLE PRECISION NOT NULL,
+    carbs DOUBLE PRECISION NOT NULL,
+    fat DOUBLE PRECISION NOT NULL,
+    sugar DOUBLE PRECISION NOT NULL,
+    fiber DOUBLE PRECISION DEFAULT 0,
+    sodium DOUBLE PRECISION DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS product_reviews (
+    review_id SERIAL PRIMARY KEY,
+    product_id INT NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS product_variants (
+    variant_id SERIAL PRIMARY KEY,
+    product_id INT NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
+    variant_name VARCHAR(200) NOT NULL,
+    weight NUMERIC(12, 2),
+    price NUMERIC(12, 2) NOT NULL CHECK (price >= 0),
+    status BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 
 -- 7. Bảng đơn đặt hàng.
 CREATE TABLE IF NOT EXISTS orders (
@@ -155,7 +166,7 @@ COMMENT ON TABLE orders IS 'Lưu thông tin đơn hàng, khách nhận hàng, th
 CREATE TABLE IF NOT EXISTS order_items (
     id SERIAL PRIMARY KEY,
     order_id INT REFERENCES orders(id) ON DELETE CASCADE,
-    product_id INT REFERENCES products(id) ON DELETE SET NULL,
+    product_id INT REFERENCES products(product_id) ON DELETE SET NULL,
     product_name VARCHAR(200) NOT NULL,
     product_image TEXT,
     unit_price NUMERIC(12, 2) NOT NULL,
@@ -168,10 +179,6 @@ CREATE TABLE IF NOT EXISTS order_items (
 COMMENT ON TABLE order_items IS 'Lưu các sản phẩm, số lượng và giá trị dinh dưỡng tại thời điểm đặt hàng.';
 
 -- 9. Bảng nhật ký dinh dưỡng hàng ngày.
-CREATE TABLE IF NOT EXISTS nutrition_logs (
-    id SERIAL PRIMARY KEY,
-    user_id INT REFERENCES users(id) ON DELETE CASCADE,
-    log_date DATE NOT NULL,
 -- 6. Nhật ký dinh dưỡng chuẩn hóa trong nutrition_diary và diary_entries.
 CREATE TABLE IF NOT EXISTS nutrition_diary (
     diary_id SERIAL PRIMARY KEY,
@@ -198,7 +205,7 @@ CREATE TABLE IF NOT EXISTS diary_entries (
     fat DOUBLE PRECISION NOT NULL DEFAULT 0,
     sugar DOUBLE PRECISION NOT NULL DEFAULT 0
 );
-COMMENT ON TABLE nutrition_logs IS 'Ghi nhận thực phẩm và lượng dinh dưỡng người dùng tiêu thụ theo ngày.';
+COMMENT ON TABLE nutrition_diary IS 'Ghi nhận thực phẩm và lượng dinh dưỡng người dùng tiêu thụ theo ngày.';
 ALTER TABLE diary_entries ADD COLUMN IF NOT EXISTS food_name VARCHAR(200);
 
 -- 10. Bảng nhật ký lượng nước uống.
@@ -241,10 +248,9 @@ COMMENT ON TABLE nutrition_images IS 'Lưu ảnh thực phẩm đã tải lên, 
 CREATE INDEX IF NOT EXISTS idx_nutrition_images_customer_date ON nutrition_images(customer_id, upload_date DESC);
 
 -- Tối ưu hóa hiệu năng truy vấn (Indexes)
-CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
-CREATE INDEX IF NOT EXISTS idx_products_calories ON products(calories);
-CREATE INDEX IF NOT EXISTS idx_products_protein ON products(protein);
-CREATE INDEX IF NOT EXISTS idx_products_is_featured ON products(is_featured) WHERE is_featured = TRUE;
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_calories ON nutrition_facts(calories);
+CREATE INDEX IF NOT EXISTS idx_products_protein ON nutrition_facts(protein);
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);

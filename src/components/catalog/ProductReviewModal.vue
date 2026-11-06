@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { Star, X } from 'lucide-vue-next';
 import { useToastStore } from '../../stores/toastStore';
 
 const props = defineProps<{
   modelValue: boolean;
   productName?: string;
+  authorName?: string;
+  submitting?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
-  (e: 'submit', payload: { author: string; rating: number; content: string }): void;
+  (e: 'submit', payload: { rating: number; content: string }): void;
 }>();
 
 const toastStore = useToastStore();
@@ -19,12 +21,18 @@ const rating = ref(5);
 const author = ref('');
 const content = ref('');
 
+watch(() => props.modelValue, (open) => {
+  if (open) { rating.value = 5; content.value = ''; }
+});
+
 function closeModal() {
+  if (props.submitting) return;
   emit('update:modelValue', false);
 }
 
 function handleSubmit() {
-  if (!author.value.trim() || !content.value.trim()) {
+  if (props.submitting) return;
+  if (!content.value.trim()) {
     toastStore.show('Vui lòng nhập đầy đủ họ tên và nội dung đánh giá');
     return;
   }
@@ -35,11 +43,7 @@ function handleSubmit() {
     content: content.value.trim(),
   });
 
-  // Reset form sau khi gửi
-  author.value = '';
-  content.value = '';
-  rating.value = 5;
-  closeModal();
+
 }
 </script>
 
@@ -93,7 +97,8 @@ function handleSubmit() {
         <div class="space-y-1">
           <label class="text-xs font-bold text-[#242424] block">Họ tên</label>
           <input
-            v-model="author"
+            :value="authorName"
+            readonly
             type="text"
             placeholder="Nhập họ và tên của bạn"
             class="w-full px-4 py-2.5 rounded-xl border border-[#CCD7BC] text-sm focus:outline-none focus:border-[#4D6A34] focus:ring-1 focus:ring-[#4D6A34]"
@@ -106,6 +111,8 @@ function handleSubmit() {
           <textarea
             v-model="content"
             rows="4"
+            maxlength="2000"
+            :disabled="submitting"
             placeholder="Hãy chia sẻ cảm nhận của bạn về hương vị, bao bì và tác dụng dinh dưỡng của sản phẩm..."
             class="w-full px-4 py-2.5 rounded-xl border border-[#CCD7BC] text-sm focus:outline-none focus:border-[#4D6A34] focus:ring-1 focus:ring-[#4D6A34]"
           ></textarea>
@@ -124,9 +131,10 @@ function handleSubmit() {
         <button
           type="button"
           @click="handleSubmit"
+          :disabled="submitting"
           class="px-6 py-2.5 rounded-xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
         >
-          Gửi đánh giá
+          {{ submitting ? 'Đang gửi...' : 'Gửi đánh giá' }}
         </button>
       </div>
     </div>

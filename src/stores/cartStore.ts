@@ -116,15 +116,15 @@ export const useCartStore = defineStore('cart', () => {
     Math.round(items.value.reduce((sum, item) => sum + item.product.nutrition.protein * item.quantity, 0) * 10) / 10
   );
 
-  function addItem(product: Product, quantity = 1, portion = 'Mặc định') {
+  function addItem(product: Product, quantity = 1, portion = 'Mặc định', variantId?: string) {
     const existing = items.value.find(
-      (i) => i.product.id === product.id && i.selectedPortion === portion
+      (i) => i.product.id === product.id && i.selectedPortion === portion && i.variantId === variantId
     );
     if (existing) {
       existing.quantity += quantity;
       if (product.isAiRecommended) existing.product.isAiRecommended = true;
     } else {
-      items.value.push({ product, quantity, selectedPortion: portion });
+      items.value.push({ product, quantity, selectedPortion: portion, variantId });
     }
     toast.show(
       'Đã thêm vào giỏ hàng thành công!',

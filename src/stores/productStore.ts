@@ -218,8 +218,8 @@ export const useProductStore = defineStore('product', () => {
   const products = ref<Product[]>(FIGMA_SEED_PRODUCTS);
   const totalProducts = ref<number>(FIGMA_SEED_PRODUCTS.length);
   const currentPage = ref<number>(1);
-  const pageSize = ref<number>(9);
-  const totalPages = ref<number>(Math.ceil(FIGMA_SEED_PRODUCTS.length / 9));
+  const pageSize = ref<number>(8);
+  const totalPages = ref<number>(Math.ceil(FIGMA_SEED_PRODUCTS.length / pageSize.value));
 
   const categories = ref<Category[]>([
     { id: 'low-carb', name: 'Low-Carb & KETO', slug: 'low-carb', description: 'Ít tinh bột, giàu chất xơ', dietType: 'low-carb', count: 18 },
@@ -237,7 +237,7 @@ export const useProductStore = defineStore('product', () => {
     maxCalories: undefined,
     minProtein: undefined,
     page: 1,
-    limit: 9,
+    limit: pageSize.value,
     sort: 'newest',
   });
 
