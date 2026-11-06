@@ -622,7 +622,11 @@ BEGIN
     NEW.note := COALESCE(NEW.note, NEW.notes);
     NEW.notes := COALESCE(NEW.notes, NEW.note);
     NEW.user_id := COALESCE(NEW.user_id, NEW.customer_id);
-    NEW.customer_id := COALESCE(NEW.customer_id, NEW.user_id);
+    IF NEW.customer_id IS NULL
+       AND NEW.user_id IS NOT NULL
+       AND EXISTS (SELECT 1 FROM customers WHERE user_id = NEW.user_id) THEN
+        NEW.customer_id := NEW.user_id;
+    END IF;
     NEW.created_at := COALESCE(NEW.created_at, NEW.order_date, CURRENT_TIMESTAMP);
     NEW.order_date := COALESCE(NEW.order_date, NEW.created_at);
     RETURN NEW;

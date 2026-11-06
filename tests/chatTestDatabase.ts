@@ -13,12 +13,16 @@ export async function createChatTestDatabase() {
     if (!/^chat_test_[a-f0-9]{32}$/.test(schema)) throw new Error('Invalid test namespace');
     await client.query(`CREATE SCHEMA "${schema}"`);
     await client.query(`SET LOCAL search_path TO "${schema}", public, pg_temp`);
-    await client.query('CREATE TABLE users (id INTEGER PRIMARY KEY, role TEXT)');
-    await client.query("INSERT INTO users VALUES (1, 'customer'), (2, 'customer')");
+    await client.query('CREATE TABLE users (id INTEGER PRIMARY KEY, role TEXT, email TEXT, phone TEXT, full_name TEXT)');
+    await client.query("INSERT INTO users VALUES (1, 'customer', 'owner@example.test', '0900000001', 'Owner One'), (2, 'customer', 'other@example.test', '0900000002', 'Other Two')");
     const migration = (await readFile(new URL('../server/db/migrations/001_chat.sql', import.meta.url), 'utf8'))
       .replace(/^BEGIN;\s*$/m, '').replace(/^COMMIT;\s*$/m, '');
     await client.query(migration);
     await client.query(migration);
+    await client.query('CREATE TABLE nutrition_images (image_id INTEGER PRIMARY KEY, image_url TEXT)');
+    const imageHistoryMigration = (await readFile(new URL('../server/db/migrations/006_chat_image_history.sql', import.meta.url), 'utf8'))
+      .replace(/^BEGIN;\s*$/m, '').replace(/^COMMIT;\s*$/m, '');
+    await client.query(imageHistoryMigration);
     const transactionalClient = {
       async query(sql: string, params?: unknown[]) {
         if (sql === 'BEGIN') return client.query('SAVEPOINT chat_turn');

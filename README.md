@@ -76,6 +76,8 @@ psql -v ON_ERROR_STOP=1 -f server/db/migrations/010_ai_recommended_order_items.s
 psql -v ON_ERROR_STOP=1 -f server/db/migrations/011_nutrition_image_deduplication.sql
 #    Cho phép Customer và Admin lưu ảnh NutriBot theo tài khoản users của chính mình.
 psql -v ON_ERROR_STOP=1 -f server/db/migrations/012_nutrition_image_admin_ownership.sql
+#    Giữ user_id của Admin trên đơn hàng mà không ép customer_id trỏ tới bảng customers.
+psql -v ON_ERROR_STOP=1 -f server/db/migrations/013_order_customer_ownership.sql
 
 # 6. Khởi chạy dự án ở chế độ phát triển
 npm run dev

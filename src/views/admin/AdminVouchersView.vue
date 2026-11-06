@@ -2,21 +2,18 @@
 import { ref, computed, onMounted } from 'vue';
 import { useVoucherStore } from '../../stores/voucherStore';
 import { useToastStore } from '../../stores/toastStore';
-import { Voucher, CreateVoucherPayload, VoucherDiscountType, VoucherTargetType } from '../../types';
+import { Voucher, CreateVoucherPayload } from '../../types';
 import {
   Ticket,
   Plus,
   Search,
   CheckCircle2,
-  XCircle,
   Clock,
   Sparkles,
   Trash2,
   Power,
-  RotateCcw,
+  RefreshCw,
   AlertCircle,
-  Percent,
-  DollarSign,
   Users,
 } from 'lucide-vue-next';
 
@@ -27,6 +24,7 @@ const searchQuery = ref('');
 const statusFilter = ref<'all' | 'active' | 'inactive' | 'expired'>('all');
 const showCreateModal = ref(false);
 const isSubmitting = ref(false);
+const isLoading = ref(false);
 
 const newVoucher = ref<CreateVoucherPayload>({
   code: '',
@@ -42,8 +40,17 @@ const newVoucher = ref<CreateVoucherPayload>({
   isActive: true,
 });
 
+async function handleRefresh() {
+  isLoading.value = true;
+  try {
+    await voucherStore.loadVouchers(true);
+  } finally {
+    isLoading.value = false;
+  }
+}
+
 onMounted(() => {
-  voucherStore.loadVouchers(true);
+  void handleRefresh();
 });
 
 function formatVnd(amount: number): string {
@@ -68,6 +75,8 @@ function isExhausted(voucher: Voucher): boolean {
 // Thống kê nhanh KPIs
 const totalVouchers = computed(() => voucherStore.vouchers.length);
 const activeCount = computed(() => voucherStore.vouchers.filter((v) => v.isActive && !isExpired(v) && !isExhausted(v)).length);
+const inactiveCount = computed(() => voucherStore.vouchers.filter((v) => !v.isActive).length);
+const expiredCount = computed(() => voucherStore.vouchers.filter((v) => isExpired(v) || isExhausted(v)).length);
 const totalUsed = computed(() => voucherStore.vouchers.reduce((sum, v) => sum + v.usedCount, 0));
 const firstOrderCount = computed(() => voucherStore.vouchers.filter((v) => v.targetType === 'first_order').length);
 
@@ -180,174 +189,189 @@ async function handleCreateVoucher() {
     <!-- Header Page & Action -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <div class="flex items-center gap-2 text-xs font-bold text-[#536124] uppercase tracking-wider mb-1">
-          <Ticket class="w-4 h-4" />
-          <span>PHÂN HỆ M3 – KHUYẾN MÃI & CHIẾT KHẤU</span>
-        </div>
         <h1 class="font-heading text-2xl sm:text-3xl font-black text-[#2D3B1E]">
-          Quản Lý Voucher & Mã Giảm Giá
+          Quản lý Voucher & Mã giảm giá (Admin Portal)
         </h1>
-        <p class="text-xs sm:text-sm text-[#7A866E] mt-1">
+        <p class="text-xs text-[#7A866E] mt-1">
           Thiết lập mã khuyến mãi kích cầu đơn hàng, ưu đãi khách mới và tri ân khách hàng.
         </p>
       </div>
 
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 self-start sm:self-auto">
         <button
           type="button"
-          @click="voucherStore.loadVouchers(true)"
-          class="p-2.5 rounded-2xl bg-white border border-[#E3E8DC] text-[#576449] hover:bg-[#FAF9F5] transition-colors cursor-pointer"
-          title="Tải lại dữ liệu"
+          @click="handleRefresh"
+          class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-[#CCD7BC] text-xs font-bold text-[#4D6A34] hover:bg-[#FAF9F5] transition-colors cursor-pointer shadow-2xs"
         >
-          <RotateCcw class="w-4 h-4" />
+          <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': isLoading }" />
+          <span>Làm mới dữ liệu</span>
         </button>
 
         <button
           type="button"
           @click="openCreateModal"
-          class="px-5 py-3 rounded-2xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+          class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#4D6A34] hover:bg-[#3D5529] text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
         >
-          <Plus class="w-4 h-4" />
+          <Plus class="w-3.5 h-3.5" />
           <span>Tạo mã mới</span>
         </button>
       </div>
     </div>
 
-    <!-- 4 KPIs Cards -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="bg-white p-5 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-2">
-        <div class="flex items-center justify-between text-xs font-bold text-[#7A866E]">
-          <span>Tổng số mã</span>
-          <div class="w-8 h-8 rounded-xl bg-[#F0F4E8] text-[#536124] flex items-center justify-center">
+    <!-- 4 Cards KPIs Thời Gian Thực -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <!-- KPI 1 -->
+      <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-1">
+        <div class="flex items-center justify-between text-xs text-[#7A866E]">
+          <span>Tổng số mã toàn hệ thống</span>
+          <div class="w-8 h-8 rounded-xl bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center">
             <Ticket class="w-4 h-4" />
           </div>
         </div>
-        <div class="font-heading text-2xl sm:text-3xl font-black text-[#2D3B1E]">
-          {{ totalVouchers }}
+        <div class="font-heading text-2xl font-black text-[#2D3B1E]">
+          {{ totalVouchers }} <span class="text-xs font-normal text-[#7A866E]">mã</span>
         </div>
-        <span class="text-[11px] text-[#7A866E] block">Đang lưu trữ trên hệ thống</span>
+        <span class="text-xs text-[#4D6A34] font-bold block">Đang lưu trữ trên hệ thống</span>
       </div>
 
-      <div class="bg-white p-5 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-2">
-        <div class="flex items-center justify-between text-xs font-bold text-[#7A866E]">
+      <!-- KPI 2 -->
+      <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-1">
+        <div class="flex items-center justify-between text-xs text-[#7A866E]">
           <span>Đang hoạt động</span>
-          <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
             <CheckCircle2 class="w-4 h-4" />
           </div>
         </div>
-        <div class="font-heading text-2xl sm:text-3xl font-black text-emerald-700">
-          {{ activeCount }}
+        <div class="font-heading text-2xl font-black text-emerald-700">
+          {{ activeCount }} <span class="text-xs font-normal text-[#7A866E]">mã</span>
         </div>
-        <span class="text-[11px] text-emerald-600 font-semibold block">Khả dụng tại Checkout</span>
+        <span class="text-xs text-emerald-600 font-bold block">Khả dụng tại Checkout</span>
       </div>
 
-      <div class="bg-white p-5 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-2">
-        <div class="flex items-center justify-between text-xs font-bold text-[#7A866E]">
+      <!-- KPI 3 -->
+      <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-1">
+        <div class="flex items-center justify-between text-xs text-[#7A866E]">
           <span>Lượt đã áp dụng</span>
-          <div class="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+          <div class="w-8 h-8 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center">
             <Sparkles class="w-4 h-4" />
           </div>
         </div>
-        <div class="font-heading text-2xl sm:text-3xl font-black text-[#2D3B1E]">
-          {{ totalUsed }}
+        <div class="font-heading text-2xl font-black text-[#2D3B1E]">
+          {{ totalUsed }} <span class="text-xs font-normal text-[#7A866E]">lượt</span>
         </div>
-        <span class="text-[11px] text-[#7A866E] block">Lượt áp dụng trên các đơn hàng</span>
+        <span class="text-xs text-[#7A866E] block">Lượt áp dụng trên các đơn hàng</span>
       </div>
 
-      <div class="bg-white p-5 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-2">
-        <div class="flex items-center justify-between text-xs font-bold text-[#7A866E]">
+      <!-- KPI 4 -->
+      <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-1">
+        <div class="flex items-center justify-between text-xs text-[#7A866E]">
           <span>Mã khách hàng mới</span>
-          <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+          <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
             <Users class="w-4 h-4" />
           </div>
         </div>
-        <div class="font-heading text-2xl sm:text-3xl font-black text-[#2D3B1E]">
-          {{ firstOrderCount }}
+        <div class="font-heading text-2xl font-black text-[#2D3B1E]">
+          {{ firstOrderCount }} <span class="text-xs font-normal text-[#7A866E]">mã</span>
         </div>
-        <span class="text-[11px] text-[#7A866E] block">Dành riêng cho đơn đầu tiên</span>
+        <span class="text-xs text-[#4D6A34] font-bold block">Dành riêng cho đơn đầu tiên</span>
       </div>
     </div>
 
-    <!-- Toolbar: Search & Status Filter -->
-    <div class="bg-white p-4 sm:p-5 rounded-3xl border border-[#E3E8DC] shadow-2xs flex flex-col md:flex-row items-center justify-between gap-4">
-      <div class="relative w-full md:w-80">
-        <Search class="w-4 h-4 text-[#7A866E] absolute left-3.5 top-1/2 -translate-y-1/2" />
-        <input
-          type="text"
-          v-model="searchQuery"
-          placeholder="Tìm theo mã hoặc tiêu đề..."
-          class="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs sm:text-sm text-[#2D3B1E] placeholder:text-[#7A866E] outline-none focus:border-[#536124] transition-colors"
-        />
+    <!-- Voucher Filter Tabs, Search & Table -->
+    <div class="bg-white rounded-3xl border border-[#E3E8DC] shadow-2xs p-6 space-y-6">
+      <!-- Top Bar: Tabs & Search -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#F0F3EC] pb-4">
+        <!-- Status Tabs -->
+        <div class="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <button
+            type="button"
+            @click="statusFilter = 'all'"
+            class="px-3.5 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer"
+            :class="statusFilter === 'all' ? 'bg-[#4D6A34] text-white shadow-2xs' : 'text-[#7A866E] hover:text-[#2D3B1E]'"
+          >
+            Tất cả ({{ voucherStore.vouchers.length }})
+          </button>
+
+          <button
+            type="button"
+            @click="statusFilter = 'active'"
+            class="px-3.5 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer"
+            :class="statusFilter === 'active' ? 'bg-[#4D6A34] text-white shadow-2xs' : 'text-[#7A866E] hover:text-[#2D3B1E]'"
+          >
+            Đang chạy ({{ activeCount }})
+          </button>
+
+          <button
+            type="button"
+            @click="statusFilter = 'inactive'"
+            class="px-3.5 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer"
+            :class="statusFilter === 'inactive' ? 'bg-[#4D6A34] text-white shadow-2xs' : 'text-[#7A866E] hover:text-[#2D3B1E]'"
+          >
+            Tạm dừng ({{ inactiveCount }})
+          </button>
+
+          <button
+            type="button"
+            @click="statusFilter = 'expired'"
+            class="px-3.5 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer"
+            :class="statusFilter === 'expired' ? 'bg-[#4D6A34] text-white shadow-2xs' : 'text-[#7A866E] hover:text-[#2D3B1E]'"
+          >
+            Hết hạn / Hết lượt ({{ expiredCount }})
+          </button>
+        </div>
+
+        <!-- Search Input -->
+        <div class="relative w-full md:w-72">
+          <Search class="w-4 h-4 text-[#7A866E] absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            v-model="searchQuery"
+            placeholder="Tìm theo mã hoặc tiêu đề..."
+            class="w-full pl-9 pr-4 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs text-[#2D3B1E] placeholder:text-[#7A866E] outline-none focus:border-[#4D6A34] transition-colors"
+          />
+        </div>
       </div>
 
-      <div class="flex items-center gap-1.5 w-full md:w-auto overflow-x-auto no-scrollbar">
-        <button
-          type="button"
-          @click="statusFilter = 'all'"
-          class="px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0"
-          :class="statusFilter === 'all' ? 'bg-[#536124] text-white shadow-2xs' : 'bg-[#FAF9F5] text-[#576449] hover:bg-[#EBF7E5]'"
-        >
-          Tất cả ({{ voucherStore.vouchers.length }})
-        </button>
-
-        <button
-          type="button"
-          @click="statusFilter = 'active'"
-          class="px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0"
-          :class="statusFilter === 'active' ? 'bg-[#536124] text-white shadow-2xs' : 'bg-[#FAF9F5] text-[#576449] hover:bg-[#EBF7E5]'"
-        >
-          Đang chạy ({{ activeCount }})
-        </button>
-
-        <button
-          type="button"
-          @click="statusFilter = 'inactive'"
-          class="px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0"
-          :class="statusFilter === 'inactive' ? 'bg-[#536124] text-white shadow-2xs' : 'bg-[#FAF9F5] text-[#576449] hover:bg-[#EBF7E5]'"
-        >
-          Tạm dừng
-        </button>
-
-        <button
-          type="button"
-          @click="statusFilter = 'expired'"
-          class="px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0"
-          :class="statusFilter === 'expired' ? 'bg-[#536124] text-white shadow-2xs' : 'bg-[#FAF9F5] text-[#576449] hover:bg-[#EBF7E5]'"
-        >
-          Hết hạn / Hết lượt
-        </button>
-      </div>
-    </div>
-
-    <!-- Bảng danh sách Voucher -->
-    <div class="bg-white rounded-3xl border border-[#E3E8DC] shadow-2xs overflow-hidden">
+      <!-- Bảng danh sách Voucher -->
       <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs sm:text-sm">
-          <thead class="bg-[#FAF9F5] text-[#576449] border-b border-[#E3E8DC] font-bold">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-[#FAF9F5] text-[#7A866E] uppercase text-[10px] font-bold border-b border-[#E3E8DC]">
             <tr>
-              <th class="py-3.5 px-4 sm:px-6">MÃ & TIÊU ĐỀ</th>
-              <th class="py-3.5 px-4">MỨC GIẢM</th>
-              <th class="py-3.5 px-4">ĐIỀU KIỆN ÁP DỤNG</th>
-              <th class="py-3.5 px-4">TIẾN ĐỘ SỬ DỤNG</th>
-              <th class="py-3.5 px-4">HẠN DÙNG</th>
-              <th class="py-3.5 px-4">TRẠNG THÁI</th>
-              <th class="py-3.5 px-4 sm:px-6 text-right">THAO TÁC</th>
+              <th class="py-3.5 px-4">Mã & Tiêu đề</th>
+              <th class="py-3.5 px-4">Mức giảm</th>
+              <th class="py-3.5 px-4">Điều kiện áp dụng</th>
+              <th class="py-3.5 px-4">Tiến độ sử dụng</th>
+              <th class="py-3.5 px-4">Hạn dùng</th>
+              <th class="py-3.5 px-4">Trạng thái</th>
+              <th class="py-3.5 px-4 text-right">Thao tác</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-[#F0F3EC]">
+
+          <tbody v-if="filteredVouchers.length === 0" class="text-center">
+            <tr>
+              <td colspan="7" class="py-12 text-[#7A866E]">
+                <div class="flex flex-col items-center justify-center space-y-2">
+                  <AlertCircle class="w-8 h-8 text-[#CCD7BC]" />
+                  <span class="text-xs font-semibold">Không tìm thấy mã giảm giá nào khớp với bộ lọc.</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+
+          <tbody v-else class="divide-y divide-[#F0F3EC]">
             <tr
               v-for="v in filteredVouchers"
               :key="v.id"
               class="hover:bg-[#FAF9F5] transition-colors"
             >
               <!-- Cột 1: Mã & Tiêu đề -->
-              <td class="py-4 px-4 sm:px-6">
-                <div class="flex items-center gap-2.5">
-                  <div class="w-9 h-9 rounded-2xl bg-[#F0F4E8] text-[#536124] flex items-center justify-center shrink-0">
+              <td class="py-4 px-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-xl bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center shrink-0">
                     <Ticket class="w-4 h-4" />
                   </div>
                   <div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-1.5">
                       <span class="font-heading font-black text-[#2D3B1E] uppercase text-sm">
                         {{ v.code }}
                       </span>
@@ -358,7 +382,7 @@ async function handleCreateVoucher() {
                         Khách mới
                       </span>
                     </div>
-                    <div class="text-xs text-[#7A866E] truncate max-w-xs mt-0.5" :title="v.title">
+                    <div class="text-[11px] text-[#7A866E] truncate max-w-xs mt-0.5" :title="v.title">
                       {{ v.title }}
                     </div>
                   </div>
@@ -367,11 +391,11 @@ async function handleCreateVoucher() {
 
               <!-- Cột 2: Mức giảm -->
               <td class="py-4 px-4">
-                <div v-if="v.discountType === 'fixed'" class="font-bold text-[#2D3B1E]">
+                <div v-if="v.discountType === 'fixed'" class="font-bold text-[#2D3B1E] text-sm">
                   -{{ formatVnd(v.discountValue) }}
                 </div>
                 <div v-else class="space-y-0.5">
-                  <span class="font-bold text-amber-700">-{{ v.discountValue }}%</span>
+                  <span class="font-bold text-amber-700 text-sm">-{{ v.discountValue }}%</span>
                   <div v-if="v.maxDiscountAmount" class="text-[11px] text-[#7A866E]">
                     Tối đa {{ formatVnd(v.maxDiscountAmount) }}
                   </div>
@@ -381,7 +405,7 @@ async function handleCreateVoucher() {
               <!-- Cột 3: Điều kiện áp dụng -->
               <td class="py-4 px-4">
                 <div class="space-y-0.5">
-                  <div class="font-semibold text-[#2D3B1E]">
+                  <div class="font-bold text-[#2D3B1E]">
                     Đơn ≥ {{ formatVnd(v.minOrderAmount) }}
                   </div>
                   <div class="text-[11px] text-[#7A866E]">
@@ -402,7 +426,7 @@ async function handleCreateVoucher() {
                   <div class="w-full h-1.5 bg-[#E8ECE2] rounded-full overflow-hidden">
                     <div
                       class="h-full rounded-full transition-all duration-300"
-                      :class="v.usedCount >= v.usageLimit ? 'bg-amber-500' : 'bg-[#536124]'"
+                      :class="v.usedCount >= v.usageLimit ? 'bg-amber-500' : 'bg-[#4D6A34]'"
                       :style="{ width: `${Math.min(100, (v.usedCount / v.usageLimit) * 100)}%` }"
                     ></div>
                   </div>
@@ -410,10 +434,10 @@ async function handleCreateVoucher() {
               </td>
 
               <!-- Cột 5: Hạn dùng -->
-              <td class="py-4 px-4 text-xs">
-                <div class="flex items-center gap-1.5" :class="isExpired(v) ? 'text-rose-600 font-bold' : 'text-[#576449]'">
+              <td class="py-4 px-4">
+                <div class="flex items-center gap-1.5" :class="isExpired(v) ? 'text-rose-600 font-bold' : 'text-[#7A866E]'">
                   <Clock class="w-3.5 h-3.5" />
-                  <span>{{ formatDate(v.endDate) }}</span>
+                  <span class="text-xs">{{ formatDate(v.endDate) }}</span>
                 </div>
               </td>
 
@@ -421,61 +445,51 @@ async function handleCreateVoucher() {
               <td class="py-4 px-4">
                 <span
                   v-if="isExpired(v)"
-                  class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700"
+                  class="inline-block px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-200"
                 >
                   Đã hết hạn
                 </span>
                 <span
                   v-else-if="isExhausted(v)"
-                  class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800"
+                  class="inline-block px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200"
                 >
                   Hết lượt
                 </span>
                 <span
                   v-else-if="v.isActive"
-                  class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#EBF7E5] text-[#4D6A34]"
+                  class="inline-block px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#EBF7E5] text-[#4D6A34] border border-[#CCD7BC]"
                 >
-                  ✓ Đang chạy
+                  Đang hoạt động
                 </span>
                 <span
                   v-else
-                  class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-200 text-[#576449]"
+                  class="inline-block px-2.5 py-1 rounded-full text-[11px] font-bold bg-stone-100 text-stone-600 border border-stone-200"
                 >
                   Tạm dừng
                 </span>
               </td>
 
               <!-- Cột 7: Thao tác -->
-              <td class="py-4 px-4 sm:px-6 text-right">
-                <div class="flex items-center justify-end gap-2">
+              <td class="py-4 px-4 text-right">
+                <div class="flex items-center justify-end gap-1.5">
                   <button
                     type="button"
                     @click="handleToggleStatus(v)"
-                    class="p-2 rounded-xl transition-colors cursor-pointer"
-                    :class="v.isActive ? 'text-[#4D6A34] hover:bg-[#EBF7E5]' : 'text-slate-400 hover:bg-slate-100'"
+                    class="p-2 rounded-xl transition-colors cursor-pointer border"
+                    :class="v.isActive ? 'text-[#4D6A34] border-[#CCD7BC] bg-white hover:bg-[#EBF7E5]' : 'text-stone-400 border-stone-200 bg-stone-50 hover:bg-stone-100'"
                     :title="v.isActive ? 'Bấm để tạm dừng' : 'Bấm để kích hoạt'"
                   >
-                    <Power class="w-4 h-4" />
+                    <Power class="w-3.5 h-3.5" />
                   </button>
 
                   <button
                     type="button"
                     @click="handleDeleteVoucher(v)"
-                    class="p-2 rounded-xl text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
+                    class="p-2 rounded-xl text-rose-600 border border-rose-200 bg-white hover:bg-rose-50 transition-colors cursor-pointer"
                     title="Xóa voucher"
                   >
-                    <Trash2 class="w-4 h-4" />
+                    <Trash2 class="w-3.5 h-3.5" />
                   </button>
-                </div>
-              </td>
-            </tr>
-
-            <!-- Empty State -->
-            <tr v-if="filteredVouchers.length === 0">
-              <td colspan="7" class="py-12 text-center text-[#7A866E]">
-                <div class="flex flex-col items-center justify-center space-y-2">
-                  <AlertCircle class="w-8 h-8 text-[#CCD7BC]" />
-                  <span class="text-sm font-semibold">Không tìm thấy voucher nào phù hợp.</span>
                 </div>
               </td>
             </tr>
@@ -493,8 +507,8 @@ async function handleCreateVoucher() {
       <div class="bg-white rounded-3xl w-full max-w-lg p-6 sm:p-7 shadow-2xl border border-[#E3E8DC] space-y-5 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between border-b border-[#F0F3EC] pb-4">
           <div class="flex items-center gap-2.5">
-            <div class="w-9 h-9 rounded-2xl bg-[#F0F4E8] text-[#536124] flex items-center justify-center">
-              <Ticket class="w-5 h-5" />
+            <div class="w-8 h-8 rounded-xl bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center">
+              <Ticket class="w-4 h-4" />
             </div>
             <div>
               <h3 class="font-heading text-lg font-black text-[#2D3B1E]">Tạo Mã Giảm Giá Mới</h3>
@@ -504,7 +518,7 @@ async function handleCreateVoucher() {
           <button
             type="button"
             @click="showCreateModal = false"
-            class="p-1 rounded-xl text-[#7A866E] hover:bg-[#FAF9F5] transition-colors"
+            class="p-1.5 rounded-xl text-[#7A866E] hover:bg-[#FAF9F5] transition-colors cursor-pointer"
           >
             ✕
           </button>
@@ -517,7 +531,7 @@ async function handleCreateVoucher() {
               type="text"
               v-model="newVoucher.code"
               placeholder="VD: HELLO_NUTRI, SUMMER20"
-              class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs sm:text-sm font-black uppercase text-[#2D3B1E] outline-none focus:border-[#536124]"
+              class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs sm:text-sm font-black uppercase text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
               required
             />
           </div>
@@ -528,7 +542,7 @@ async function handleCreateVoucher() {
               type="text"
               v-model="newVoucher.title"
               placeholder="VD: Giảm 20.000đ cho đơn thực phẩm Eat-Clean"
-              class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs sm:text-sm text-[#2D3B1E] outline-none focus:border-[#536124]"
+              class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs sm:text-sm text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
               required
             />
           </div>
@@ -539,7 +553,7 @@ async function handleCreateVoucher() {
               <label class="block text-xs font-bold text-[#576449] mb-1">Hình thức giảm</label>
               <select
                 v-model="newVoucher.discountType"
-                class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs sm:text-sm font-semibold text-[#2D3B1E] outline-none focus:border-[#536124]"
+                class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-semibold text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
               >
                 <option value="fixed">Số tiền cố định (VNĐ)</option>
                 <option value="percent">Theo phần trăm (%)</option>
@@ -555,7 +569,7 @@ async function handleCreateVoucher() {
                 v-model.number="newVoucher.discountValue"
                 :min="1"
                 :max="newVoucher.discountType === 'percent' ? 100 : undefined"
-                class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs sm:text-sm font-bold text-[#2D3B1E] outline-none focus:border-[#536124]"
+                class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-bold text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
                 required
               />
             </div>
@@ -568,7 +582,7 @@ async function handleCreateVoucher() {
               type="number"
               v-model.number="newVoucher.maxDiscountAmount"
               placeholder="VD: 40000 (Để trống nếu không giới hạn)"
-              class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs sm:text-sm text-[#2D3B1E] outline-none focus:border-[#536124]"
+              class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
             />
           </div>
 
@@ -580,7 +594,7 @@ async function handleCreateVoucher() {
                 type="number"
                 v-model.number="newVoucher.minOrderAmount"
                 step="10000"
-                class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs sm:text-sm font-bold text-[#2D3B1E] outline-none focus:border-[#536124]"
+                class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-bold text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
               />
             </div>
 
@@ -588,7 +602,7 @@ async function handleCreateVoucher() {
               <label class="block text-xs font-bold text-[#576449] mb-1">Đối tượng áp dụng</label>
               <select
                 v-model="newVoucher.targetType"
-                class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs sm:text-sm font-semibold text-[#2D3B1E] outline-none focus:border-[#536124]"
+                class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-semibold text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
               >
                 <option value="all">Mọi khách hàng</option>
                 <option value="first_order">Khách hàng mới (Đơn đầu)</option>
@@ -604,7 +618,7 @@ async function handleCreateVoucher() {
                 type="number"
                 v-model.number="newVoucher.usageLimit"
                 :min="1"
-                class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs sm:text-sm font-bold text-[#2D3B1E] outline-none focus:border-[#536124]"
+                class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-bold text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
                 required
               />
             </div>
@@ -614,7 +628,7 @@ async function handleCreateVoucher() {
               <input
                 type="date"
                 v-model="newVoucher.endDate"
-                class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs sm:text-sm font-semibold text-[#2D3B1E] outline-none focus:border-[#536124]"
+                class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-semibold text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
                 required
               />
             </div>
@@ -625,14 +639,14 @@ async function handleCreateVoucher() {
             <button
               type="button"
               @click="showCreateModal = false"
-              class="px-5 py-2.5 rounded-2xl border border-[#E3E8DC] text-xs font-bold text-[#576449] hover:bg-[#FAF9F5] transition-colors cursor-pointer"
+              class="px-4 py-2 rounded-xl border border-[#CCD7BC] text-xs font-bold text-[#576449] hover:bg-[#FAF9F5] transition-colors cursor-pointer"
             >
               Hủy
             </button>
             <button
               type="submit"
               :disabled="isSubmitting"
-              class="px-6 py-2.5 rounded-2xl bg-[#536124] hover:bg-[#434F1D] disabled:bg-slate-300 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+              class="px-5 py-2 rounded-xl bg-[#4D6A34] hover:bg-[#3D5529] disabled:bg-slate-300 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
             >
               {{ isSubmitting ? 'Đang lưu...' : 'Lưu Voucher' }}
             </button>

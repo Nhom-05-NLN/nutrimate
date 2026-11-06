@@ -195,8 +195,8 @@ export async function getAdminDashboard(weekStart: string): Promise<AdminDashboa
                LIMIT 1) AS main_product,
               orders.total_amount::text, orders.payment_method, orders.status
        FROM orders
-       WHERE orders.status = 'pending'
-       ORDER BY orders.created_at ASC`,
+       ORDER BY orders.created_at DESC, orders.id DESC
+       LIMIT 3`,
     ),
     pool.query<LowStockRow>(
       `SELECT ${productIdColumn} AS id, code, name, stock_quantity
