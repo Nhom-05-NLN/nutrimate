@@ -9,7 +9,6 @@ import {
   Copy,
   CheckCircle2,
   Clock,
-  Smartphone,
   RefreshCw,
 } from 'lucide-vue-next';
 
@@ -120,40 +119,11 @@ const momoDynamicQrUrl = computed(() => {
   return `https://api.qrserver.com/v1/create-qr-code/?size=360x360&margin=8&data=${encodeURIComponent(payload)}`;
 });
 
-// Deeplink mở ứng dụng MoMo trực tiếp trên điện thoại
-const momoDeeplink = computed(() => {
-  if (!props.order) return '#';
-  const amount = Math.round(props.order.totalAmount);
-  const memo = props.order.orderCode;
-
-  const dataExtract = JSON.stringify({
-    userId: momoMerchant.rawPhone,
-    name: momoMerchant.accountName,
-    amount: amount,
-    message: memo,
-    receiverType: '1',
-    transferSource: 'link',
-  });
-
-  try {
-    const b64 = btoa(unescape(encodeURIComponent(dataExtract)));
-    return `momo://app?action=p2p&extra=${encodeURIComponent(JSON.stringify({ dataExtract: b64 }))}`;
-  } catch {
-    return `momo://?action=transfer&receiver=${momoMerchant.rawPhone}&amount=${amount}&comment=${encodeURIComponent(memo)}`;
-  }
-});
-
 function copyText(text: string, label: string) {
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text);
   }
   toastStore.show(`Đã sao chép ${label}`, 'success', text);
-}
-
-function openMomoApp() {
-  if (props.order) {
-    window.location.href = momoDeeplink.value;
-  }
 }
 
 async function handleConfirmPayment() {
@@ -393,16 +363,6 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
-
-          <!-- Nút Mở App MoMo trên Mobile -->
-          <button
-            type="button"
-            @click="openMomoApp"
-            class="w-full py-2 px-3 rounded-xl bg-pink-50 hover:bg-pink-100 text-[#D82D8B] font-bold text-xs flex items-center justify-center gap-1.5 border border-pink-200 transition-colors cursor-pointer min-h-[36px]"
-          >
-            <Smartphone class="w-3.5 h-3.5" />
-            <span>Mở App MoMo thanh toán</span>
-          </button>
 
           <!-- Action Buttons -->
           <div class="space-y-2 pt-1">
