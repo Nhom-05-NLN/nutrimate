@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { fetchOrders, patchOrderStatus } from '../../services/api';
+import { fetchOrders, patchOrderStatus, patchOrderPaymentStatus } from '../../services/api';
 import { useToastStore } from '../../stores/toastStore';
 import { Order, OrderStatus } from '../../types';
 import AdminOrderTable from '../../components/admin/orders/AdminOrderTable.vue';
@@ -91,13 +91,23 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
     // Cập nhật state local
     const idx = orders.value.findIndex((o) => o.id === payload.orderId || o.orderCode === payload.orderId);
     if (idx !== -1) {
-      orders.value[idx].status = payload.status;
+      if (updated) {
+        orders.value[idx] = { ...orders.value[idx], ...updated };
+      } else {
+        orders.value[idx].status = payload.status;
+      }
+
+      // Khi giao hàng thành công, tự động hiểu và cập nhật đã thanh toán (Đã thu)
+      if (payload.status === 'delivered') {
+        orders.value[idx].paymentStatus = 'paid';
+        patchOrderPaymentStatus(payload.orderId, 'paid').catch(() => {});
+      }
     }
 
     toastStore.show(
       'Cập nhật thành công!',
       'success',
-      `Đơn #${updated.orderCode} chuyển sang ${payload.status}`
+      `Đơn #${updated?.orderCode || payload.orderId} chuyển sang ${payload.status}`
     );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Lỗi khi cập nhật trạng thái';
@@ -115,7 +125,7 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
           Quản lý đơn hàng & Vận chuyển (Admin Portal)
         </h1>
         <p class="text-xs text-[#7A866E] mt-1">
-          Giám sát đơn đặt hàng, điều phối đóng thùng mát 4°C và giao siêu tốc 2H.
+          Giám sát đơn đặt hàng, điều phối đóng gói và giao siêu tốc 2H.
         </p>
       </div>
 
@@ -158,7 +168,7 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
         </div>
         <span class="text-[11px] text-rose-600 font-bold flex items-center gap-1">
           <AlertTriangle class="w-3.5 h-3.5" />
-          <span>{{ urgentExpressCount }} đơn giữ lạnh 2H cần giao gấp</span>
+          <span>{{ urgentExpressCount }} đơn giao siêu tốc 2H cần xử lý gấp</span>
         </span>
       </div>
 
@@ -227,7 +237,7 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
             class="px-3.5 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer"
             :class="activeTab === 'packing' ? 'bg-[#4D6A34] text-white shadow-2xs' : 'text-[#7A866E] hover:text-[#2D3B1E]'"
           >
-            Đang đóng gói 4°C ({{ orders.filter(o => o.status === 'packing').length }})
+            Đang đóng gói ({{ orders.filter(o => o.status === 'packing').length }})
           </button>
           <button
             type="button"

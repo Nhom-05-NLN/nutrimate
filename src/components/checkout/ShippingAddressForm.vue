@@ -1,9 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { CustomerInfo } from '../../types';
-import { useAuthStore } from '../../stores/authStore';
-import { useToastStore } from '../../stores/toastStore';
-import { User, Phone, Mail, MapPin, FileText, Sparkles } from 'lucide-vue-next';
+import { User, Phone, Mail, MapPin, FileText } from 'lucide-vue-next';
 
 const props = defineProps<{
   modelValue: CustomerInfo;
@@ -13,31 +10,11 @@ const emit = defineEmits<{
   (e: 'update:modelValue', val: CustomerInfo): void;
 }>();
 
-const authStore = useAuthStore();
-const toastStore = useToastStore();
-
 function updateField<K extends keyof CustomerInfo>(field: K, val: CustomerInfo[K]) {
   emit('update:modelValue', {
     ...props.modelValue,
     [field]: val,
   });
-}
-
-const hasLoggedInUser = computed(() => !!authStore.currentUser);
-
-function autofillFromAccount() {
-  if (authStore.currentUser) {
-    emit('update:modelValue', {
-      name: authStore.currentUser.name || props.modelValue.name,
-      phone: authStore.currentUser.phone || props.modelValue.phone,
-      email: authStore.currentUser.email || props.modelValue.email,
-      address: authStore.currentUser.city
-        ? `Số 123 Đường Nguyễn Huệ, Quận 1, ${authStore.currentUser.city}`
-        : props.modelValue.address,
-      note: props.modelValue.note || 'Giao giờ hành chính giúp mình',
-    });
-    toastStore.show('Đã nạp thông tin từ tài khoản cá nhân', 'success');
-  }
 }
 </script>
 
@@ -49,16 +26,6 @@ function autofillFromAccount() {
         <span class="w-7 h-7 rounded-full bg-[#EBF7E5] text-[#4D6A34] flex items-center justify-center text-xs font-black">1</span>
         <span>Thông tin người nhận & Địa chỉ giao hàng</span>
       </div>
-
-      <button
-        v-if="hasLoggedInUser"
-        type="button"
-        @click="autofillFromAccount"
-        class="text-xs font-bold text-[#4D6A34] hover:text-[#3B4E24] hover:underline flex items-center gap-1 cursor-pointer transition-colors"
-      >
-        <Sparkles class="w-3.5 h-3.5" />
-        <span>Dùng thông tin tài khoản</span>
-      </button>
     </div>
 
     <!-- Inputs Form -->
