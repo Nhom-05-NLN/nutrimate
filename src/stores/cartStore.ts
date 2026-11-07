@@ -178,25 +178,24 @@ export const useCartStore = defineStore('cart', () => {
     variantId?: string,
   ) {
     const silent = typeof silentOrVariantId === 'boolean' ? silentOrVariantId : false;
-    const selectedVariantId = typeof silentOrVariantId === 'string' ? silentOrVariantId : variantId;
+    const finalVariantId = typeof silentOrVariantId === 'string' ? silentOrVariantId : variantId;
     const normalizedPortion = portion || 'Mặc định';
     const key = getCartItemKey(product.id, normalizedPortion);
 
     const existing = items.value.find(
-      (i) =>
-        getCartItemKey(i.product.id, i.selectedPortion) === key &&
-        i.variantId === selectedVariantId
+      (i) => getCartItemKey(i.product.id, i.selectedPortion) === key && (!finalVariantId || i.variantId === finalVariantId)
     );
 
     if (existing) {
       existing.quantity += quantity;
       if (product.isAiRecommended) existing.product.isAiRecommended = true;
+      if (finalVariantId && !existing.variantId) existing.variantId = finalVariantId;
     } else {
       items.value.push({
         product,
         quantity,
         selectedPortion: normalizedPortion,
-        variantId: selectedVariantId,
+        variantId: finalVariantId,
       });
     }
 

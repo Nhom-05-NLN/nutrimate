@@ -253,11 +253,12 @@ export const useAdminStore = defineStore('admin', () => {
 
   function updateProduct(product: AdminProductItem) {
     const idx = products.value.findIndex((p: AdminProductItem) => p.id === product.id);
-    if (idx !== -1) {
+    const existing = products.value[idx];
+    if (idx !== -1 && existing) {
       products.value[idx] = {
-        ...products.value[idx],
+        ...existing,
         ...product,
-        stock: product.stock ?? products.value[idx]?.stock ?? 0,
+        stock: product.stock ?? existing?.stock ?? 0,
       };
     }
   }

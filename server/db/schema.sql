@@ -112,58 +112,33 @@ COMMENT ON TABLE health_profiles IS 'Lưu hồ sơ sức khỏe, chỉ số cơ 
 -- ================================================================
 CREATE TABLE IF NOT EXISTS categories (
     category_id SERIAL PRIMARY KEY,
-    id INT,
     name VARCHAR(100) NOT NULL,
-    status BOOLEAN NOT NULL DEFAULT TRUE,
-    slug VARCHAR(100),
     description TEXT,
-    diet_type VARCHAR(50) DEFAULT 'all',
-    icon VARCHAR(50),
-    sort_order INT DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    status BOOLEAN NOT NULL DEFAULT TRUE
 );
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS status BOOLEAN NOT NULL DEFAULT TRUE;
 COMMENT ON TABLE categories IS 'Lưu danh mục sản phẩm và loại chế độ ăn tương ứng.';
 
 CREATE TABLE IF NOT EXISTS products (
     product_id SERIAL PRIMARY KEY,
-    id INT,
     category_id INT REFERENCES categories(category_id) ON DELETE SET NULL,
-    code VARCHAR(50),
+    code VARCHAR(50) UNIQUE NOT NULL,
     name VARCHAR(200) NOT NULL,
-    slug VARCHAR(220),
-    category VARCHAR(50) DEFAULT 'low-carb',
-    category_name VARCHAR(100) DEFAULT 'Low-Carb',
-    base_price NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (base_price >= 0),
-    price NUMERIC(12, 2) DEFAULT 0,
-    original_price NUMERIC(12, 2),
-    image_url TEXT,
+    price NUMERIC(12, 2) NOT NULL,
+    stock_quantity INT DEFAULT 0,
+    ingredients TEXT NOT NULL DEFAULT '',
     description TEXT,
-    ingredients TEXT,
     usage_instruction TEXT,
-    stock_quantity INT DEFAULT 50 CHECK (stock_quantity >= 0),
-    rating NUMERIC(3, 2) DEFAULT 5.0,
-    review_count INT DEFAULT 0,
-    badges TEXT[] DEFAULT ARRAY['Mới'],
-    is_featured BOOLEAN DEFAULT FALSE,
-    status BOOLEAN DEFAULT TRUE,
-    best_for TEXT,
-    serving_size VARCHAR(50) DEFAULT '1 khẩu phần',
-    calories NUMERIC(6, 1) DEFAULT 0,
-    protein NUMERIC(6, 1) DEFAULT 0,
-    carbs NUMERIC(6, 1) DEFAULT 0,
-    fat NUMERIC(6, 1) DEFAULT 0,
-    sugar NUMERIC(6, 1) DEFAULT 0,
-    fiber NUMERIC(6, 1) DEFAULT 0,
-    sodium NUMERIC(6, 1) DEFAULT 0,
+    image_url TEXT,
+    status BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS nutrition_facts (
     nutrition_fact_id SERIAL PRIMARY KEY,
-    id INT,
-    product_id INT UNIQUE NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
-    serving_size VARCHAR(50) DEFAULT '1 khẩu phần',
+    product_id INT NOT NULL UNIQUE REFERENCES products(product_id) ON DELETE CASCADE,
+    serving_size VARCHAR(100) NOT NULL DEFAULT '1 khẩu phần',
     calories DOUBLE PRECISION NOT NULL DEFAULT 0,
     protein DOUBLE PRECISION NOT NULL DEFAULT 0,
     carbs DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -177,10 +152,9 @@ CREATE TABLE IF NOT EXISTS nutrition_facts (
 
 CREATE TABLE IF NOT EXISTS product_variants (
     variant_id SERIAL PRIMARY KEY,
-    id INT,
     product_id INT NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
-    variant_name VARCHAR(100) NOT NULL,
-    weight NUMERIC(8, 2) DEFAULT 0,
+    variant_name VARCHAR(200) NOT NULL,
+    weight NUMERIC(12, 2) DEFAULT 0,
     price NUMERIC(12, 2) NOT NULL CHECK (price >= 0),
     status BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -189,7 +163,6 @@ CREATE TABLE IF NOT EXISTS product_variants (
 
 CREATE TABLE IF NOT EXISTS inventory (
     inventory_id SERIAL PRIMARY KEY,
-    id INT,
     product_id INT REFERENCES products(product_id) ON DELETE CASCADE,
     variant_id INT REFERENCES product_variants(variant_id) ON DELETE CASCADE,
     quantity INT NOT NULL DEFAULT 0 CHECK (quantity >= 0),
@@ -198,7 +171,6 @@ CREATE TABLE IF NOT EXISTS inventory (
 
 CREATE TABLE IF NOT EXISTS product_reviews (
     review_id SERIAL PRIMARY KEY,
-    id INT,
     product_id INT NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
     user_id INT REFERENCES users(id) ON DELETE SET NULL,
     customer_id INT REFERENCES users(id) ON DELETE SET NULL,
@@ -339,6 +311,7 @@ CREATE TABLE IF NOT EXISTS chatbot_knowledge (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 COMMENT ON TABLE chatbot_knowledge IS 'Cơ sở tri thức trả lời tự động cho NutriBot.';
+
 -- 6. Nhật ký dinh dưỡng chuẩn hóa trong nutrition_diary và diary_entries.
 CREATE TABLE IF NOT EXISTS nutrition_diary (
     diary_id SERIAL PRIMARY KEY,
@@ -388,6 +361,7 @@ CREATE TABLE IF NOT EXISTS knowledge_base (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 COMMENT ON TABLE knowledge_base IS 'Lưu câu hỏi, câu trả lời và chủ đề kiến thức dinh dưỡng cho chatbot.';
+
 -- 9. Dự đoán dinh dưỡng từ ảnh (NutritionImage)
 CREATE TABLE IF NOT EXISTS nutrition_images (
     image_id SERIAL PRIMARY KEY,
@@ -411,187 +385,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_nutrition_images_customer_content_sha256
     WHERE content_sha256 IS NOT NULL;
 
 -- ================================================================
--- 5. NÂNG CẤP & ĐỒNG BỘ CỘT CHO BẢNG ĐÃ TỒN TẠI (IDEMPOTENT MIGRATION)
+-- 5. CHỈ MỤC TỐI ƯU HÓA HIỆU NĂNG TRUY VẤN (INDEXES)
 -- ================================================================
 
-ALTER TABLE users 
-    ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'customer' CHECK (role IN ('customer', 'admin'));
-
-ALTER TABLE categories 
-    ADD COLUMN IF NOT EXISTS status BOOLEAN NOT NULL DEFAULT TRUE,
-    ADD COLUMN IF NOT EXISTS id INT,
-    ADD COLUMN IF NOT EXISTS slug VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS diet_type VARCHAR(50) DEFAULT 'all',
-    ADD COLUMN IF NOT EXISTS icon VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0;
-
-DO $$
-DECLARE
-    has_status BOOLEAN;
-    has_legacy_is_active BOOLEAN;
-BEGIN
-    SELECT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = current_schema() AND table_name = 'products' AND column_name = 'status'
-    ) INTO has_status;
-    SELECT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = current_schema() AND table_name = 'products' AND column_name = 'is_active'
-    ) INTO has_legacy_is_active;
-
-    IF NOT has_status THEN
-        ALTER TABLE products ADD COLUMN status BOOLEAN DEFAULT TRUE;
-        IF has_legacy_is_active THEN
-            UPDATE products SET status = is_active;
-        END IF;
-    END IF;
-END $$;
-
-ALTER TABLE products 
-    ADD COLUMN IF NOT EXISTS id INT,
-    ADD COLUMN IF NOT EXISTS category_id INT REFERENCES categories(category_id) ON DELETE SET NULL,
-    ADD COLUMN IF NOT EXISTS code VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS slug VARCHAR(220),
-    ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'low-carb',
-    ADD COLUMN IF NOT EXISTS category_name VARCHAR(100) DEFAULT 'Low-Carb',
-    ADD COLUMN IF NOT EXISTS price NUMERIC(12, 2) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS original_price NUMERIC(12, 2),
-    ADD COLUMN IF NOT EXISTS stock_quantity INT DEFAULT 50,
-    ADD COLUMN IF NOT EXISTS serving_size VARCHAR(50) DEFAULT '1 khẩu phần',
-    ADD COLUMN IF NOT EXISTS calories NUMERIC(6, 1) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS protein NUMERIC(6, 1) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS carbs NUMERIC(6, 1) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS fat NUMERIC(6, 1) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS sugar NUMERIC(6, 1) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS fiber NUMERIC(6, 1) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS sodium NUMERIC(6, 1) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS rating NUMERIC(3, 2) DEFAULT 5.0,
-    ADD COLUMN IF NOT EXISTS review_count INT DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS badges TEXT[] DEFAULT ARRAY['Mới'],
-    ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE,
-    ADD COLUMN IF NOT EXISTS best_for TEXT;
-
-ALTER TABLE nutrition_facts
-    ADD COLUMN IF NOT EXISTS fiber DOUBLE PRECISION DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS sodium DOUBLE PRECISION DEFAULT 0;
-
-ALTER TABLE nutrition_facts 
-    ALTER COLUMN serving_size TYPE VARCHAR(100) USING serving_size::text;
-
-ALTER TABLE inventory
-    ADD COLUMN IF NOT EXISTS variant_id INT REFERENCES product_variants(variant_id) ON DELETE CASCADE,
-    ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
-
-ALTER TABLE carts 
-    ADD COLUMN IF NOT EXISTS id INT,
-    ADD COLUMN IF NOT EXISTS user_id INT REFERENCES users(id) ON DELETE CASCADE,
-    ADD COLUMN IF NOT EXISTS session_id VARCHAR(100),
-    ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP,
-    ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
-
-ALTER TABLE orders
-    ALTER COLUMN order_date SET DEFAULT CURRENT_TIMESTAMP;
-
-ALTER TABLE cart_items 
-    ADD COLUMN IF NOT EXISTS id INT,
-    ADD COLUMN IF NOT EXISTS variant_id INT REFERENCES product_variants(variant_id) ON DELETE SET NULL,
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
-
-ALTER TABLE orders 
-    ADD COLUMN IF NOT EXISTS id INT,
-    ADD COLUMN IF NOT EXISTS order_code VARCHAR(30),
-    ADD COLUMN IF NOT EXISTS user_id INT REFERENCES users(id) ON DELETE SET NULL,
-    ADD COLUMN IF NOT EXISTS customer_name VARCHAR(150),
-    ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(20),
-    ADD COLUMN IF NOT EXISTS customer_email VARCHAR(255),
-    ADD COLUMN IF NOT EXISTS receiver_name VARCHAR(150),
-    ADD COLUMN IF NOT EXISTS receiver_phone VARCHAR(20),
-    ADD COLUMN IF NOT EXISTS receiver_email VARCHAR(255),
-    ADD COLUMN IF NOT EXISTS shipping_address TEXT,
-    ADD COLUMN IF NOT EXISTS address_id INT REFERENCES addresses(address_id) ON DELETE SET NULL,
-    ADD COLUMN IF NOT EXISTS shipping_method VARCHAR(30) DEFAULT 'standard',
-    ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(10, 2) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10, 2) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS voucher_code VARCHAR(50),
-    ADD COLUMN IF NOT EXISTS total_calories NUMERIC(8, 1) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS total_protein NUMERIC(8, 1) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS payment_method VARCHAR(30) DEFAULT 'vietqr',
-    ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT 'pending',
-    ADD COLUMN IF NOT EXISTS driver_name VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS driver_phone VARCHAR(20),
-    ADD COLUMN IF NOT EXISTS driver_license_plate VARCHAR(20),
-    ADD COLUMN IF NOT EXISTS storage_temperature VARCHAR(50) DEFAULT '4°C (Thùng giữ mát)',
-    ADD COLUMN IF NOT EXISTS notes TEXT,
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
-
-ALTER TABLE order_items 
-    ADD COLUMN IF NOT EXISTS id INT,
-    ADD COLUMN IF NOT EXISTS product_name VARCHAR(200),
-    ADD COLUMN IF NOT EXISTS product_image TEXT,
-    ADD COLUMN IF NOT EXISTS calories NUMERIC(6, 1) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS protein NUMERIC(6, 1) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS variant_id INT REFERENCES product_variants(variant_id) ON DELETE SET NULL,
-    ADD COLUMN IF NOT EXISTS variant_name VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
-
-ALTER TABLE addresses 
-    ADD COLUMN IF NOT EXISTS id INT,
-    ADD COLUMN IF NOT EXISTS user_id INT REFERENCES users(id) ON DELETE CASCADE,
-    ADD COLUMN IF NOT EXISTS is_default BOOLEAN DEFAULT FALSE,
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
-
-ALTER TABLE health_profiles 
-    ADD COLUMN IF NOT EXISTS id INT,
-    ADD COLUMN IF NOT EXISTS user_id INT REFERENCES users(id) ON DELETE CASCADE,
-    ADD COLUMN IF NOT EXISTS height NUMERIC(5, 1) DEFAULT 170.0,
-    ADD COLUMN IF NOT EXISTS weight NUMERIC(5, 1) DEFAULT 65.0,
-    ADD COLUMN IF NOT EXISTS activity_level VARCHAR(30) DEFAULT 'moderate',
-    ADD COLUMN IF NOT EXISTS calories_target NUMERIC(6, 1) DEFAULT 1800,
-    ADD COLUMN IF NOT EXISTS protein_target NUMERIC(6, 1) DEFAULT 110,
-    ADD COLUMN IF NOT EXISTS carb_target NUMERIC(6, 1) DEFAULT 120,
-    ADD COLUMN IF NOT EXISTS fat_target NUMERIC(6, 1) DEFAULT 50;
-
-ALTER TABLE payments 
-    ADD COLUMN IF NOT EXISTS id INT,
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'uq_payments_order_id'
-    ) THEN
-        ALTER TABLE payments ADD CONSTRAINT uq_payments_order_id UNIQUE (order_id);
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'uq_orders_order_code'
-    ) THEN
-        ALTER TABLE orders ADD CONSTRAINT uq_orders_order_code UNIQUE (order_code);
-    END IF;
-END $$;
-
--- Đồng bộ hai chiều ID giữa Class Diagram và Backend API
-UPDATE categories SET id = category_id WHERE id IS NULL;
-UPDATE products SET id = product_id WHERE id IS NULL;
-UPDATE orders SET id = order_id WHERE id IS NULL;
-UPDATE order_items SET id = order_item_id WHERE id IS NULL;
-UPDATE carts SET id = cart_id WHERE id IS NULL;
-UPDATE cart_items SET id = cartitem_id WHERE id IS NULL;
-UPDATE payments SET id = payment_id WHERE id IS NULL;
-UPDATE addresses SET id = address_id WHERE id IS NULL;
-UPDATE health_profiles SET id = health_profile_id WHERE id IS NULL;
-
--- ================================================================
--- 6. CHỈ MỤC TỐI ƯU HÓA HIỆU NĂNG TRUY VẤN (INDEXES)
--- ================================================================
-
-CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
-CREATE INDEX IF NOT EXISTS idx_products_calories ON products(calories);
-CREATE INDEX IF NOT EXISTS idx_products_protein ON products(protein);
-CREATE INDEX IF NOT EXISTS idx_products_price ON products(base_price);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_calories ON nutrition_facts(calories);
+CREATE INDEX IF NOT EXISTS idx_products_protein ON nutrition_facts(protein);
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
 
 CREATE INDEX IF NOT EXISTS idx_carts_customer_id ON carts(customer_id);
 CREATE INDEX IF NOT EXISTS idx_cart_items_cart_id ON cart_items(cart_id);
@@ -608,7 +408,7 @@ CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);
 CREATE INDEX IF NOT EXISTS idx_nutrition_diary_customer_date_lookup ON nutrition_diary(customer_id, date);
 
 -- ================================================================
--- 7. TRIGGER TỰ ĐỘNG ĐỒNG BỘ DỮ LIỆU & RÀNG BUỘC (DATA INTEGRITY)
+-- 6. TRIGGER TỰ ĐỒNG BỘ DỮ LIỆU & RÀNG BUỘC (DATA INTEGRITY)
 -- ================================================================
 
 CREATE OR REPLACE FUNCTION fn_sync_order_customer_fields()
