@@ -76,6 +76,8 @@ export interface Category {
 }
 
 export interface AdminProductItem {
+  categoryId?: string;
+  usageInstruction?: string;
   id: string;
   sku: string;
   name: string;

@@ -35,7 +35,6 @@ import {
 
   FolderTree,
 
-  Boxes,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -349,7 +348,6 @@ const coreNavItems = [
   { path: '/admin', label: 'Tổng quan', icon: LayoutDashboard },
   { path: '/admin/products', label: 'Sản phẩm', icon: Package },
   { path: '/admin/categories', label: 'Danh mục', icon: FolderTree },
-  { path: '/admin/inventory', label: 'Tồn kho', icon: Boxes, badge: '4 cảnh báo' },
   { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
   { path: '/admin/customers', label: 'Khách hàng', icon: Users },
   { path: '/admin/vouchers', label: 'Mã giảm giá', icon: Ticket, badge: 'Ưu đãi' },
