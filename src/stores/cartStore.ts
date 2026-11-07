@@ -16,6 +16,16 @@ function getSelectedStorageKey(userId?: string | null): string {
   return userId ? `nutrimate_cart_selected_v2_${userId}` : 'nutrimate_cart_selected_v2_guest';
 }
 
+// Dọn dẹp key lưu trữ cũ từng chứa sản phẩm mẫu
+if (typeof window !== 'undefined') {
+  try {
+    localStorage.removeItem('nutrimate_cart_items_v1');
+    localStorage.removeItem('nutrimate_cart_selected_v1');
+  } catch {
+    // Ignored in restricted environments
+  }
+}
+
 function loadFromStorage<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
   try {

@@ -200,6 +200,8 @@ export interface Order {
   notes?: string;
   driver?: DriverInfo;
   trackingSteps?: TrackingStep[];
+  userId?: number | string | null;
+  customerId?: number | string | null;
 }
 
 export interface AdminDashboardData {

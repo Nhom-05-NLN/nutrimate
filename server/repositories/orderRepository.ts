@@ -143,6 +143,8 @@ interface OrderRow {
   discount_amount?: string | null;
   voucher_code?: string | null;
   notes: string | null;
+  user_id?: number | string | null;
+  customer_id?: number | string | null;
 }
 
 interface OrderItemRow {
@@ -182,7 +184,7 @@ export async function getOrdersByUser(userId: number | null): Promise<Order[]> {
           SELECT id, order_code, created_at, customer_name, customer_phone,
                  customer_email, shipping_address, shipping_method, payment_method, payment_status,
                  status, total_amount, total_calories, total_protein, shipping_fee,
-                 discount_amount, voucher_code, notes
+                 discount_amount, voucher_code, notes, user_id, customer_id
           FROM orders
           ORDER BY created_at DESC, id DESC
         `
@@ -190,9 +192,18 @@ export async function getOrdersByUser(userId: number | null): Promise<Order[]> {
           SELECT id, order_code, created_at, customer_name, customer_phone,
                  customer_email, shipping_address, shipping_method, payment_method, payment_status,
                  status, total_amount, total_calories, total_protein, shipping_fee,
-                 discount_amount, voucher_code, notes
+                 discount_amount, voucher_code, notes, user_id, customer_id
           FROM orders
-          WHERE user_id = $1 OR customer_id = $1
+          WHERE user_id = $1
+             OR customer_id = $1
+             OR (
+               customer_phone IS NOT NULL
+               AND REGEXP_REPLACE(customer_phone, '[^0-9]', '', 'g') = (SELECT REGEXP_REPLACE(phone, '[^0-9]', '', 'g') FROM users WHERE id = $1)
+             )
+             OR (
+               customer_email IS NOT NULL
+               AND LOWER(BTRIM(customer_email)) = (SELECT LOWER(BTRIM(email)) FROM users WHERE id = $1)
+             )
           ORDER BY created_at DESC, id DESC
         `;
       const params = isAdmin ? [] : [userId];
@@ -256,6 +267,8 @@ export async function getOrdersByUser(userId: number | null): Promise<Order[]> {
             : (row.payment_status as Order['paymentStatus']),
         status: row.status as OrderStatus,
         notes: row.notes || undefined,
+        userId: row.user_id ? String(row.user_id) : undefined,
+        customerId: row.customer_id ? String(row.customer_id) : undefined,
       }));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Orders query error';
@@ -274,7 +287,7 @@ export async function getAllOrders(): Promise<Order[]> {
         SELECT id, order_code, created_at, customer_name, customer_phone,
                customer_email, shipping_address, shipping_method, payment_method, payment_status,
                status, total_amount, total_calories, total_protein, shipping_fee,
-               discount_amount, voucher_code, notes
+               discount_amount, voucher_code, notes, user_id, customer_id
         FROM orders
         ORDER BY created_at DESC, id DESC
       `;
@@ -339,6 +352,8 @@ export async function getAllOrders(): Promise<Order[]> {
             : (row.payment_status as Order['paymentStatus']),
         status: row.status as OrderStatus,
         notes: row.notes || undefined,
+        userId: row.user_id ? String(row.user_id) : undefined,
+        customerId: row.customer_id ? String(row.customer_id) : undefined,
       }));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Orders query error';

@@ -59,7 +59,39 @@ async function loadUserOrders() {
   isLoading.value = true;
   try {
     const data = await fetchOrders(authStore.accessToken);
-    orders.value = data || [];
+    // Nếu chưa đăng nhập, không hiển thị đơn của người khác
+    if (!authStore.currentUser) {
+      orders.value = [];
+      return;
+    }
+
+    const currentUserId = String(authStore.currentUser.id);
+    const currentUserPhone = authStore.currentUser.phone ? authStore.currentUser.phone.replace(/[^0-9]/g, '') : '';
+    const currentUserEmail = authStore.currentUser.email ? authStore.currentUser.email.trim().toLowerCase() : '';
+
+    // Lọc chặt chẽ đơn hàng thuộc đúng tài khoản đang đăng nhập
+    const userOrders = (data || []).filter((o) => {
+      if (o.userId !== undefined && o.userId !== null && String(o.userId) === currentUserId) {
+        return true;
+      }
+      if (o.customerId !== undefined && o.customerId !== null && String(o.customerId) === currentUserId) {
+        return true;
+      }
+      if (currentUserPhone.length >= 9 && o.customer?.phone) {
+        const orderPhone = o.customer.phone.replace(/[^0-9]/g, '');
+        if (orderPhone === currentUserPhone) {
+          return true;
+        }
+      }
+      if (currentUserEmail.length > 0 && o.customer?.email) {
+        if (o.customer.email.trim().toLowerCase() === currentUserEmail) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    orders.value = userOrders;
   } catch {
     orders.value = [];
   } finally {
@@ -69,10 +101,11 @@ async function loadUserOrders() {
 }
 
 watch(
-  () => authStore.currentUser?.id,
+  () => authStore.currentUser,
   () => {
     void loadUserOrders();
-  }
+  },
+  { deep: true }
 );
 
 watch(
