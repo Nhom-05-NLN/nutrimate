@@ -149,9 +149,14 @@ export const useAuthStore = defineStore('auth', () => {
         typeof payload === 'object' &&
         payload !== null &&
         'exp' in payload &&
-        typeof payload.exp === 'number'
+        typeof payload.exp === 'number' &&
+        'iat' in payload &&
+        typeof payload.iat === 'number' &&
+        'role' in payload &&
+        (payload.role === 'admin' || payload.role === 'customer')
       ) {
-        return payload.exp * 1000;
+        const maxSessionSeconds = payload.role === 'admin' ? 60 * 60 : 12 * 60 * 60;
+        return Math.min(payload.exp, payload.iat + maxSessionSeconds) * 1000;
       }
     } catch (error: unknown) {
       console.error('[AuthStore] Không thể đọc thời hạn phiên đăng nhập:', error);
