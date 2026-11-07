@@ -97,7 +97,7 @@ async function handleConfirmPayment() {
     // Chuyển sang trang theo dõi đơn sau 1.8s
     setTimeout(() => {
       emit('close');
-      router.push('/orders');
+      router.push({ path: '/orders', query: { code: updated.orderCode } });
     }, 1800);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Lỗi khi xác thực thanh toán';

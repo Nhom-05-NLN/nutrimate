@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { fetchOrders, patchOrderStatus } from '../../services/api';
+import { fetchOrders, patchOrderStatus, patchOrderPaymentStatus } from '../../services/api';
+import { useAuthStore } from '../../stores/authStore';
 import { useToastStore } from '../../stores/toastStore';
 import { Order, OrderStatus } from '../../types';
 import AdminOrderTable from '../../components/admin/orders/AdminOrderTable.vue';
@@ -10,123 +11,25 @@ import {
   Truck,
   Bot,
   Search,
-  Filter,
   RefreshCw,
   AlertTriangle,
 } from 'lucide-vue-next';
 
+const authStore = useAuthStore();
 const toastStore = useToastStore();
 const orders = ref<Order[]>([]);
 const isLoading = ref<boolean>(true);
 const activeTab = ref<'all' | 'pending' | 'confirmed' | 'packing' | 'shipping' | 'delivered' | 'cancelled'>('all');
 const searchQuery = ref('');
 
-const INITIAL_MOCK_ORDERS: Order[] = [
-  {
-    id: 'ord-adm-1',
-    orderCode: 'NM-98234',
-    createdAt: new Date(Date.now() - 3600000 * 1.5).toISOString(),
-    customer: {
-      name: 'Nguyễn Minh Anh',
-      phone: '0912.345.678',
-      email: 'minhanh.fit@gmail.com',
-      address: 'Số 45 Đường D2, P. 25, Q. Bình Thạnh, TP.HCM',
-    },
-    items: [
-      { productId: 'prod-1', productName: 'Granola siêu hạt', productImage: '', price: 185000, quantity: 1, calories: 152, protein: 14, portion: 'Hũ 500g' },
-      { productId: 'prod-2', productName: 'Ức gà sấy thảo mộc', productImage: '', price: 110000, quantity: 2, calories: 145, protein: 32, portion: 'Gói 200g' },
-      { productId: 'prod-3', productName: 'Bơ đậu phộng mịn', productImage: '', price: 90000, quantity: 1, calories: 190, protein: 8, portion: 'Hũ 350g' },
-    ],
-    totalAmount: 495000,
-    totalCalories: 632,
-    totalProtein: 86,
-    shippingFee: 0,
-    shippingMethod: 'express_2h',
-    paymentMethod: 'vietqr',
-    paymentStatus: 'paid',
-    status: 'shipping',
-  },
-  {
-    id: 'ord-adm-2',
-    orderCode: 'NM-98235',
-    createdAt: new Date(Date.now() - 3600000 * 2.5).toISOString(),
-    customer: {
-      name: 'Trần Thanh Tâm',
-      phone: '0988.123.456',
-      email: 'thanhtam@gmail.com',
-      address: 'Chung cư Masteri Thảo Điền, TP. Thủ Đức',
-    },
-    items: [
-      { productId: 'prod-4', productName: 'Combo Eat Clean Giảm Mỡ 7 Ngày', productImage: '', price: 850000, quantity: 1, calories: 1200, protein: 120 },
-    ],
-    totalAmount: 850000,
-    totalCalories: 1200,
-    totalProtein: 120,
-    shippingFee: 25000,
-    shippingMethod: 'standard',
-    paymentMethod: 'cod',
-    paymentStatus: 'pending',
-    status: 'pending',
-  },
-  {
-    id: 'ord-adm-3',
-    orderCode: 'NM-98236',
-    createdAt: new Date(Date.now() - 3600000 * 3).toISOString(),
-    customer: {
-      name: 'Hoàng Quốc Bảo',
-      phone: '0903.456.789',
-      email: 'baohq@gmail.com',
-      address: '72 Lê Thánh Tôn, Bến Nghé, Quận 1, TP.HCM',
-    },
-    items: [
-      { productId: 'prod-5', productName: 'Bột đạm hạt bí hữu cơ', productImage: '', price: 165000, quantity: 2, calories: 310, protein: 40 },
-      { productId: 'prod-6', productName: 'Mì Konjac Shirataki', productImage: '', price: 35000, quantity: 5, calories: 50, protein: 0 },
-    ],
-    totalAmount: 505000,
-    totalCalories: 670,
-    totalProtein: 80,
-    shippingFee: 35000,
-    shippingMethod: 'express_2h',
-    paymentMethod: 'momo',
-    paymentStatus: 'paid',
-    status: 'pending',
-  },
-  {
-    id: 'ord-adm-4',
-    orderCode: 'NM-97412',
-    createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-    customer: {
-      name: 'Lê Thị Mai',
-      phone: '0977.890.123',
-      email: 'maile@gmail.com',
-      address: '12 Nguyễn Trãi, Phường 2, Quận 5, TP.HCM',
-    },
-    items: [
-      { productId: 'prod-7', productName: 'Bánh mì đen lúa mạch', productImage: '', price: 85000, quantity: 1, calories: 180, protein: 8 },
-      { productId: 'prod-8', productName: 'Hạt điều rang củi', productImage: '', price: 135000, quantity: 1, calories: 310, protein: 11 },
-    ],
-    totalAmount: 220000,
-    totalCalories: 490,
-    totalProtein: 19,
-    shippingFee: 0,
-    shippingMethod: 'standard',
-    paymentMethod: 'vietqr',
-    paymentStatus: 'paid',
-    status: 'delivered',
-  },
-];
-
 async function loadOrders() {
   isLoading.value = true;
   try {
-    const data = await fetchOrders();
-    if (data && data.length > 0) {
-      orders.value = data;
-    } else {
-      orders.value = INITIAL_MOCK_ORDERS;
-    }
-  } catch {
-    orders.value = INITIAL_MOCK_ORDERS;
+    orders.value = await fetchOrders(authStore.accessToken);
+  } catch (err: unknown) {
+    orders.value = [];
+    const message = err instanceof Error ? err.message : 'Lỗi khi tải danh sách đơn hàng';
+    toastStore.show(message, 'error');
   } finally {
     isLoading.value = false;
   }
@@ -189,13 +92,26 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
     // Cập nhật state local
     const idx = orders.value.findIndex((o) => o.id === payload.orderId || o.orderCode === payload.orderId);
     if (idx !== -1) {
-      orders.value[idx].status = payload.status;
+      const currentOrder = orders.value[idx];
+      if (currentOrder) {
+        if (updated) {
+          orders.value[idx] = { ...currentOrder, ...updated };
+        } else {
+          currentOrder.status = payload.status;
+        }
+
+        // Khi giao hàng thành công, tự động hiểu và cập nhật đã thanh toán (Đã thu)
+        if (payload.status === 'delivered') {
+          currentOrder.paymentStatus = 'paid';
+          patchOrderPaymentStatus(payload.orderId, 'paid').catch(() => {});
+        }
+      }
     }
 
     toastStore.show(
       'Cập nhật thành công!',
       'success',
-      `Đơn #${updated.orderCode} chuyển sang ${payload.status}`
+      `Đơn #${updated?.orderCode || payload.orderId} chuyển sang ${payload.status}`
     );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Lỗi khi cập nhật trạng thái';
@@ -213,7 +129,7 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
           Quản lý đơn hàng & Vận chuyển
         </h1>
         <p class="text-xs text-[#7A866E] mt-1">
-          Giám sát đơn đặt hàng, điều phối đóng thùng mát 4°C và giao siêu tốc 2H.
+          Giám sát đơn đặt hàng, điều phối đóng gói và giao siêu tốc 2H.
         </p>
       </div>
 
@@ -256,7 +172,7 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
         </div>
         <span class="text-[11px] text-rose-600 font-bold flex items-center gap-1">
           <AlertTriangle class="w-3.5 h-3.5" />
-          <span>{{ urgentExpressCount }} đơn giữ lạnh 2H cần giao gấp</span>
+          <span>{{ urgentExpressCount }} đơn giao siêu tốc 2H cần xử lý gấp</span>
         </span>
       </div>
 
@@ -325,7 +241,7 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
             class="px-3.5 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer"
             :class="activeTab === 'packing' ? 'bg-[#4D6A34] text-white shadow-2xs' : 'text-[#7A866E] hover:text-[#2D3B1E]'"
           >
-            Đang đóng gói 4°C ({{ orders.filter(o => o.status === 'packing').length }})
+            Đang đóng gói ({{ orders.filter(o => o.status === 'packing').length }})
           </button>
           <button
             type="button"

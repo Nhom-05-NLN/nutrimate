@@ -25,6 +25,22 @@ import {
 
 const API_BASE = '/api';
 
+export async function fetchAdminCategories(): Promise<import('../types').AdminCategoryRecord[]> {
+  const response = await fetchJson<ApiResponse<import('../types').AdminCategoryRecord[]>>('/admin/categories');
+  if (!response.data) throw new Error(response.message || 'Không thể tải danh mục.');
+  return response.data;
+}
+
+export async function saveAdminCategory(payload: { name: string; description: string; status: boolean }, id?: string) {
+  return fetchJson<ApiResponse<{ id: string }>>(`/admin/categories${id ? '/' + encodeURIComponent(id) : ''}`, {
+    method:id ? 'PUT' : 'POST',body:JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminCategory(id: string) {
+  return fetchJson<ApiResponse<null>>(`/admin/categories/${encodeURIComponent(id)}`,{ method:'DELETE' });
+}
+
 export interface ProductReview {
   id: string;
   author: string;
@@ -45,6 +61,28 @@ export async function postProductReview(productId: string, payload: { rating: nu
   });
 }
 
+export interface AdminProductsData {
+  totalSold: number;
+  products: import('../types').AdminProductItem[];
+  categories: { id: string; name: string }[];
+}
+
+export async function fetchAdminProducts(): Promise<AdminProductsData> {
+  const response = await fetchJson<ApiResponse<AdminProductsData>>('/admin/products');
+  if (!response.data) throw new Error(response.message || 'Không thể tải sản phẩm.');
+  return response.data;
+}
+
+export async function saveAdminProduct(payload: Omit<import('../types').AdminProductItem,'id'>, id?: string) {
+  return fetchJson<ApiResponse<{ id: string }>>(`/admin/products${id ? '/' + encodeURIComponent(id) : ''}`, {
+    method: id ? 'PUT' : 'POST', body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminProduct(id: string) {
+  return fetchJson<ApiResponse<null>>(`/admin/products/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
 export async function fetchProductSalesSummary(): Promise<number> {
   const res = await fetchJson<ApiResponse<{ totalSold: number }>>('/products/sales-summary');
   if (!res.data) throw new Error(res.message || 'Không thể tải lượt bán.');
@@ -55,8 +93,10 @@ export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
-export async function fetchAdminDashboard(): Promise<AdminDashboardData> {
-  const res = await fetchJson<ApiResponse<AdminDashboardData>>('/admin/dashboard');
+export async function fetchAdminDashboard(weekStart: string): Promise<AdminDashboardData> {
+  const res = await fetchJson<ApiResponse<AdminDashboardData>>(
+    `/admin/dashboard?week=${encodeURIComponent(weekStart)}`,
+  );
   if (!res.data) {
     throw new Error(res.message || 'Không thể tải dữ liệu dashboard.');
   }
@@ -156,9 +196,13 @@ export async function fetchProductById(id: string): Promise<Product> {
   return res.data;
 }
 
-export async function postOrder(payload: CreateOrderPayload): Promise<Order> {
+export async function postOrder(payload: CreateOrderPayload, accessToken?: string | null): Promise<Order> {
   const res = await fetchJson<ApiResponse<Order>>('/orders', {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
     body: JSON.stringify(payload),
   });
   if (!res.data) {
@@ -167,8 +211,10 @@ export async function postOrder(payload: CreateOrderPayload): Promise<Order> {
   return res.data;
 }
 
-export async function fetchOrders(): Promise<Order[]> {
-  const res = await fetchJson<ApiResponse<Order[]>>('/orders');
+export async function fetchOrders(accessToken?: string | null): Promise<Order[]> {
+  const res = await fetchJson<ApiResponse<Order[]>>('/orders', {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+  });
   return res.data || [];
 }
 
@@ -430,6 +476,15 @@ export async function fetchNutritionDiary(date: string): Promise<NutritionDiaryD
 export async function postNutritionMeal(payload: CreateNutritionDiaryMeal): Promise<NutritionDiaryDay> {
   const response = await fetchJson<ApiResponse<NutritionDiaryDay>>('/nutrition-diary/meals', { method: 'POST', body: JSON.stringify(payload) });
   if (!response.data) throw new Error(response.message || 'Không thể lưu món ăn.');
+  return response.data;
+}
+
+export async function deleteNutritionMeal(id: number, date: string): Promise<NutritionDiaryDay> {
+  const response = await fetchJson<ApiResponse<NutritionDiaryDay>>(
+    `/nutrition-diary/meals/${encodeURIComponent(id)}?date=${encodeURIComponent(date)}`,
+    { method: 'DELETE' },
+  );
+  if (!response.data) throw new Error(response.message || 'Không thể xóa món ăn.');
   return response.data;
 }
 

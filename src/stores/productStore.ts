@@ -257,7 +257,7 @@ export const useProductStore = defineStore('product', () => {
   async function loadCategories() {
     try {
       const data = await fetchCategories();
-      if (data && data.length > 0) {
+      if (data) {
         categories.value = data;
       }
     } catch {

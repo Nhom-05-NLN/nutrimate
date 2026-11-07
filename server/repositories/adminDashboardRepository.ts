@@ -4,21 +4,20 @@ import { AdminDashboardData } from '../types/adminDashboard.js';
 const LOW_STOCK_THRESHOLD = 30;
 
 interface SummaryRow {
-  monthly_revenue: string;
-  previous_month_revenue: string;
+  weekly_revenue: string;
+  previous_week_revenue: string;
   total_orders: string;
   delivered_orders: string;
   pending_orders: string;
   total_customers: string;
   new_customers: string;
   customers_with_bmi: string;
-  monthly_chat_messages: string;
+  weekly_chat_messages: string;
 }
 
 interface WeeklySalesRow {
   date: string;
-  product_revenue: string;
-  ai_recommended_revenue: string;
+  revenue: string;
   orders: string;
 }
 
@@ -49,12 +48,57 @@ function toNumber(value: string): number {
   return Number(value) || 0;
 }
 
-export async function getAdminDashboard(): Promise<AdminDashboardData> {
+export async function getAdminDashboard(weekStart: string): Promise<AdminDashboardData> {
   if (!isDbConnected()) {
     throw new Error('Cơ sở dữ liệu hiện không khả dụng.');
   }
 
   const pool = getPool();
+  const [productColumnsResult, categoryColumnsResult] = await Promise.all([
+    pool.query<{ column_name: string }>(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = current_schema()
+         AND table_name = 'products'`,
+    ),
+    pool.query<{ column_name: string }>(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = current_schema()
+         AND table_name = 'categories'`,
+    ),
+  ]);
+  const productColumns = new Set(productColumnsResult.rows.map((row) => row.column_name));
+  const categoryColumns = new Set(categoryColumnsResult.rows.map((row) => row.column_name));
+  const productIdColumn = productColumns.has('id')
+    ? 'id'
+    : productColumns.has('product_id')
+      ? 'product_id'
+      : null;
+  const productActiveColumn = productColumns.has('is_active')
+    ? 'is_active'
+    : productColumns.has('status')
+      ? 'status'
+      : null;
+  const categoryIdColumn = productIdColumn === 'product_id' && categoryColumns.has('category_id')
+    ? 'category_id'
+    : categoryColumns.has('id')
+      ? 'id'
+      : null;
+
+  if (!productIdColumn || !productActiveColumn) {
+    throw new Error('Bảng products thiếu cột mã hoặc trạng thái sản phẩm cần cho dashboard.');
+  }
+  if (!productColumns.has('category_name') && !categoryIdColumn) {
+    throw new Error('Không tìm thấy cột danh mục sản phẩm cần cho dashboard.');
+  }
+
+  const categoryName = productColumns.has('category_name')
+    ? 'products.category_name'
+    : 'categories.name';
+  const categoryJoin = productColumns.has('category_name')
+    ? ''
+    : `JOIN categories ON categories.${categoryIdColumn} = products.category_id`;
   const [
     summaryResult,
     weeklySalesResult,
@@ -63,69 +107,83 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
     lowStockResult,
   ] = await Promise.all([
     pool.query<SummaryRow>(
-      `SELECT
+      `WITH selected_week AS (
+         SELECT $1::date AS week_start,
+                LEAST($1::date + INTERVAL '7 days', CURRENT_DATE + INTERVAL '1 day') AS period_end
+       )
+       SELECT
          (SELECT COALESCE(SUM(total_amount), 0)
           FROM orders
           WHERE status = 'delivered'
-            AND created_at >= date_trunc('month', CURRENT_DATE))::text AS monthly_revenue,
+            AND created_at >= selected_week.week_start
+            AND created_at < selected_week.period_end)::text AS weekly_revenue,
          (SELECT COALESCE(SUM(total_amount), 0)
           FROM orders
           WHERE status = 'delivered'
-            AND created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
-            AND created_at < date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
-              + LEAST(
-                  EXTRACT(DAY FROM CURRENT_DATE)::int,
-                  EXTRACT(DAY FROM date_trunc('month', CURRENT_DATE) - INTERVAL '1 day')::int
-                ) * INTERVAL '1 day')::text AS previous_month_revenue,
-         (SELECT COUNT(*) FROM orders)::text AS total_orders,
-         (SELECT COUNT(*) FROM orders WHERE status = 'delivered')::text AS delivered_orders,
-         (SELECT COUNT(*) FROM orders WHERE status = 'pending')::text AS pending_orders,
+            AND created_at >= selected_week.week_start - INTERVAL '7 days'
+            AND created_at < selected_week.period_end - INTERVAL '7 days')::text AS previous_week_revenue,
+         (SELECT COUNT(*)
+          FROM orders
+          WHERE status <> 'cancelled'
+            AND created_at >= selected_week.week_start
+            AND created_at < selected_week.period_end)::text AS total_orders,
+         (SELECT COUNT(*)
+          FROM orders
+          WHERE status = 'delivered'
+            AND created_at >= selected_week.week_start
+            AND created_at < selected_week.period_end)::text AS delivered_orders,
+         (SELECT COUNT(*)
+          FROM orders
+          WHERE status = 'pending')::text AS pending_orders,
          (SELECT COUNT(*) FROM customers)::text AS total_customers,
          (SELECT COUNT(*)
           FROM customers
           JOIN users ON users.id = customers.user_id
-          WHERE users.created_at >= date_trunc('month', CURRENT_DATE))::text AS new_customers,
+          WHERE users.created_at >= selected_week.week_start
+            AND users.created_at < selected_week.period_end)::text AS new_customers,
          (SELECT COUNT(DISTINCT health_profiles.customer_id)
           FROM health_profiles
           WHERE health_profiles.bmi IS NOT NULL)::text AS customers_with_bmi,
          (SELECT COUNT(*)
           FROM chat_messages
           WHERE role = 'user'
-            AND created_at >= date_trunc('month', CURRENT_DATE))::text AS monthly_chat_messages`,
+            AND created_at >= selected_week.week_start
+            AND created_at < selected_week.period_end)::text AS weekly_chat_messages
+       FROM selected_week`,
+      [weekStart],
     ),
     pool.query<WeeklySalesRow>(
       `SELECT to_char(days.day, 'YYYY-MM-DD') AS date,
-              COALESCE(SUM(order_items.subtotal) FILTER (
-                WHERE orders.status = 'delivered' AND NOT order_items.is_ai_recommended
-              ), 0)::text AS product_revenue,
-              COALESCE(SUM(order_items.subtotal) FILTER (
-                WHERE orders.status = 'delivered' AND order_items.is_ai_recommended
-              ), 0)::text AS ai_recommended_revenue,
-              COUNT(DISTINCT orders.id) FILTER (WHERE orders.status <> 'cancelled')::text AS orders
+              COALESCE(daily.revenue, 0)::text AS revenue,
+              COALESCE(daily.orders, 0)::text AS orders
        FROM generate_series(
-         CURRENT_DATE - INTERVAL '6 days',
-         CURRENT_DATE,
+         $1::date,
+         LEAST($1::date + INTERVAL '6 days', CURRENT_DATE),
          INTERVAL '1 day'
        ) AS days(day)
-       LEFT JOIN orders
-         ON orders.created_at >= days.day
-        AND orders.created_at < days.day + INTERVAL '1 day'
-        AND orders.status <> 'cancelled'
-       LEFT JOIN order_items ON order_items.order_id = orders.id
-       GROUP BY days.day
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(SUM(total_amount) FILTER (WHERE status = 'delivered'), 0) AS revenue,
+                COUNT(*) FILTER (WHERE status <> 'cancelled') AS orders
+         FROM orders
+         WHERE created_at >= days.day
+           AND created_at < days.day + INTERVAL '1 day'
+       ) AS daily ON TRUE
        ORDER BY days.day`,
+      [weekStart],
     ),
     pool.query<CategorySalesRow>(
-      `SELECT categories.name AS name,
+      `SELECT ${categoryName} AS name,
               SUM(order_items.quantity)::text AS units_sold
        FROM order_items
        JOIN orders ON orders.id = order_items.order_id
-       JOIN products ON products.product_id = order_items.product_id
-       LEFT JOIN categories ON categories.category_id = products.category_id
+       JOIN products ON products.${productIdColumn} = order_items.product_id
+       ${categoryJoin}
        WHERE orders.status = 'delivered'
-         AND orders.created_at >= date_trunc('month', CURRENT_DATE)
-       GROUP BY categories.name
-       ORDER BY SUM(order_items.quantity) DESC, categories.name`,
+         AND orders.created_at >= $1::date
+         AND orders.created_at < LEAST($1::date + INTERVAL '7 days', CURRENT_DATE + INTERVAL '1 day')
+       GROUP BY ${categoryName}
+       ORDER BY SUM(order_items.quantity) DESC, ${categoryName}`,
+      [weekStart],
     ),
     pool.query<UrgentOrderRow>(
       `SELECT orders.id, orders.order_code, orders.customer_name, orders.customer_phone,
@@ -137,16 +195,14 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
                LIMIT 1) AS main_product,
               orders.total_amount::text, orders.payment_method, orders.status
        FROM orders
-       WHERE orders.status = 'pending'
-       ORDER BY orders.created_at ASC
-       LIMIT 5`,
+       ORDER BY orders.created_at DESC, orders.id DESC
+       LIMIT 3`,
     ),
     pool.query<LowStockRow>(
-      `SELECT product_id AS id, code, name, stock_quantity
+      `SELECT ${productIdColumn} AS id, code, name, stock_quantity
        FROM products
-       WHERE status = TRUE AND stock_quantity <= $1
-       ORDER BY stock_quantity ASC, name
-       LIMIT 5`,
+       WHERE ${productActiveColumn} = TRUE AND stock_quantity <= $1
+       ORDER BY stock_quantity ASC, name`,
       [LOW_STOCK_THRESHOLD],
     ),
   ]);
@@ -156,19 +212,15 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
     throw new Error('Không thể tải thống kê dashboard.');
   }
 
-  const monthlyRevenue = toNumber(summary.monthly_revenue);
-  const previousMonthRevenue = toNumber(summary.previous_month_revenue);
+  const weeklyRevenue = toNumber(summary.weekly_revenue);
+  const previousWeekRevenue = toNumber(summary.previous_week_revenue);
   const totalOrders = toNumber(summary.total_orders);
   const deliveredOrders = toNumber(summary.delivered_orders);
   const totalUnitsSold = categorySalesResult.rows.reduce(
     (total, category) => total + toNumber(category.units_sold),
     0,
   );
-  const topCategories = categorySalesResult.rows.slice(0, 3);
-  const otherUnits = categorySalesResult.rows
-    .slice(3)
-    .reduce((total, category) => total + toNumber(category.units_sold), 0);
-  const categories = topCategories.map((category) => {
+  const categories = categorySalesResult.rows.map((category) => {
     const unitsSold = toNumber(category.units_sold);
     return {
       name: category.name,
@@ -176,19 +228,12 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
       percentage: totalUnitsSold > 0 ? (unitsSold / totalUnitsSold) * 100 : 0,
     };
   });
-  if (otherUnits > 0) {
-    categories.push({
-      name: 'Khác',
-      unitsSold: otherUnits,
-      percentage: (otherUnits / totalUnitsSold) * 100,
-    });
-  }
 
   return {
     summary: {
-      monthlyRevenue,
-      revenueChangePercent: previousMonthRevenue > 0
-        ? ((monthlyRevenue - previousMonthRevenue) / previousMonthRevenue) * 100
+      weeklyRevenue,
+      revenueChangePercent: previousWeekRevenue > 0
+        ? ((weeklyRevenue - previousWeekRevenue) / previousWeekRevenue) * 100
         : null,
       totalOrders,
       deliveredOrderPercent: totalOrders > 0 ? (deliveredOrders / totalOrders) * 100 : 0,
@@ -196,13 +241,11 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
       totalCustomers: toNumber(summary.total_customers),
       newCustomers: toNumber(summary.new_customers),
       customersWithBmi: toNumber(summary.customers_with_bmi),
-      monthlyChatMessages: toNumber(summary.monthly_chat_messages),
+      weeklyChatMessages: toNumber(summary.weekly_chat_messages),
     },
     weeklySales: weeklySalesResult.rows.map((row) => ({
       date: row.date,
-      revenue: toNumber(row.product_revenue) + toNumber(row.ai_recommended_revenue),
-      productRevenue: toNumber(row.product_revenue),
-      aiRecommendedRevenue: toNumber(row.ai_recommended_revenue),
+      revenue: toNumber(row.revenue),
       orders: toNumber(row.orders),
     })),
     categories,

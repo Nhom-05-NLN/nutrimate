@@ -244,7 +244,7 @@ export async function getAuthenticatedUser(id: string): Promise<RegisteredUser |
     role: user.role,
     avatarUrl: user.avatarUrl,
     dietPreferences: user.dietPreferences ?? [],
-    defaultAddress: addresses.find((address) => address.isDefault) ?? addresses[0] ?? null,
+    defaultAddress: addresses.find((address) => address.isDefault) ?? null,
     addresses,
   };
 }
@@ -361,7 +361,7 @@ export async function updateAuthenticatedUser(
       phone: user.phone,
       role: existingUser.role,
       dietPreferences: existingUser.dietPreferences,
-      defaultAddress: addresses.find((address) => address.isDefault) ?? addresses[0] ?? null,
+      defaultAddress: addresses.find((address) => address.isDefault) ?? null,
       addresses,
     };
   } catch (err: unknown) {

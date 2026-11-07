@@ -26,7 +26,10 @@ export function verifyCustomerJwt(token: string, secret: string): number {
 }
 
 // The authentication module issues JWTs. This adapter verifies them; it never creates logins.
-export function createChatIdentity(findCustomer = async (id: number): Promise<string | undefined> => {
+type ChatRole = 'customer' | 'admin';
+
+export function createChatIdentity(
+  findCustomer = async (id: number): Promise<string | undefined> => {
   const schema = await queryPostgres<{ hasRole: boolean; hasAdmins: string | null; hasCustomers: string | null }>(
     `SELECT EXISTS (
        SELECT 1 FROM information_schema.columns
@@ -53,7 +56,9 @@ export function createChatIdentity(findCustomer = async (id: number): Promise<st
     return result.rows[0]?.role;
   }
   throw new Error('Schema PostgreSQL thiếu thông tin vai trò người dùng.');
-}) {
+  },
+  allowedRoles: readonly ChatRole[] = ['customer', 'admin'],
+) {
  return async function resolveChatOwner(req: Request, res: Response, allowNewGuest = false): Promise<ChatOwner> {
   const authorization = req.get('authorization');
   if (authorization !== undefined) {
@@ -62,6 +67,7 @@ export function createChatIdentity(findCustomer = async (id: number): Promise<st
     const role = await findCustomer(userId);
     if (!role) throw new ChatError(401, 'Tài khoản không còn tồn tại.');
     if (role !== 'customer' && role !== 'admin') throw new ChatError(403, 'Tài khoản không có quyền sử dụng NutriBot.');
+    if (!allowedRoles.includes(role)) throw new ChatError(403, 'Tài khoản không có quyền sử dụng NutriBot.');
     return { userId, guestHash: null };
   }
   let guestToken = req.headers.cookie?.split(';').map(part => part.trim()).find(part => part.startsWith('nutrimate_guest='))?.slice(16);
@@ -76,3 +82,17 @@ export function createChatIdentity(findCustomer = async (id: number): Promise<st
  };
 }
 export const resolveChatOwner = createChatIdentity();
+export const resolveNutritionImageOwner = createChatIdentity(
+  async (id: number): Promise<string | undefined> => {
+    const result = await queryPostgres<{ role: string | null }>(
+      `SELECT CASE
+         WHEN EXISTS (SELECT 1 FROM admins WHERE user_id = $1) THEN 'admin'
+         WHEN EXISTS (SELECT 1 FROM customers WHERE user_id = $1) THEN 'customer'
+       END AS role
+       FROM users WHERE id = $1`,
+      [id],
+    );
+    return result.rows[0]?.role ?? undefined;
+  },
+  ['customer', 'admin'],
+);

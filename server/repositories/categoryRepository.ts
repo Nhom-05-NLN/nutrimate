@@ -17,11 +17,11 @@ export async function getAllCategories(): Promise<Category[]> {
                COUNT(p.product_id) as product_count
         FROM categories c
         LEFT JOIN products p ON p.category_id = c.category_id AND p.status = TRUE
+        WHERE c.status = TRUE
         GROUP BY c.category_id, c.name, c.description
         ORDER BY c.category_id ASC
       `;
       const result = await queryPostgres<CategoryRow>(sql);
-      if (result.rows.length > 0) {
         return result.rows.map((row) => ({
           id: String(row.id),
           name: row.name,
@@ -30,7 +30,6 @@ export async function getAllCategories(): Promise<Category[]> {
           dietType: 'all' as const,
           count: parseInt(row.product_count || '0', 10),
         }));
-      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Category query error';
       console.warn('[CategoryRepository Fallback]:', msg);

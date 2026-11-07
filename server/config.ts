@@ -21,6 +21,12 @@ export const config = {
     jwtSecret: process.env.JWT_SECRET || '',
   },
 
+  groq: {
+    apiKey: process.env.GROQ_API_KEY || '',
+    model: process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
+    visionModel: process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b',
+  },
+
   nutritionImage: {
     maxUploadBytes: 5 * 1024 * 1024,
     timeoutMs: 45000,

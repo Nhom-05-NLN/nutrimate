@@ -2,8 +2,9 @@
 import { AlertCircle } from 'lucide-vue-next';
 import type { AdminProductItem } from './AdminProductDetailModal.vue';
 
-defineProps<{
+const props = defineProps<{
   modelValue: boolean;
+  saving?: boolean;
   product: AdminProductItem | null;
 }>();
 
@@ -13,10 +14,12 @@ const emit = defineEmits<{
 }>();
 
 function handleClose() {
+  if (props.saving) return;
   emit('update:modelValue', false);
 }
 
 function handleConfirm(product: AdminProductItem) {
+  if (props.saving) return;
   emit('confirm', product);
   emit('update:modelValue', false);
 }
@@ -50,6 +53,7 @@ function handleConfirm(product: AdminProductItem) {
         <button
           type="button"
           @click="handleConfirm(product)"
+          :disabled="saving"
           class="px-5 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs cursor-pointer"
         >
           Xác nhận xóa

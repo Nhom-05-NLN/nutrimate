@@ -38,6 +38,15 @@ export async function createMeal(userId: string, body: unknown): Promise<void> {
     nutritionNumber(input.calories, 'Calories', 10000), nutritionNumber(input.protein, 'Protein', 1000),
     nutritionNumber(input.carbs, 'Carbs', 1000), nutritionNumber(input.fat, 'Fat', 1000), nutritionNumber(input.sugar, 'Sugar', 1000));
 }
+export async function deleteMeal(userId: string, id: unknown, value: unknown): Promise<string> {
+  const date = validateDate(value);
+  if (typeof id !== 'string' || !/^[1-9]\d*$/.test(id) || !Number.isSafeInteger(Number(id))) {
+    throw new NutritionDiaryError('Món ăn không hợp lệ.', 400);
+  }
+  const deleted = await repository.removeMeal(userId, date, Number(id));
+  if (!deleted) throw new NutritionDiaryError('Không tìm thấy món ăn trong nhật ký ngày này.', 404);
+  return date;
+}
 export async function createWater(userId: string, body: unknown): Promise<void> {
   const input = validateBody(body);
   const date = validateDate(input.date);

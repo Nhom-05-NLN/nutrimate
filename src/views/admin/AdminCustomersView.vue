@@ -6,15 +6,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Eye,
   HeartPulse,
   Mail,
   MessageCircle,
-  Pencil,
   Phone,
-  Plus,
   RefreshCw,
   Search,
-  Save,
   ShoppingBag,
   Sparkles,
   Trash2,
@@ -23,12 +21,9 @@ import {
 } from 'lucide-vue-next';
 import { AdminCustomer, AdminCustomerListResponse } from '../../types';
 import {
-  AdminCustomerMutationInput,
   AdminCustomerQuery,
-  createAdminCustomer,
   deleteAdminCustomer,
   fetchAdminCustomers,
-  updateAdminCustomer,
 } from '../../services/api';
 
 const searchQuery = ref('');
@@ -40,17 +35,12 @@ const page = ref(1);
 const pageData = ref<AdminCustomerListResponse | null>(null);
 const isLoading = ref(false);
 const isExporting = ref(false);
-const isSaving = ref(false);
 const errorMessage = ref('');
-const isFormOpen = ref(false);
 const pendingDeleteCustomer = ref<AdminCustomer | null>(null);
 const isDeleting = ref(false);
 const deleteError = ref('');
-const editingCustomer = ref<AdminCustomer | null>(null);
 const selectedCustomer = ref<AdminCustomer | null>(null);
-const formError = ref('');
 const failedAvatarIds = ref(new Set<string>());
-const customerForm = ref<AdminCustomerMutationInput>(emptyCustomerForm());
 const totalPages = computed(() => Math.max(pageData.value?.totalPages ?? 0, 1));
 const firstVisibleRow = computed(() =>
   pageData.value?.customers.length ? (page.value - 1) * pageData.value.limit + 1 : 0,
@@ -82,18 +72,6 @@ const summaryCards = computed(() => [
     icon: MessageCircle,
   },
 ]);
-
-function emptyCustomerForm(): AdminCustomerMutationInput {
-  return {
-    fullName: '',
-    email: '',
-    phone: '',
-    password: '',
-    heightCm: null,
-    weightKg: null,
-    nutritionGoal: null,
-  };
-}
 
 function currentFilters(): AdminCustomerQuery {
   return {
@@ -193,35 +171,6 @@ function getCustomerInitials(name: string | null, id: string): string {
   return name.trim().split(/\s+/).slice(-2).map((part) => part[0]).join('').toLocaleUpperCase('vi-VN');
 }
 
-function openCreateCustomer() {
-  selectedCustomer.value = null;
-  editingCustomer.value = null;
-  customerForm.value = emptyCustomerForm();
-  isFormOpen.value = true;
-  formError.value = '';
-  errorMessage.value = '';
-}
-
-function openEditCustomer(customer: AdminCustomer) {
-  selectedCustomer.value = null;
-  editingCustomer.value = customer;
-  customerForm.value = {
-    fullName: customer.name ?? '',
-    email: customer.email ?? '',
-    phone: customer.phone ?? '',
-    heightCm: customer.heightCm,
-    weightKg: customer.weightKg,
-    nutritionGoal: customer.nutritionGoal === 'lose_weight'
-      || customer.nutritionGoal === 'maintain_weight'
-      || customer.nutritionGoal === 'gain_weight'
-      ? customer.nutritionGoal
-      : null,
-  };
-  isFormOpen.value = true;
-  formError.value = '';
-  errorMessage.value = '';
-}
-
 function showCustomerDetails(customer: AdminCustomer) {
   selectedCustomer.value = customer;
 }
@@ -231,36 +180,6 @@ function handleCustomerRowKeydown(event: KeyboardEvent, customer: AdminCustomer)
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
     showCustomerDetails(customer);
-  }
-}
-
-function updateFormMeasurement(field: 'heightCm' | 'weightKg', event: Event) {
-  const value = (event.target as HTMLInputElement).value;
-  customerForm.value[field] = value === '' ? null : Number(value);
-}
-
-async function submitCustomerForm() {
-  isSaving.value = true;
-  formError.value = '';
-  try {
-    const payload: AdminCustomerMutationInput = {
-      ...customerForm.value,
-      heightCm: customerForm.value.heightCm === null ? null : Number(customerForm.value.heightCm),
-      weightKg: customerForm.value.weightKg === null ? null : Number(customerForm.value.weightKg),
-      ...(editingCustomer.value ? { password: undefined } : {}),
-    };
-    if (editingCustomer.value) {
-      await updateAdminCustomer(editingCustomer.value.id, payload);
-    } else {
-      await createAdminCustomer(payload);
-    }
-    isFormOpen.value = false;
-    pageData.value = null;
-    await loadCustomers();
-  } catch (error: unknown) {
-    formError.value = error instanceof Error ? error.message : 'Không thể lưu thông tin khách hàng.';
-  } finally {
-    isSaving.value = false;
   }
 }
 
@@ -315,31 +234,36 @@ async function exportCsv() {
       customers.push(...result.customers);
     }
 
-    const csv = [
+    const csvRows = [
+      ['BÁO CÁO DANH SÁCH KHÁCH HÀNG NUTRIMATE'],
+      [`Ngày xuất: ${new Intl.DateTimeFormat('vi-VN', { dateStyle: 'long', timeStyle: 'short' }).format(new Date())}`],
+      [`Tổng số khách hàng: ${customers.length}`],
+      ['Phạm vi: Theo các bộ lọc đang áp dụng trên trang'],
+      [],
       [
         'Mã khách hàng',
-        'Họ tên',
+        'Họ và tên',
         'Email',
         'Số điện thoại',
-        'BMI',
+        'BMI (kg/m²)',
         'Chiều cao (cm)',
         'Cân nặng (kg)',
         'Mục tiêu dinh dưỡng',
-        'Chi tiêu đơn hoàn tất',
+        'Tổng chi tiêu đơn hoàn tất (VND)',
         'Tổng số đơn',
         'Đơn hoàn tất',
         'Tin nhắn khách trong 30 ngày',
-        'Cuộc hội thoại',
+        'Số cuộc hội thoại trong 30 ngày',
         'Lần chat gần nhất',
       ],
       ...customers.map((customer) => [
         customer.id,
-        customer.name ?? '',
-        customer.email ?? '',
-        customer.phone ?? '',
-        customer.bmi === null ? '' : String(customer.bmi),
-        customer.heightCm === null ? '' : String(customer.heightCm),
-        customer.weightKg === null ? '' : String(customer.weightKg),
+        customer.name?.trim() || 'Chưa cập nhật',
+        customer.email?.trim() || 'Chưa cập nhật',
+        customer.phone?.trim() || 'Chưa cập nhật',
+        customer.bmi === null ? 'Chưa có' : String(customer.bmi),
+        customer.heightCm === null ? 'Chưa có' : String(customer.heightCm),
+        customer.weightKg === null ? 'Chưa có' : String(customer.weightKg),
         formatNutritionGoal(customer.nutritionGoal),
         String(customer.totalSpent),
         String(customer.orderCount),
@@ -348,14 +272,18 @@ async function exportCsv() {
         String(customer.recentChatConversations),
         formatChatDate(customer.lastChatAt),
       ]),
-    ].map((row) => row.map(formatCsvCell).join(',')).join('\r\n');
+    ];
+    const csv = csvRows.map((row) => row.map(formatCsvCell).join(',')).join('\r\n');
     const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `khach-hang-${new Date().toISOString().slice(0, 10)}.csv`;
+    const localDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+    }).format(new Date());
+    link.download = `nutrimate-khach-hang-${localDate}.csv`;
     link.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   } catch (error: unknown) {
     errorMessage.value = error instanceof Error
       ? error.message
@@ -376,14 +304,6 @@ async function exportCsv() {
         <p class="mt-1 text-sm text-[#7A866E]">Danh sách khách hàng được lấy trực tiếp từ cơ sở dữ liệu.</p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <button
-          type="button"
-          @click="openCreateCustomer"
-          class="inline-flex items-center gap-2 rounded-xl bg-[#536124] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#434F1D]"
-        >
-          <Plus class="h-4 w-4" />
-          Thêm khách hàng
-        </button>
         <button
           type="button"
           :disabled="isExporting || isLoading"
@@ -582,12 +502,12 @@ async function exportCsv() {
                 <div class="flex items-center justify-center gap-1">
                   <button
                     type="button"
-                    :aria-label="`Sửa khách hàng ${customer.name || customer.id}`"
-                    title="Sửa thông tin"
-                    @click.stop="openEditCustomer(customer)"
-                    class="customer-action-button customer-action-edit rounded-lg p-2 text-[#64734B]"
+                    :aria-label="`Xem thông tin khách hàng ${customer.name || customer.id}`"
+                    title="Xem thông tin"
+                    @click.stop="showCustomerDetails(customer)"
+                    class="customer-action-button customer-action-view rounded-lg p-2 text-[#64734B]"
                   >
-                    <Pencil class="h-4 w-4" />
+                    <Eye class="h-4 w-4" />
                   </button>
                   <button
                     type="button"
@@ -797,176 +717,8 @@ async function exportCsv() {
           >
             Đóng
           </button>
-          <button
-            type="button"
-            @click="openEditCustomer(selectedCustomer)"
-            class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#536124] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#434F1D] hover:shadow-md"
-          >
-            <Pencil class="h-4 w-4" />
-            Chỉnh sửa thông tin
-          </button>
         </div>
       </section>
-    </div>
-
-    <div
-      v-if="isFormOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4"
-      @click.self="!isSaving && (isFormOpen = false)"
-    >
-      <form
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="admin-customer-form-title"
-        @submit.prevent="submitCustomerForm"
-        class="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-white/60 bg-white shadow-[0_24px_80px_rgba(16,24,16,0.28)]"
-      >
-        <div class="flex shrink-0 items-start justify-between gap-4 bg-linear-to-r from-[#2D3B1E] to-[#647642] px-5 py-5 text-white sm:px-7">
-          <div class="flex min-w-0 items-center gap-3">
-            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15">
-              <Pencil v-if="editingCustomer" class="h-5 w-5" />
-              <Users v-else class="h-5 w-5" />
-            </span>
-            <div class="min-w-0">
-              <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-white/65">
-                {{ editingCustomer ? 'Cập nhật hồ sơ' : 'Quản lý khách hàng' }}
-              </p>
-              <h2 id="admin-customer-form-title" class="mt-0.5 truncate font-heading text-lg font-black sm:text-xl">
-                {{ editingCustomer ? 'Chỉnh sửa khách hàng' : 'Thêm khách hàng mới' }}
-              </h2>
-              <p class="mt-1 truncate text-xs text-white/75">
-                {{ editingCustomer ? `Mã khách hàng #${editingCustomer.id}` : 'Tạo tài khoản và hồ sơ dinh dưỡng.' }}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            :disabled="isSaving"
-            aria-label="Đóng biểu mẫu"
-            @click="isFormOpen = false"
-            class="shrink-0 rounded-xl p-2.5 text-white/75 transition hover:bg-white/15 hover:text-white disabled:opacity-50"
-          >
-            <X class="h-5 w-5" />
-          </button>
-        </div>
-
-        <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-7">
-          <p v-if="formError" role="alert" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {{ formError }}
-          </p>
-
-          <section>
-            <h3 class="text-xs font-bold uppercase tracking-wide text-[#536124]">Thông tin tài khoản</h3>
-            <div class="mt-3 grid gap-4 sm:grid-cols-2">
-              <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
-                Họ và tên
-                <input
-                  v-model="customerForm.fullName"
-                  type="text"
-                  maxlength="150"
-                  required
-                  autocomplete="name"
-                  class="w-full rounded-xl border border-[#DEE5D4] bg-[#FCFCFA] px-3.5 py-3 font-normal outline-none transition focus:border-[#536124] focus:bg-white focus:ring-2 focus:ring-[#536124]/10"
-                />
-              </label>
-              <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
-                Email
-                <input
-                  v-model="customerForm.email"
-                  type="email"
-                  maxlength="255"
-                  required
-                  autocomplete="email"
-                  class="w-full rounded-xl border border-[#DEE5D4] bg-[#FCFCFA] px-3.5 py-3 font-normal outline-none transition focus:border-[#536124] focus:bg-white focus:ring-2 focus:ring-[#536124]/10"
-                />
-              </label>
-              <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
-                Số điện thoại
-                <input
-                  v-model="customerForm.phone"
-                  type="tel"
-                  maxlength="20"
-                  autocomplete="tel"
-                  class="w-full rounded-xl border border-[#DEE5D4] bg-[#FCFCFA] px-3.5 py-3 font-normal outline-none transition focus:border-[#536124] focus:bg-white focus:ring-2 focus:ring-[#536124]/10"
-                />
-              </label>
-              <label v-if="!editingCustomer" class="space-y-1.5 text-sm font-semibold text-[#576449]">
-                Mật khẩu ban đầu
-                <input
-                  v-model="customerForm.password"
-                  type="password"
-                  minlength="8"
-                  maxlength="128"
-                  required
-                  autocomplete="new-password"
-                  class="w-full rounded-xl border border-[#DEE5D4] bg-[#FCFCFA] px-3.5 py-3 font-normal outline-none transition focus:border-[#536124] focus:bg-white focus:ring-2 focus:ring-[#536124]/10"
-                />
-              </label>
-            </div>
-          </section>
-
-          <section class="border-t border-[#F0F3EC] pt-5">
-            <h3 class="text-xs font-bold uppercase tracking-wide text-[#536124]">Hồ sơ dinh dưỡng</h3>
-            <div class="mt-3 grid gap-4 sm:grid-cols-2">
-              <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
-                Chiều cao (cm)
-                <input
-                  :value="customerForm.heightCm ?? ''"
-                  type="number"
-                  min="1"
-                  max="300"
-                  step="0.1"
-                  @input="updateFormMeasurement('heightCm', $event)"
-                  class="w-full rounded-xl border border-[#DEE5D4] bg-[#FCFCFA] px-3.5 py-3 font-normal outline-none transition focus:border-[#536124] focus:bg-white focus:ring-2 focus:ring-[#536124]/10"
-                />
-              </label>
-              <label class="space-y-1.5 text-sm font-semibold text-[#576449]">
-                Cân nặng (kg)
-                <input
-                  :value="customerForm.weightKg ?? ''"
-                  type="number"
-                  min="1"
-                  max="700"
-                  step="0.1"
-                  @input="updateFormMeasurement('weightKg', $event)"
-                  class="w-full rounded-xl border border-[#DEE5D4] bg-[#FCFCFA] px-3.5 py-3 font-normal outline-none transition focus:border-[#536124] focus:bg-white focus:ring-2 focus:ring-[#536124]/10"
-                />
-              </label>
-              <label class="space-y-1.5 text-sm font-semibold text-[#576449] sm:col-span-2">
-                Mục tiêu dinh dưỡng
-                <select
-                  v-model="customerForm.nutritionGoal"
-                  class="w-full rounded-xl border border-[#DEE5D4] bg-white px-3.5 py-3 font-normal outline-none transition focus:border-[#536124] focus:ring-2 focus:ring-[#536124]/10"
-                >
-                  <option :value="null">Chưa thiết lập</option>
-                  <option value="lose_weight">Giảm cân</option>
-                  <option value="maintain_weight">Duy trì cân nặng</option>
-                  <option value="gain_weight">Tăng cân</option>
-                </select>
-              </label>
-            </div>
-          </section>
-        </div>
-
-        <div class="flex shrink-0 flex-col-reverse justify-end gap-2 border-t border-[#F0F3EC] bg-[#FCFCFA] px-5 py-4 sm:flex-row sm:px-7">
-          <button
-            type="button"
-            :disabled="isSaving"
-            @click="isFormOpen = false"
-            class="rounded-xl border border-[#DEE5D4] bg-white px-4 py-2.5 text-sm font-semibold text-[#576449] transition hover:bg-[#F4F7EF] disabled:opacity-50"
-          >
-            Hủy
-          </button>
-          <button
-            type="submit"
-            :disabled="isSaving"
-            class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#536124] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#434F1D] hover:shadow-md disabled:cursor-wait disabled:opacity-60"
-          >
-            <Save class="h-4 w-4" />
-            {{ isSaving ? 'Đang lưu…' : editingCustomer ? 'Lưu thay đổi' : 'Tạo khách hàng' }}
-          </button>
-        </div>
-      </form>
     </div>
 
     <div
@@ -1082,7 +834,7 @@ async function exportCsv() {
   box-shadow: 0 2px 6px rgb(45 59 30 / 12%);
 }
 
-.customer-action-edit:hover:not(:disabled) {
+.customer-action-view:hover:not(:disabled) {
   color: #2d3b1e;
   background-color: #dce8d2;
 }

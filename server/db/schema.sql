@@ -113,8 +113,10 @@ COMMENT ON TABLE health_profiles IS 'Lưu hồ sơ sức khỏe, chỉ số cơ 
 CREATE TABLE IF NOT EXISTS categories (
     category_id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    description TEXT
+    description TEXT,
+    status BOOLEAN NOT NULL DEFAULT TRUE
 );
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS status BOOLEAN NOT NULL DEFAULT TRUE;
 COMMENT ON TABLE categories IS 'Lưu danh mục sản phẩm và loại chế độ ăn tương ứng.';
 
 CREATE TABLE IF NOT EXISTS products (
@@ -290,6 +292,7 @@ CREATE TABLE IF NOT EXISTS vouchers (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+COMMENT ON TABLE products IS 'Lưu thông tin sản phẩm, giá bán, tồn kho và thành phần dinh dưỡng.';
 
 CREATE INDEX IF NOT EXISTS idx_vouchers_code ON vouchers(code);
 CREATE INDEX IF NOT EXISTS idx_vouchers_active ON vouchers(is_active);
@@ -335,7 +338,7 @@ CREATE TABLE IF NOT EXISTS diary_entries (
     fat DOUBLE PRECISION NOT NULL DEFAULT 0,
     sugar DOUBLE PRECISION NOT NULL DEFAULT 0
 );
-COMMENT ON TABLE nutrition_diary IS 'Ghi nhận thực phẩm và lượng dinh dưỡng người dùng tiêu thụ theo ngày.';
+COMMENT ON TABLE nutrition_logs IS 'Ghi nhận thực phẩm và lượng dinh dưỡng người dùng tiêu thụ theo ngày.';
 ALTER TABLE diary_entries ADD COLUMN IF NOT EXISTS food_name VARCHAR(200);
 
 -- 10. Bảng nhật ký lượng nước uống.
@@ -371,10 +374,15 @@ CREATE TABLE IF NOT EXISTS nutrition_images (
     predicted_protein DOUBLE PRECISION,
     predicted_carbs DOUBLE PRECISION,
     predicted_fat DOUBLE PRECISION,
-    predicted_sugar DOUBLE PRECISION
+    predicted_sugar DOUBLE PRECISION,
+    content_sha256 CHAR(64)
 );
+ALTER TABLE nutrition_images ADD COLUMN IF NOT EXISTS content_sha256 CHAR(64);
 COMMENT ON TABLE nutrition_images IS 'Lưu ảnh thực phẩm đã tải lên, trạng thái xử lý OCR và kết quả dinh dưỡng dự đoán.';
 CREATE INDEX IF NOT EXISTS idx_nutrition_images_customer_date ON nutrition_images(customer_id, upload_date DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nutrition_images_customer_content_sha256
+    ON nutrition_images(customer_id, content_sha256)
+    WHERE content_sha256 IS NOT NULL;
 
 -- ================================================================
 -- 5. CHỈ MỤC TỐI ƯU HÓA HIỆU NĂNG TRUY VẤN (INDEXES)
@@ -416,7 +424,11 @@ BEGIN
     NEW.note := COALESCE(NEW.note, NEW.notes);
     NEW.notes := COALESCE(NEW.notes, NEW.note);
     NEW.user_id := COALESCE(NEW.user_id, NEW.customer_id);
-    NEW.customer_id := COALESCE(NEW.customer_id, NEW.user_id);
+    IF NEW.customer_id IS NULL
+       AND NEW.user_id IS NOT NULL
+       AND EXISTS (SELECT 1 FROM customers WHERE user_id = NEW.user_id) THEN
+        NEW.customer_id := NEW.user_id;
+    END IF;
     NEW.created_at := COALESCE(NEW.created_at, NEW.order_date, CURRENT_TIMESTAMP);
     NEW.order_date := COALESCE(NEW.order_date, NEW.created_at);
     RETURN NEW;

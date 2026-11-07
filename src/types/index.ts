@@ -76,6 +76,8 @@ export interface Category {
 }
 
 export interface AdminProductItem {
+  categoryId?: string;
+  usageInstruction?: string;
   id: string;
   sku: string;
   name: string;
@@ -98,6 +100,16 @@ export interface AdminProductItem {
   reviewCount?: number;
   soldCount?: number;
   unit?: string;
+}
+
+export interface AdminCategoryRecord {
+  status: boolean;
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  productCount: number;
+  products: Pick<AdminProductItem,'id' | 'sku' | 'name' | 'price' | 'image' | 'status'>[];
 }
 
 export interface CartItem {
@@ -200,11 +212,13 @@ export interface Order {
   notes?: string;
   driver?: DriverInfo;
   trackingSteps?: TrackingStep[];
+  userId?: number | string | null;
+  customerId?: number | string | null;
 }
 
 export interface AdminDashboardData {
   summary: {
-    monthlyRevenue: number;
+    weeklyRevenue: number;
     revenueChangePercent: number | null;
     totalOrders: number;
     deliveredOrderPercent: number;
@@ -212,13 +226,11 @@ export interface AdminDashboardData {
     totalCustomers: number;
     newCustomers: number;
     customersWithBmi: number;
-    monthlyChatMessages: number;
+    weeklyChatMessages: number;
   };
   weeklySales: {
     date: string;
     revenue: number;
-    productRevenue: number;
-    aiRecommendedRevenue: number;
     orders: number;
   }[];
   categories: {

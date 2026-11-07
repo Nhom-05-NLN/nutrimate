@@ -16,6 +16,16 @@ export async function createMeal(req: Request, res: Response<DiaryResponse, Auth
     res.status(201).json({ success: true, message: 'Đã lưu món ăn vào nhật ký.', data: await service.getDay(res.locals.auth.sub, date) });
   } catch (error: unknown) { respond(res, error); }
 }
+export async function deleteMeal(req: Request, res: Response<DiaryResponse, AuthLocals>): Promise<void> {
+  try {
+    const date = await service.deleteMeal(res.locals.auth.sub, req.params.id, req.query.date);
+    res.json({
+      success: true,
+      message: 'Đã xóa món ăn khỏi nhật ký.',
+      data: await service.getDay(res.locals.auth.sub, date),
+    });
+  } catch (error: unknown) { respond(res, error); }
+}
 export async function createWater(req: Request, res: Response<DiaryResponse, AuthLocals>): Promise<void> {
   try {
     const date = service.parseDate(req.body?.date);
@@ -26,5 +36,5 @@ export async function createWater(req: Request, res: Response<DiaryResponse, Aut
 function respond(res: Response<DiaryResponse, AuthLocals>, error: unknown): void {
   if (error instanceof service.NutritionDiaryError) { res.status(error.statusCode).json({ success: false, message: error.message }); return; }
   console.error('[NutritionDiaryController] Không thể xử lý nhật ký:', error instanceof Error ? error.message : 'Unknown error');
-  res.status(503).json({ success: false, message: 'Không thể tải hoặc lưu nhật ký. Vui lòng thử lại sau.' });
+  res.status(503).json({ success: false, message: 'Không thể tải hoặc cập nhật nhật ký. Vui lòng thử lại sau.' });
 }

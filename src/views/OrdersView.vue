@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useCartStore } from '../stores/cartStore';
+import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import { fetchOrders, cancelOrderApi } from '../services/api';
 import { Order, Product } from '../types';
@@ -20,7 +21,9 @@ import {
 } from 'lucide-vue-next';
 
 const router = useRouter();
+const route = useRoute();
 const cartStore = useCartStore();
+const authStore = useAuthStore();
 const toastStore = useToastStore();
 
 const orders = ref<Order[]>([]);
@@ -36,121 +39,81 @@ const selectedOrderForQr = ref<Order | null>(null);
 const showVietQrModal = ref(false);
 const showMomoModal = ref(false);
 
-const DEFAULT_ORDERS: Order[] = [
-  {
-    id: 'ord-mock-1',
-    orderCode: 'NM-98234',
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-    customer: {
-      name: 'Nguyễn Minh Anh',
-      phone: '0912 345 678',
-      email: 'minhanh.fit@gmail.com',
-      address: 'Số 45 Đường D2, P. 25, Q. Bình Thạnh, TP. Hồ Chí Minh',
-      note: 'Giao giờ hành chính giúp mình',
-    },
-    items: [
-      {
-        productId: 'prod-granola',
-        productName: 'Granola Yến Mạch Hạt Dinh Dưỡng Siêu Hạt 500g',
-        productImage: 'https://images.unsplash.com/photo-1517673132405-a56a62b18caf?auto=format&fit=crop&w=600&q=80',
-        price: 185000,
-        quantity: 1,
-        calories: 152,
-        protein: 14,
-        portion: 'Hũ 500g',
-      },
-      {
-        productId: 'prod-chicken',
-        productName: 'Ức Gà Sấy Giòn Vị Thảo Mộc Tự Nhiên 200g',
-        productImage: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=600&q=80',
-        price: 110000,
-        quantity: 2,
-        calories: 145,
-        protein: 32,
-        portion: 'Gói 200g',
-      },
-      {
-        productId: 'prod-peanut',
-        productName: 'Bơ Đậu Phộng Mịn Thuần Chay 350g',
-        productImage: 'https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?auto=format&fit=crop&w=600&q=80',
-        price: 90000,
-        quantity: 1,
-        calories: 190,
-        protein: 8,
-        portion: 'Hũ 350g',
-      },
-    ],
-    totalAmount: 495000,
-    totalCalories: 632,
-    totalProtein: 86,
-    shippingFee: 0,
-    shippingMethod: 'express_2h',
-    paymentMethod: 'vietqr',
-    paymentStatus: 'paid',
-    status: 'shipping',
-    notes: 'Gọi trước 15 phút',
-  },
-  {
-    id: 'ord-mock-2',
-    orderCode: 'NM-97412',
-    createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
-    customer: {
-      name: 'Nguyễn Minh Anh',
-      phone: '0912 345 678',
-      email: 'minhanh.fit@gmail.com',
-      address: 'Số 45 Đường D2, P. 25, Q. Bình Thạnh, TP. Hồ Chí Minh',
-    },
-    items: [
-      {
-        productId: 'prod-rye-bread',
-        productName: 'Bánh Mì Đen Lúa Mạch Nguyên Cám',
-        productImage: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
-        price: 85000,
-        quantity: 1,
-        calories: 180,
-        protein: 8,
-        portion: 'Ổ 450g',
-      },
-      {
-        productId: 'prod-cashew',
-        productName: 'Hạt Điều Rang Củi Không Muối Hữu Cơ 300g',
-        productImage: 'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&w=600&q=80',
-        price: 135000,
-        quantity: 1,
-        calories: 310,
-        protein: 11,
-        portion: 'Hũ 300g',
-      },
-    ],
-    totalAmount: 220000,
-    totalCalories: 490,
-    totalProtein: 19,
-    shippingFee: 25000,
-    shippingMethod: 'standard',
-    paymentMethod: 'cod',
-    paymentStatus: 'paid',
-    status: 'delivered',
-  },
-];
+function applyTrackingSelection() {
+  const queryCode = (route.query.code as string) || (route.query.orderCode as string);
+  if (queryCode && orders.value.length > 0) {
+    const matched = orders.value.find(
+      (o) => o.orderCode.toLowerCase() === queryCode.toLowerCase() || o.id === queryCode
+    );
+    if (matched) {
+      selectedOrderForTracking.value = matched;
+      return;
+    }
+  }
+
+  // Mặc định chọn đơn mới nhất (vừa đặt) hoặc đơn đầu tiên trong danh sách
+  selectedOrderForTracking.value = orders.value[0] || null;
+}
 
 async function loadUserOrders() {
   isLoading.value = true;
   try {
-    const data = await fetchOrders();
-    if (data && data.length > 0) {
-      orders.value = data;
-    } else {
-      orders.value = DEFAULT_ORDERS;
+    const data = await fetchOrders(authStore.accessToken);
+    // Nếu chưa đăng nhập, không hiển thị đơn của người khác
+    if (!authStore.currentUser) {
+      orders.value = [];
+      return;
     }
+
+    const currentUserId = String(authStore.currentUser.id);
+    const currentUserPhone = authStore.currentUser.phone ? authStore.currentUser.phone.replace(/[^0-9]/g, '') : '';
+    const currentUserEmail = authStore.currentUser.email ? authStore.currentUser.email.trim().toLowerCase() : '';
+
+    // Lọc chặt chẽ đơn hàng thuộc đúng tài khoản đang đăng nhập
+    const userOrders = (data || []).filter((o) => {
+      if (o.userId !== undefined && o.userId !== null && String(o.userId) === currentUserId) {
+        return true;
+      }
+      if (o.customerId !== undefined && o.customerId !== null && String(o.customerId) === currentUserId) {
+        return true;
+      }
+      if (currentUserPhone.length >= 9 && o.customer?.phone) {
+        const orderPhone = o.customer.phone.replace(/[^0-9]/g, '');
+        if (orderPhone === currentUserPhone) {
+          return true;
+        }
+      }
+      if (currentUserEmail.length > 0 && o.customer?.email) {
+        if (o.customer.email.trim().toLowerCase() === currentUserEmail) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    orders.value = userOrders;
   } catch {
-    orders.value = DEFAULT_ORDERS;
+    orders.value = [];
   } finally {
     isLoading.value = false;
-    // Mặc định chọn đơn đang giao hoặc đơn đầu tiên để hiển thị tracking widget
-    const shippingOrder = orders.value.find((o) => o.status === 'shipping' || o.status === 'packing');
-    selectedOrderForTracking.value = shippingOrder || orders.value[0] || null;
+    applyTrackingSelection();
   }
 }
+
+watch(
+  () => authStore.currentUser,
+  () => {
+    void loadUserOrders();
+  },
+  { deep: true }
+);
+
+watch(
+  () => [route.query.code, route.query.orderCode],
+  () => {
+    applyTrackingSelection();
+  }
+);
 
 onMounted(() => {
   loadUserOrders();
@@ -352,7 +315,7 @@ async function handleCancelOrder(order: Order) {
           Đơn hàng của tôi
         </h1>
         <p class="text-sm text-[#7A866E] mt-1.5 leading-relaxed">
-          Theo dõi hành trình giao thực phẩm giữ lạnh 4°C và quản lý lịch sử dinh dưỡng của bạn.
+          Theo dõi hành trình giao thực phẩm và quản lý lịch sử dinh dưỡng của bạn.
         </p>
       </div>
 

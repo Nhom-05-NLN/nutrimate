@@ -12,6 +12,9 @@ Cấu hình riêng trong `.env`, không commit file hoặc khóa:
 LLM_API_KEY=<khoa-cua-nha-cung-cap>
 LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 LLM_MODEL=gemini-2.5-flash
+GROQ_API_KEY=<khoa-groq-du-phong>
+GROQ_MODEL=openai/gpt-oss-20b
+GROQ_VISION_MODEL=qwen/qwen3.8-27b
 JWT_SECRET=<bi-mat-HS256-dung-chung-voi-module-dang-nhap-it-nhat-32-ky-tu>
 ```
 
@@ -20,6 +23,8 @@ JWT_SECRET=<bi-mat-HS256-dung-chung-voi-module-dang-nhap-it-nhat-32-ky-tu>
 Adapter tham chiếu [OpenAI Docs — Create chat completion](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create); mức tương thích của từng nhà cung cấp cần kiểm thử bằng model được cấu hình.
 
 Cấu hình được chọn cho dự án là `gemini-2.5-flash` qua [Gemini OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai). `LLM_API_KEY` phải là khóa Gemini hợp lệ; khóa của nhà cung cấp khác không dùng được cho endpoint này.
+
+Khi Gemini trả HTTP 401, 403 hoặc 429, chat văn bản tự chuyển sang Groq bằng `GROQ_API_KEY` và `GROQ_MODEL`, truyền nguyên ngữ cảnh đã tạo cho Gemini. Nếu Groq chưa cấu hình hoặc cũng lỗi, hội thoại giữ nguyên và API trả lỗi để khách có thể thử lại; không ghi một câu trả lời giả vào lịch sử. Phân tích ảnh cũng chuyển sang `GROQ_VISION_MODEL` khi Gemini bị từ chối, hết hạn mức, model không khả dụng, gặp lỗi máy chủ hoặc lỗi kết nối. Model vision mặc định là `qwen/qwen3.8-27b`; có thể đổi bằng biến môi trường riêng mà không ảnh hưởng model chat. Ảnh được gửi trực tiếp dạng base64 tới API Groq qua backend; không ghi ảnh hoặc khóa API vào log.
 
 Áp dụng migration trên **database NutriMate hiện có** bằng công cụ PostgreSQL. Nếu database chưa có bảng chat cũ, chạy `server/db/migrations/001_chat.sql`. Nếu đã có `chat_sessions` và `chat_messages` dạng cũ (`session_id`, `question`, `response`), chạy migration tương thích `server/db/migrations/003_chat_conversation_schema_compat.sql` thay vì `001_chat.sql`:
 
@@ -33,7 +38,7 @@ Các repository chat cũng hỗ trợ schema NutriMate chuẩn (`chatbot_knowled
 
 ## Danh tính và quyền truy cập
 
-- Customer gửi `Authorization: Bearer <JWT>`. Adapter hiện nhận HS256, `sub` là chuỗi ID số của `users.id`, có `exp`, kiểm tra `nbf` nếu có. Server kiểm tra chữ ký bằng `JWT_SECRET`, rồi đọc vai trò hiện tại trong `users` và chỉ chấp nhận `customer`. Không tin `userId`, `role` hoặc history gửi từ client. Hợp đồng JWT khác cần phối hợp với module tài khoản trước khi kết nối.
+- Customer hoặc Admin gửi `Authorization: Bearer <JWT>`. Adapter nhận HS256, `sub` là chuỗi ID số của `users.id`, có `exp`, kiểm tra `nbf` nếu có. Server kiểm tra chữ ký bằng `JWT_SECRET`, rồi đọc vai trò hiện tại từ PostgreSQL; cả Customer và Admin đều có thể dùng NutriBot, còn Guest dùng cookie chat riêng. Không tin `userId`, `role` hoặc history gửi từ client. Hợp đồng JWT khác cần phối hợp với module tài khoản trước khi kết nối.
 - API đăng nhập/đăng ký ký JWT HS256 có hạn một giờ bằng `JWT_SECRET` (tối thiểu 32 ký tự). Frontend giữ JWT trong bộ nhớ qua `authStore.login(profile, accessToken)`, không lưu vào localStorage; đăng xuất sẽ xóa token. Đăng nhập mô phỏng không có token vẫn là Guest đối với API chat, không được giả làm Customer.
 - Guest gọi `POST /api/chat/session` trước để nhận hoặc khôi phục cookie `nutrimate_guest`: ngẫu nhiên 256 bit, HttpOnly, SameSite=Strict, thời hạn 7 ngày, path `/api/chat`; Secure ở production. Sau đó mới lấy danh sách hội thoại và lịch sử. Database chỉ lưu SHA-256 của token, không trả token trong JSON. Mất cookie thì không thể khôi phục lịch sử Guest bằng ID hội thoại đơn thuần.
 - Đọc lịch sử, danh sách hoặc gửi khi không có JWT/cookie hợp lệ trả 401. JWT sai/hết hạn không được tự hạ thành Guest. Sai vai trò trả 403. Hội thoại không thuộc danh tính hiện tại trả 404, kể cả khi ID tồn tại, để tránh tiết lộ sự tồn tại.
@@ -120,6 +125,7 @@ Response 200 chứa `conversationId`, `reply`, `suggestedProducts` và `messages
 - Lịch sử ngữ cảnh được đọc từ PostgreSQL, chỉ lấy các cặp User/Assistant gần nhất: tối đa 20 tin và 16000 ký tự (kể cả câu hỏi mới). System prompt/dữ liệu tham chiếu được giới hạn riêng; tối đa 1000 output tokens. Đây là giới hạn ký tự, không phải tokenizer riêng của từng model.
 - Timeout AI 30 giây trả 504; lỗi nhà cung cấp/phản hồi rỗng trả 502; thiếu cấu hình AI hoặc lỗi PostgreSQL trả 503. Không chuyển lỗi thành trả lời sản phẩm mẫu. Chi tiết lỗi nội bộ/API key không được gửi ra client.
 - Giữ truy xuất FAQ/sản phẩm theo từ khóa đang có, qua chế độ PostgreSQL bắt buộc; tối đa ba sản phẩm thực. Không mở rộng CN_26–CN_28 thành bộ truy vấn AI hay dùng SQL do model sinh.
+- Nút “Hỏi NutriBot” từ đơn hàng gửi mã đơn trong tin nhắn. Với câu hỏi có mã `NM-######`, backend tra cứu bằng truy vấn tham số hóa và giới hạn `user_id`/`customer_id` theo danh tính JWT; chỉ trả trạng thái, thanh toán, ngày tạo, tổng tiền và tên/số lượng sản phẩm, không gửi thông tin giao hàng hay dữ liệu cá nhân cho AI. Khi Customer/Admin đặt đơn có JWT hợp lệ, server gắn `user_id` lấy từ JWT; không tự ghi `customer_id` vì khóa ngoại thực tế có thể trỏ bảng `customers`. Đơn cũ chưa liên kết chỉ được gắn cho tài khoản Customer nếu email và số điện thoại khớp, hoặc họ tên và số điện thoại khớp sau chuẩn hóa định dạng số điện thoại; kết quả phải khớp duy nhất một Customer. Đơn đã có chủ khác không thể được nhận. Guest được yêu cầu đăng nhập; mã không thuộc tài khoản hiện tại được báo không tìm thấy. Trả lời lấy trực tiếp từ PostgreSQL, không gọi AI; câu hỏi tiếp theo về đơn trong cùng hội thoại dùng mã đơn gần nhất đã gửi.
 - Mọi phản hồi AI được ứng dụng bổ sung câu cảnh báo chỉ mang tính tham khảo. Nội dung được Vue render như text, không dùng `v-html`.
 
 ## Kiểm thử

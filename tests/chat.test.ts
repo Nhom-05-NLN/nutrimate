@@ -8,7 +8,8 @@ import { config } from '../server/config.js';
 import { createChatController } from '../server/controllers/chatController.js';
 import { createChatIdentity, verifyCustomerJwt } from '../server/middleware/chatIdentity.js';
 import { ChatConversationRepository } from '../server/repositories/chatConversationRepository.js';
-import { asksForProductSuggestions, boundedContext, createChatService, matchKnowledgeBase } from '../server/services/chatService.js';
+import { findChatOrderByCode } from '../server/repositories/orderRepository.js';
+import { asksForProductSuggestions, boundedContext, createChatService, findRequestedOrderCode, matchKnowledgeBase } from '../server/services/chatService.js';
 import { generateChatReply, type LlmMessage } from '../server/services/chatLlmService.js';
 import { CHAT_DISCLAIMER, ChatError, type ChatOwner, type Conversation, type StoredChatMessage } from '../server/types/chat.js';
 import { getAllKnowledge } from '../server/repositories/chatRepository.js';
@@ -66,6 +67,7 @@ const service = createChatService(repository, async messages => {
 });
 const identity = createChatIdentity(async id => id === 9 ? 'admin' : id <= 2 ? 'customer' : undefined);
 const controller = createChatController(service, identity);
+const customerOnlyIdentity = createChatIdentity(async id => id === 9 ? 'admin' : id <= 2 ? 'customer' : undefined, ['customer']);
 const app = express();
 app.use(express.json());
 app.post('/api/chat/session', controller.session);
@@ -74,6 +76,14 @@ app.get('/api/chat/conversations', controller.list);
 app.get('/api/chat/conversations/:id/messages', controller.history);
 app.post('/api/chat/conversations/:id/messages', controller.ask);
 app.post('/api/chat/ask', controller.ask);
+app.get('/api/chat/customer-only', (req, res, next) => {
+  void customerOnlyIdentity(req, res)
+    .then(() => res.sendStatus(204))
+    .catch(error => {
+      if (error instanceof ChatError) res.status(error.status).json({ success: false, message: error.message });
+      else next(error);
+    });
+});
 const server = app.listen(0, '127.0.0.1');
 let base = '';
 before(async () => {
@@ -123,6 +133,81 @@ test('knowledge retrieval matches Vietnamese questions with accents and avoids u
   assert.equal(matchKnowledgeBase('Toi nen an gi khi bi tieu duong?', entries)?.answer, 'Câu trả lời từ tri thức.');
   assert.equal(matchKnowledgeBase('Có giao hàng nhanh không?', entries), undefined);
 });
+test('order lookup scopes the parameterized query to the authenticated user', async () => {
+  const calls: { sql: string; params?: unknown[] }[] = [];
+  const execute: typeof queryPostgres = async <T extends import('pg').QueryResultRow = import('pg').QueryResultRow>(
+    sql: string,
+    params?: unknown[],
+  ) => {
+    calls.push({ sql, params });
+    const rows = calls.length === 1
+      ? [{ order_id: 17, order_code: 'NM-123456', order_date: '2026-11-06T10:00:00Z', status: 'shipping', payment_status: 'paid', total_amount: '287000' }]
+      : [{ product_name: 'Bún Shirataki', quantity: 2 }];
+    return {
+      rows: rows as T[],
+      rowCount: rows.length,
+      command: 'SELECT',
+      oid: 0,
+      fields: [],
+    };
+  };
+  const order = await findChatOrderByCode('NM-123456', 41, execute);
+  assert.equal(order?.status, 'shipping');
+  assert.equal(order?.items[0]?.productName, 'Bún Shirataki');
+  assert.match(calls[0]?.sql || '', /order_code = \$1 AND \(user_id = \$2 OR customer_id = \$2\)/);
+  assert.deepEqual(calls[0]?.params, ['NM-123456', 41]);
+  assert.deepEqual(calls[1]?.params, [17]);
+});
+test('legacy order lookup requires an unowned order and a unique account match', async () => {
+  const calls: { sql: string; params?: unknown[] }[] = [];
+  const execute: typeof queryPostgres = async <T extends import('pg').QueryResultRow = import('pg').QueryResultRow>(
+    sql: string,
+    params?: unknown[],
+  ) => {
+    calls.push({ sql, params });
+    const rows = calls.length === 2
+      ? [{ order_id: 18, order_code: 'NM-654321', order_date: '2026-11-06T10:00:00Z', status: 'confirmed', payment_status: 'paid', total_amount: '120000' }]
+      : calls.length === 3 ? [{ product_name: 'Granola', quantity: 1 }] : [];
+    return {
+      rows: rows as T[],
+      rowCount: rows.length,
+      command: calls.length === 2 ? 'UPDATE' : 'SELECT',
+      oid: 0,
+      fields: [],
+    };
+  };
+  const order = await findChatOrderByCode('NM-654321', 41, execute);
+  assert.equal(order?.orderCode, 'NM-654321');
+  assert.match(calls[1]?.sql || '', /user_id IS NULL/);
+  assert.match(calls[1]?.sql || '', /customer_id IS NULL/);
+  assert.match(calls[1]?.sql || '', /customer_email/);
+  assert.match(calls[1]?.sql || '', /customer_phone/);
+  assert.match(calls[1]?.sql || '', /customer_name/);
+  assert.match(calls[1]?.sql || '', /REGEXP_REPLACE/);
+  assert.deepEqual(calls[1]?.params, ['NM-654321', 41]);
+});
+test('order questions use the button order code and allow same-conversation follow-up', () => {
+  const history: StoredChatMessage[] = [
+    { id: '1', role: 'user', content: 'Kiểm tra giúp mình tiến độ đơn hàng #NM-123456 nhé', requestId: '1', createdAt: '', suggestedProducts: [] },
+    { id: '2', role: 'assistant', content: 'Đơn đang giao.', requestId: '1', createdAt: '', suggestedProducts: [] },
+  ];
+  assert.equal(findRequestedOrderCode(history[0]!.content, []), 'NM-123456');
+  assert.equal(findRequestedOrderCode('Đơn này khi nào giao tới?', history), 'NM-123456');
+  assert.equal(findRequestedOrderCode('Gợi ý món ăn giàu protein', history), undefined);
+});
+test('matched order context is returned directly without asking the AI', async () => {
+  const orderRepository = new MemoryRepository();
+  const owner = { userId: 1, guestHash: null } as const;
+  const conversation = await orderRepository.create(owner);
+  let generated = false;
+  const orderService = createChatService(orderRepository, async () => {
+    generated = true;
+    return 'AI không được gọi';
+  }, async () => ({ products: [], knowledge: '', orderAnswer: 'Đơn hàng đang được giao.' }));
+  const result = await orderService.ask(owner, conversation.id, randomUUID(), 'Kiểm tra đơn hàng #NM-123456');
+  assert.equal(generated, false);
+  assert.equal(result.reply, 'Đơn hàng đang được giao.');
+});
 test('product cards are requested only when the customer asks for food suggestions', () => {
   assert.equal(asksForProductSuggestions('Gợi ý món giàu protein, ít đường'), true);
   assert.equal(asksForProductSuggestions('Tìm món ít calo cho bữa tối'), true);
@@ -150,6 +235,44 @@ test('meal suggestion answers do not append the nutrition disclaimer', async () 
   const suggestionService = createChatService(suggestionRepository, async () => 'Bạn có thể chọn các món ít calo dưới đây.', async () => ({ products: [], knowledge: '' }));
   const result = await suggestionService.ask(owner, conversation.id, randomUUID(), 'Tìm món ít calo cho bữa tối');
   assert.equal(result.reply, 'Bạn có thể chọn các món ít calo dưới đây.');
+  assert.ok(!result.reply.includes(CHAT_DISCLAIMER));
+});
+test('product suggestions use real product context even when nutrition knowledge is unmatched or matched', async () => {
+  const suggestionRepository = new MemoryRepository();
+  const owner = { userId: 1, guestHash: null } as const;
+  const conversation = await suggestionRepository.create(owner);
+  const product: Product = {
+    id: '42',
+    code: 'NM-42',
+    name: 'Đậu gà',
+    category: 'high-protein',
+    categoryName: 'Giàu đạm',
+    price: 25000,
+    image: '/images/chickpea.png',
+    description: 'Đậu gà rang',
+    ingredients: ['Đậu gà'],
+    nutrition: { servingSize: '30 g', calories: 120, protein: 8, carbs: 18, fat: 2, sugar: 1 },
+    stock: 5,
+    rating: 0,
+    reviewCount: 0,
+    badges: [],
+    bestFor: '',
+  };
+  let generated = false;
+  const suggestionService = createChatService(suggestionRepository, async messages => {
+    generated = true;
+    assert.match(messages[0]?.content ?? '', /kể cả khi knowledge_base trống hoặc không khớp/i);
+    assert.match(messages[0]?.content ?? '', /Đậu gà/);
+    return 'Bạn có thể thử Đậu gà rang: 8 g protein và 1 g đường mỗi khẩu phần.';
+  }, async () => ({
+    products: [product],
+    knowledge: '',
+    knowledgeAnswer: 'FAQ chung không trả lời yêu cầu gợi ý sản phẩm.',
+  }));
+  const result = await suggestionService.ask(owner, conversation.id, randomUUID(), 'Gợi ý món giàu protein, ít đường');
+  assert.equal(generated, true);
+  assert.match(result.reply, /Đậu gà rang/);
+  assert.deepEqual(result.suggestedProducts, [product]);
   assert.ok(!result.reply.includes(CHAT_DISCLAIMER));
 });
 test('session bootstrap creates/restores Guest without creating conversations and rejects expired Customer JWT', async () => {
@@ -231,6 +354,10 @@ test('admin can use chat while conversation ownership stays isolated by account'
   }, jwt('9'))).status, 200);
   assert.equal((await request(`/conversations/${adminConversationId}/messages`, undefined, jwt('1'))).status, 404);
 });
+test('customer-only identity rejects Admin before protected work runs', async () => {
+  assert.equal((await request('/customer-only', undefined, jwt('9'))).status, 403);
+  assert.equal((await request('/customer-only', undefined, jwt('1'))).status, 204);
+});
 test('invalid/expired JWT is rejected, never downgraded to Guest', async () => {
   for (const token of ['bad', jwt('1', 1), jwt('1', Math.floor(Date.now() / 1000) + 60, 'wrong')]) {
     assert.equal((await request('/conversations', {}, token)).status, 401);
@@ -289,6 +416,48 @@ test('provider parses compatible response and rejects empty/error/timeout respon
     for (const fake of [async () => Response.json({ choices: [] }), async () => new Response('Secret provider failure', { status: 500 })]) {
       await assert.rejects(generateChatReply([], fake), (error: unknown) => error instanceof ChatError && error.status === 502 && !error.message.includes('Secret'));
     }
+    const messages = [{ role: 'user' as const, content: 'Xin tư vấn' }];
+    let groqCalls = 0;
+    const groqFallback = async (received: LlmMessage[]) => {
+      groqCalls++;
+      assert.deepEqual(received, messages);
+      return 'Phản hồi dự phòng từ Groq';
+    };
+    assert.equal(
+      await generateChatReply(messages, async () => Response.json({}, { status: 429 }), groqFallback),
+      'Phản hồi dự phòng từ Groq',
+    );
+    assert.equal(groqCalls, 1);
+    assert.equal(
+      await generateChatReply(messages, async () => Response.json({}, { status: 403 }), groqFallback),
+      'Phản hồi dự phòng từ Groq',
+    );
+    assert.equal(groqCalls, 2);
+    await assert.rejects(
+      generateChatReply(messages, async () => Response.json({}, { status: 400 }), groqFallback),
+      (error: unknown) => error instanceof ChatError && error.status === 502,
+    );
+    assert.equal(groqCalls, 2);
+    await assert.rejects(
+      generateChatReply(messages, async () => Response.json({}, { status: 429 }), async () => {
+        throw new Error('Private Groq error');
+      }),
+      (error: unknown) => error instanceof ChatError
+        && error.status === 503
+        && error.message.includes('Groq')
+        && !error.message.includes('Private'),
+    );
+    await assert.rejects(
+      generateChatReply([], async () => Response.json(
+        { error: { status: 'RESOURCE_EXHAUSTED', message: 'do not expose provider details' } },
+        { status: 503 },
+      )),
+      (error: unknown) => error instanceof ChatError && error.status === 502 && !error.message.includes('provider details'),
+    );
+    assert.equal(
+      await generateChatReply(messages, async () => new Response('Unauthorized', { status: 401 }), groqFallback),
+      'Phản hồi dự phòng từ Groq',
+    );
     await assert.rejects(generateChatReply([], async () => { throw new DOMException('timeout', 'TimeoutError'); }), (error: unknown) => error instanceof ChatError && error.status === 504);
     config.chat.apiKey = '';
     await assert.rejects(generateChatReply([], good), (error: unknown) => error instanceof ChatError && error.status === 503);

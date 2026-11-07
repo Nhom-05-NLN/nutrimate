@@ -2,7 +2,7 @@ import { Order, CreateOrderPayload, OrderStatus, PaymentStatus } from '../types/
 import * as orderRepo from '../repositories/orderRepository.js';
 import * as voucherService from './voucherService.js';
 
-export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
+export async function createOrder(payload: CreateOrderPayload, ownerUserId: number | null = null): Promise<Order> {
   if (!payload.items || payload.items.length === 0) {
     throw new Error('Giỏ hàng không được để trống khi đặt hàng.');
   }
@@ -63,7 +63,7 @@ export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
     notes: payload.notes,
   };
 
-  const savedOrder = await orderRepo.createOrder(order);
+  const savedOrder = await orderRepo.createOrder(order, ownerUserId);
 
   // Ghi nhận lượt sử dụng voucher nếu có áp dụng
   if (appliedCode && discountAmount > 0) {
@@ -119,9 +119,9 @@ export async function autoCancelExpiredOrders(): Promise<number> {
   }
 }
 
-export async function getOrders(): Promise<Order[]> {
+export async function getOrders(userId: number | null = null): Promise<Order[]> {
   await autoCancelExpiredOrders();
-  return orderRepo.getAllOrders();
+  return orderRepo.getOrdersByUser(userId);
 }
 
 export async function getOrderById(id: string): Promise<Order | null> {

@@ -7,6 +7,7 @@ import {
   fetchCurrentUser,
   postLogout,
   RegisteredUser,
+  ShippingAddress,
   updateCurrentUser,
   updateCurrentUserAvatar,
   updateCurrentUserDietPreferences,
@@ -130,11 +131,57 @@ export const useAuthStore = defineStore('auth', () => {
   let activeStorage: Storage | null = null;
   let sessionInitialized = false;
   let sessionRequest: Promise<void> | null = null;
+  let sessionExpiryTimer: ReturnType<typeof setTimeout> | null = null;
 
   const isAuthModalOpen = ref<boolean>(false);
   // Set only from the real authentication module's response. Demo login has no JWT.
   const accessToken = ref<string | null>(restoredSession?.token ?? null);
   const toast = useToastStore();
+
+  function getTokenExpiry(token: string): number | null {
+    const encodedPayload = token.split('.')[1];
+    if (!encodedPayload || typeof atob !== 'function') return null;
+
+    try {
+      const base64 = encodedPayload.replace(/-/g, '+').replace(/_/g, '/');
+      const payload: unknown = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')));
+      if (
+        typeof payload === 'object' &&
+        payload !== null &&
+        'exp' in payload &&
+        typeof payload.exp === 'number'
+      ) {
+        return payload.exp * 1000;
+      }
+    } catch (error: unknown) {
+      console.error('[AuthStore] Không thể đọc thời hạn phiên đăng nhập:', error);
+    }
+
+    return null;
+  }
+
+  function clearSessionExpiryTimer(): void {
+    if (sessionExpiryTimer !== null) {
+      clearTimeout(sessionExpiryTimer);
+      sessionExpiryTimer = null;
+    }
+  }
+
+  function scheduleSessionExpiry(token: string): void {
+    clearSessionExpiryTimer();
+    const expiresAt = getTokenExpiry(token);
+    if (expiresAt === null) return;
+
+    const delay = Math.max(0, expiresAt - Date.now());
+    sessionExpiryTimer = setTimeout(() => {
+      if (accessToken.value !== token) return;
+      if (Date.now() < expiresAt) {
+        scheduleSessionExpiry(token);
+        return;
+      }
+      void logout(true);
+    }, Math.min(delay, 2_147_000_000));
+  }
 
   function openAuthModal() {
     isAuthModalOpen.value = true;
@@ -159,7 +206,10 @@ export const useAuthStore = defineStore('auth', () => {
           : profileDefaults.avatar
       ),
       role: user.role,
-      defaultAddress: user.defaultAddress ?? cachedProfile?.defaultAddress ?? null,
+      defaultAddress:
+        (user.defaultAddress?.isDefault ? user.defaultAddress : null) ??
+        (cachedProfile?.defaultAddress?.isDefault ? cachedProfile.defaultAddress : null) ??
+        null,
       dietPreferences: user.dietPreferences ?? cachedProfile?.dietPreferences ?? [],
     };
   }
@@ -170,6 +220,7 @@ export const useAuthStore = defineStore('auth', () => {
       sessionRequest = (async () => {
         const user = await fetchCurrentUser();
         if (!user) {
+          clearSessionExpiryTimer();
           localStorageRef?.removeItem(authStorageKey);
           localStorageRef?.removeItem(authTokenKey);
           sessionStorageRef?.removeItem(authStorageKey);
@@ -181,9 +232,13 @@ export const useAuthStore = defineStore('auth', () => {
           const cachedSession = restoreUser();
           const cachedProfile =
             cachedSession?.user.id === user.id ? cachedSession.user : undefined;
+          const cachedToken =
+            cachedSession?.user.id === user.id ? cachedSession.token : null;
           currentUser.value = toProfile(user, cachedProfile);
           activeStorage = cachedSession?.storage ?? null;
-          accessToken.value = cachedSession?.user.id === user.id ? cachedSession.token : null;
+          accessToken.value = cachedToken;
+          if (cachedToken) scheduleSessionExpiry(cachedToken);
+          else clearSessionExpiryTimer();
         }
         sessionInitialized = true;
       })();
@@ -277,11 +332,12 @@ export const useAuthStore = defineStore('auth', () => {
     activeStorage = storage;
     sessionInitialized = true;
     isAuthModalOpen.value = false;
-    toast.show(`Chào mừng ${profile.name} đã đăng nhập NutriMate!`);
+    scheduleSessionExpiry(token);
   }
 
-  async function logout(): Promise<void> {
+  async function logout(sessionExpired = false): Promise<void> {
     const wasAuthenticated = currentUser.value !== null;
+    clearSessionExpiryTimer();
     try {
       await postLogout();
     } catch {
@@ -297,9 +353,27 @@ export const useAuthStore = defineStore('auth', () => {
     sessionStorageRef?.removeItem(authTokenKey);
 
     if (wasAuthenticated) {
-      toast.show("Đã đăng xuất tài khoản thành công.", "info");
+      toast.show(
+        sessionExpired
+          ? "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."
+          : "Đã đăng xuất tài khoản thành công.",
+        "info",
+      );
     }
   }
+
+  function setAddresses(addressList: ShippingAddress[]) {
+    if (currentUser.value) {
+      currentUser.value = {
+        ...currentUser.value,
+        addresses: addressList,
+        defaultAddress: addressList.find((a) => a.isDefault) ?? null,
+      };
+      activeStorage?.setItem(authStorageKey, JSON.stringify(currentUser.value));
+    }
+  }
+
+  if (restoredSession) scheduleSessionExpiry(restoredSession.token);
 
   return {
     accessToken,
@@ -312,6 +386,7 @@ export const useAuthStore = defineStore('auth', () => {
     updateDietPreferences,
     updateAvatar,
     updateAccountProfile,
+    setAddresses,
     login,
     logout,
   };
