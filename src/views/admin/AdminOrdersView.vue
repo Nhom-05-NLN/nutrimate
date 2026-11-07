@@ -210,7 +210,7 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
         <h1 class="font-heading text-2xl sm:text-3xl font-black text-[#2D3B1E]">
-          Quản lý đơn hàng & Vận chuyển (Admin Portal)
+          Quản lý đơn hàng & Vận chuyển
         </h1>
         <p class="text-xs text-[#7A866E] mt-1">
           Giám sát đơn đặt hàng, điều phối đóng thùng mát 4°C và giao siêu tốc 2H.
