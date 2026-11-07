@@ -7,7 +7,8 @@ const props = defineProps<{
   modelValue: boolean;
   mode: 'create' | 'edit';
   initialData?: AdminProductItem | null;
-  categories: string[];
+  categories: { id: string; name: string }[];
+  saving?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -17,7 +18,7 @@ const emit = defineEmits<{
     name: string;
     category: string;
     price: number;
-    originalPrice?: number;
+    stock?: number;
     calo: number;
     protein: number;
     carbs?: number;
@@ -33,7 +34,7 @@ const form = ref({
   name: '',
   category: '',
   price: 0,
-  originalPrice: 0,
+  stock: 0,
   calo: 0,
   protein: 0,
   carbs: 0,
@@ -47,6 +48,7 @@ const formErrors = ref({
   sku: '',
   name: '',
   price: '',
+  stock: '',
   calo: '',
   protein: '',
 });
@@ -55,14 +57,14 @@ watch(
   () => props.modelValue,
   (isOpen) => {
     if (isOpen) {
-      formErrors.value = { sku: '', name: '', price: '', calo: '', protein: '' };
+      formErrors.value = { sku: '', name: '', price: '', stock: '', calo: '', protein: '' };
       if (props.mode === 'edit' && props.initialData) {
         form.value = {
           sku: props.initialData.sku,
           name: props.initialData.name,
-          category: props.initialData.category,
+          category: props.initialData.categoryId || '',
           price: props.initialData.price,
-          originalPrice: props.initialData.originalPrice || props.initialData.price,
+          stock: props.initialData.stock ?? 0,
           calo: props.initialData.calo,
           protein: props.initialData.protein,
           carbs: props.initialData.carbs || 0,
@@ -75,16 +77,16 @@ watch(
         form.value = {
           sku: `NM-PRD-${Math.floor(10 + Math.random() * 90)}`,
           name: '',
-          category: props.categories[0] || 'High-Protein',
-          price: 95000,
-          originalPrice: 110000,
-          calo: 180,
-          protein: 15,
-          carbs: 20,
-          fat: 5,
-          sugar: 1,
+          category: props.categories[0]?.id || '',
+          price: 0,
+          stock: 0,
+          calo: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          sugar: 0,
           status: 'Đang bán',
-          image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=400&q=80',
+          image: '',
         };
       }
     }
@@ -94,7 +96,12 @@ watch(
 
 function validateProductForm(): boolean {
   let isValid = true;
-  formErrors.value = { sku: '', name: '', price: '', calo: '', protein: '' };
+  formErrors.value = { sku: '', name: '', price: '', stock: '', calo: '', protein: '' };
+
+  if (props.mode === 'create' && (!Number.isInteger(form.value.stock) || form.value.stock < 0 || form.value.stock > 2147483647)) {
+    formErrors.value.stock = 'Số lượng phải là số nguyên từ 0 đến 2.147.483.647.';
+    isValid = false;
+  }
 
   if (!form.value.sku.trim()) {
     formErrors.value.sku = 'Mã SKU không được để trống.';
@@ -128,7 +135,7 @@ function validateProductForm(): boolean {
 }
 
 function handleSubmit() {
-  if (!validateProductForm()) {
+  if (props.saving || !validateProductForm()) {
     return;
   }
 
@@ -137,19 +144,19 @@ function handleSubmit() {
     name: form.value.name.trim(),
     category: form.value.category,
     price: form.value.price,
-    originalPrice: form.value.originalPrice > 0 ? form.value.originalPrice : undefined,
+    ...(props.mode === 'create' ? { stock: form.value.stock } : {}),
     calo: form.value.calo,
     protein: form.value.protein,
     carbs: form.value.carbs,
     fat: form.value.fat,
     sugar: form.value.sugar,
     status: form.value.status,
-    image: form.value.image || 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=400&q=80',
+    image: form.value.image,
   });
-  emit('update:modelValue', false);
 }
 
 function handleClose() {
+  if (props.saving) return;
   emit('update:modelValue', false);
 }
 </script>
@@ -222,8 +229,8 @@ function handleClose() {
               v-model="form.category"
               class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124]"
             >
-              <option v-for="cat in categories" :key="cat" :value="cat">
-                {{ cat }}
+              <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+                {{ cat.name }}
               </option>
             </select>
           </div>
@@ -258,17 +265,28 @@ function handleClose() {
             </span>
           </div>
 
-          <div>
-            <label class="block font-bold text-[#2D3B1E] mb-1.5">Giá gốc trước giảm (VNĐ)</label>
+          <div v-if="mode === 'create'">
+            <label for="product-initial-stock" class="block font-bold text-[#2D3B1E] mb-1.5">
+              Số lượng <span class="text-rose-500">*</span>
+            </label>
             <input
+              id="product-initial-stock"
+              v-model.number="form.stock"
               type="number"
-              v-model.number="form.originalPrice"
               min="0"
-              step="1000"
-              class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124]"
+              max="2147483647"
+              step="1"
+              :disabled="saving"
+              class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border text-[#2D3B1E] focus:outline-[#536124]"
+              :class="formErrors.stock ? 'border-rose-400 bg-rose-50/20' : 'border-[#DEE5D4]'"
             />
+            <span v-if="formErrors.stock" class="text-[11px] text-rose-500 font-medium mt-1 block">
+              {{ formErrors.stock }}
+            </span>
           </div>
         </div>
+
+
 
         <!-- Thông số Macro -->
         <div class="p-4 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] space-y-3">
@@ -346,6 +364,7 @@ function handleClose() {
         <button
           type="button"
           @click="handleSubmit"
+          :disabled="saving"
           class="px-5 py-2.5 rounded-2xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs font-bold shadow-xs cursor-pointer"
         >
           {{ mode === 'create' ? 'Lưu sản phẩm mới' : 'Lưu thay đổi' }}

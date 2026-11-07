@@ -45,6 +45,28 @@ export async function postProductReview(productId: string, payload: { rating: nu
   });
 }
 
+export interface AdminProductsData {
+  totalSold: number;
+  products: import('../types').AdminProductItem[];
+  categories: { id: string; name: string }[];
+}
+
+export async function fetchAdminProducts(): Promise<AdminProductsData> {
+  const response = await fetchJson<ApiResponse<AdminProductsData>>('/admin/products');
+  if (!response.data) throw new Error(response.message || 'Không thể tải sản phẩm.');
+  return response.data;
+}
+
+export async function saveAdminProduct(payload: Omit<import('../types').AdminProductItem,'id'>, id?: string) {
+  return fetchJson<ApiResponse<{ id: string }>>(`/admin/products${id ? '/' + encodeURIComponent(id) : ''}`, {
+    method: id ? 'PUT' : 'POST', body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminProduct(id: string) {
+  return fetchJson<ApiResponse<null>>(`/admin/products/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
 export async function fetchProductSalesSummary(): Promise<number> {
   const res = await fetchJson<ApiResponse<{ totalSold: number }>>('/products/sales-summary');
   if (!res.data) throw new Error(res.message || 'Không thể tải lượt bán.');

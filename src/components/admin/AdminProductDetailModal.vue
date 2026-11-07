@@ -17,8 +17,7 @@ import {
   HeartHandshake,
   CheckCircle2,
 } from 'lucide-vue-next';
-import { useProductStore, FIGMA_SEED_PRODUCTS } from '../../stores/productStore';
-import type { Product, AdminProductItem } from '../../types';
+import type { AdminProductItem } from '../../types';
 
 export type { AdminProductItem };
 
@@ -32,56 +31,12 @@ const emit = defineEmits<{
   (e: 'edit', product: AdminProductItem): void;
 }>();
 
-const productStore = useProductStore();
 const activeTab = ref<'info' | 'nutrition' | 'ingredients'>('info');
 const activeImageIndex = ref(0);
 
-// Tìm kiếm thông tin chi tiết đầy đủ hơn từ productStore / seed nếu có
-const matchedFullProduct = computed<Product | null>(() => {
-  if (!props.product) return null;
-  const list = productStore.products.length > 0 ? productStore.products : FIGMA_SEED_PRODUCTS;
-  return (
-    list.find((p) => p.id === props.product?.id || p.code === props.product?.sku) ||
-    null
-  );
-});
-
-// Danh sách ảnh gallery
-const galleryImages = computed<string[]>(() => {
-  if (!props.product) return [];
-  if (matchedFullProduct.value?.galleryImages && matchedFullProduct.value.galleryImages.length > 0) {
-    return matchedFullProduct.value.galleryImages;
-  }
-  const mainImg = props.product.image;
-  return [
-    mainImg,
-    'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
-    'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&w=600&q=80',
-  ];
-});
-
-// Mô tả sản phẩm
-const productDescription = computed(() => {
-  if (props.product?.description) return props.product.description;
-  if (matchedFullProduct.value?.description) return matchedFullProduct.value.description;
-  return 'Sản phẩm dinh dưỡng sạch thuần khiết, sản xuất theo quy trình kiểm định an toàn vệ sinh thực phẩm khắt khe, tối ưu hóa chỉ số Macro cho chế độ ăn lành mạnh.';
-});
-
-// Thành phần nguyên liệu
-const productIngredients = computed<string[]>(() => {
-  if (props.product?.ingredients && props.product.ingredients.length > 0) {
-    return props.product.ingredients;
-  }
-  if (matchedFullProduct.value?.ingredients && matchedFullProduct.value.ingredients.length > 0) {
-    return matchedFullProduct.value.ingredients;
-  }
-  return [
-    'Nguyên liệu 100% tự nhiên tuyển chọn',
-    'Không chất bảo quản nhân tạo',
-    'Không đường hóa học tổng hợp',
-    'Đạt tiêu chuẩn an toàn thực phẩm ISO 22000',
-  ];
-});
+const galleryImages = computed(() => props.product?.image ? [props.product.image] : []);
+const productDescription = computed(() => props.product?.description || 'Chưa có mô tả.');
+const productIngredients = computed(() => props.product?.ingredients ?? []);
 
 // Tính % giảm giá
 const discountPercent = computed(() => {
@@ -90,8 +45,8 @@ const discountPercent = computed(() => {
 });
 
 // Đánh giá và số lượng
-const ratingValue = computed(() => props.product?.rating || matchedFullProduct.value?.rating || 4.9);
-const reviewCountValue = computed(() => props.product?.reviewCount || matchedFullProduct.value?.reviewCount || 128);
+const ratingValue = computed(() => props.product?.rating ?? 0);
+const reviewCountValue = computed(() => props.product?.reviewCount ?? 0);
 
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -302,20 +257,7 @@ function handleEdit() {
               <!-- Gợi ý sử dụng lành mạnh -->
               <div class="space-y-2 pt-2">
                 <h4 class="font-heading text-sm font-bold text-[#2D3B1E]">Hướng dẫn sử dụng & Bảo quản:</h4>
-                <ul class="space-y-1.5 text-xs text-[#576449]">
-                  <li class="flex items-start gap-2">
-                    <span class="w-5 h-5 rounded-full bg-[#EBF1E6] text-[#536124] font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
-                    <span><strong>Dùng trực tiếp:</strong> Dùng làm bữa xế năng lượng sạch hoặc ăn nhẹ trước giờ tập luyện 30 phút.</span>
-                  </li>
-                  <li class="flex items-start gap-2">
-                    <span class="w-5 h-5 rounded-full bg-[#EBF1E6] text-[#536124] font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
-                    <span><strong>Kết hợp đa dạng:</strong> Ngon hơn khi ăn kèm sữa chua Hy Lạp, sinh tố hạt hoặc trái cây tươi.</span>
-                  </li>
-                  <li class="flex items-start gap-2">
-                    <span class="w-5 h-5 rounded-full bg-[#EBF1E6] text-[#536124] font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">3</span>
-                    <span><strong>Bảo quản:</strong> Nơi khô ráo thoáng mát, đậy kín sau khi mở nắp để giữ độ giòn và thơm tự nhiên.</span>
-                  </li>
-                </ul>
+                <p class="whitespace-pre-line text-xs text-[#576449]">{{ product.usageInstruction || 'Chưa có hướng dẫn sử dụng.' }}</p>
               </div>
             </div>
 

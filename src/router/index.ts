@@ -17,7 +17,6 @@ import { useAuthStore } from '../stores/authStore';
 import AdminDashboardView from '../views/admin/AdminDashboardView.vue';
 import AdminProductsView from '../views/admin/AdminProductsView.vue';
 import AdminCategoriesView from '../views/admin/AdminCategoriesView.vue';
-import AdminInventoryView from '../views/admin/AdminInventoryView.vue';
 import AdminOrdersView from '../views/admin/AdminOrdersView.vue';
 import AdminCustomersView from '../views/admin/AdminCustomersView.vue';
 import AdminVouchersView from '../views/admin/AdminVouchersView.vue';
@@ -108,12 +107,6 @@ const routes: RouteRecordRaw[] = [
     path: '/admin/categories',
     name: 'admin-categories',
     component: AdminCategoriesView,
-    meta: { layout: 'admin' },
-  },
-  {
-    path: '/admin/inventory',
-    name: 'admin-inventory',
-    component: AdminInventoryView,
     meta: { layout: 'admin' },
   },
   {
