@@ -40,10 +40,18 @@ const newVoucher = ref<CreateVoucherPayload>({
   isActive: true,
 });
 
-async function handleRefresh() {
+async function handleRefresh(isManual = false) {
   isLoading.value = true;
   try {
     await voucherStore.loadVouchers(true);
+    if (voucherStore.error) {
+      toastStore.show(voucherStore.error, 'error');
+    } else if (isManual) {
+      toastStore.show('Đã cập nhật danh sách voucher mới nhất', 'success');
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Lỗi khi tải danh sách voucher';
+    toastStore.show(msg, 'error');
   } finally {
     isLoading.value = false;
   }
@@ -190,7 +198,7 @@ async function handleCreateVoucher() {
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
         <h1 class="font-heading text-2xl sm:text-3xl font-black text-[#2D3B1E]">
-          Quản lý Voucher & Mã giảm giá (Admin Portal)
+          Quản lý Voucher & Mã giảm giá
         </h1>
         <p class="text-xs text-[#7A866E] mt-1">
           Thiết lập mã khuyến mãi kích cầu đơn hàng, ưu đãi khách mới và tri ân khách hàng.
@@ -200,8 +208,9 @@ async function handleCreateVoucher() {
       <div class="flex items-center gap-3 self-start sm:self-auto">
         <button
           type="button"
-          @click="handleRefresh"
-          class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-[#CCD7BC] text-xs font-bold text-[#4D6A34] hover:bg-[#FAF9F5] transition-colors cursor-pointer shadow-2xs"
+          :disabled="isLoading"
+          @click="handleRefresh(true)"
+          class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-[#CCD7BC] text-xs font-bold text-[#4D6A34] hover:bg-[#FAF9F5] transition-colors cursor-pointer shadow-2xs disabled:opacity-60 disabled:cursor-wait"
         >
           <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': isLoading }" />
           <span>Làm mới dữ liệu</span>

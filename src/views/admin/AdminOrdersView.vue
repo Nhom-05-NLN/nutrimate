@@ -23,10 +23,13 @@ const isLoading = ref<boolean>(true);
 const activeTab = ref<'all' | 'pending' | 'confirmed' | 'packing' | 'shipping' | 'delivered' | 'cancelled'>('all');
 const searchQuery = ref('');
 
-async function loadOrders() {
+async function loadOrders(isManual = false) {
   isLoading.value = true;
   try {
     orders.value = await fetchOrders(authStore.accessToken);
+    if (isManual) {
+      toastStore.show('Đã cập nhật danh sách đơn hàng mới nhất', 'success');
+    }
   } catch (err: unknown) {
     orders.value = [];
     const message = err instanceof Error ? err.message : 'Lỗi khi tải danh sách đơn hàng';
@@ -124,7 +127,7 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
         <h1 class="font-heading text-2xl sm:text-3xl font-black text-[#2D3B1E]">
-          Quản lý đơn hàng & Vận chuyển (Admin Portal)
+          Quản lý đơn hàng & Vận chuyển
         </h1>
         <p class="text-xs text-[#7A866E] mt-1">
           Giám sát đơn đặt hàng, điều phối đóng gói và giao siêu tốc 2H.
@@ -133,8 +136,9 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
 
       <button
         type="button"
-        @click="loadOrders"
-        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-[#CCD7BC] text-xs font-bold text-[#4D6A34] hover:bg-[#FAF9F5] transition-colors cursor-pointer shadow-2xs self-start sm:self-auto"
+        :disabled="isLoading"
+        @click="loadOrders(true)"
+        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-[#CCD7BC] text-xs font-bold text-[#4D6A34] hover:bg-[#FAF9F5] transition-colors cursor-pointer shadow-2xs self-start sm:self-auto disabled:opacity-60 disabled:cursor-wait"
       >
         <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': isLoading }" />
         <span>Làm mới dữ liệu</span>
