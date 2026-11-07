@@ -135,6 +135,8 @@ export interface Order {
   paymentStatus: PaymentStatus;
   status: OrderStatus;
   notes?: string;
+  userId?: number | string | null;
+  customerId?: number | string | null;
 }
 
 export interface ProductFilterQuery {

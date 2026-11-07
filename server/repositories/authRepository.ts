@@ -239,6 +239,26 @@ function mapAddress(address: AddressRow): UserAddressRecord {
   };
 }
 
+export async function findUserIdByContact(email?: string | null, phone?: string | null): Promise<number | null> {
+  if (!isDbConnected()) return null;
+  const cleanEmail = email?.trim().toLowerCase() || null;
+  const cleanPhone = phone?.trim().replace(/[^0-9]/g, '') || null;
+  if (!cleanEmail && !cleanPhone) return null;
+
+  try {
+    const res = await getPool().query<{ id: number }>(
+      `SELECT id FROM users
+       WHERE (email IS NOT NULL AND LOWER(email) = $1)
+          OR (phone IS NOT NULL AND REGEXP_REPLACE(phone, '[^0-9]', '', 'g') = $2)
+       LIMIT 1`,
+      [cleanEmail, cleanPhone],
+    );
+    return res.rows[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function findUserAddresses(id: string): Promise<UserAddressRecord[]> {
   if (!isDbConnected()) {
     throw new Error("PostgreSQL chưa sẵn sàng.");

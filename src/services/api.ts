@@ -173,8 +173,10 @@ export async function postOrder(payload: CreateOrderPayload, accessToken?: strin
   return res.data;
 }
 
-export async function fetchOrders(): Promise<Order[]> {
-  const res = await fetchJson<ApiResponse<Order[]>>('/orders');
+export async function fetchOrders(accessToken?: string | null): Promise<Order[]> {
+  const res = await fetchJson<ApiResponse<Order[]>>('/orders', {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+  });
   return res.data || [];
 }
 
