@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { fetchOrders, patchOrderStatus, patchOrderPaymentStatus } from '../../services/api';
+import { useAuthStore } from '../../stores/authStore';
 import { useToastStore } from '../../stores/toastStore';
 import { Order, OrderStatus } from '../../types';
 import AdminOrderTable from '../../components/admin/orders/AdminOrderTable.vue';
@@ -15,6 +16,7 @@ import {
   AlertTriangle,
 } from 'lucide-vue-next';
 
+const authStore = useAuthStore();
 const toastStore = useToastStore();
 const orders = ref<Order[]>([]);
 const isLoading = ref<boolean>(true);
@@ -24,7 +26,7 @@ const searchQuery = ref('');
 async function loadOrders() {
   isLoading.value = true;
   try {
-    orders.value = await fetchOrders();
+    orders.value = await fetchOrders(authStore.accessToken);
   } catch (err: unknown) {
     orders.value = [];
     const message = err instanceof Error ? err.message : 'Lỗi khi tải danh sách đơn hàng';

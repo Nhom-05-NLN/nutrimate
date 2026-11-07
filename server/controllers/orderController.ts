@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import * as orderService from '../services/orderService.js';
+import * as authRepository from '../repositories/authRepository.js';
 import { ApiResponse, Order, CreateOrderPayload, OrderStatus, PaymentStatus } from '../types/index.js';
 import { resolveChatOwner } from '../middleware/chatIdentity.js';
 import { ChatError } from '../types/chat.js';
@@ -7,8 +8,17 @@ import { ChatError } from '../types/chat.js';
 export async function createOrder(req: Request, res: Response<ApiResponse<Order>>): Promise<void> {
   try {
     const payload = req.body as CreateOrderPayload;
-    const owner = req.get('authorization') ? await resolveChatOwner(req, res) : null;
-    const order = await orderService.createOrder(payload, owner?.userId ?? null);
+    let ownerUserId: number | null = null;
+    if (req.get('authorization')) {
+      const owner = await resolveChatOwner(req, res).catch(() => null);
+      if (owner?.userId) {
+        ownerUserId = owner.userId;
+      }
+    }
+    if (!ownerUserId && payload.customer) {
+      ownerUserId = await authRepository.findUserIdByContact(payload.customer.email, payload.customer.phone).catch(() => null);
+    }
+    const order = await orderService.createOrder(payload, ownerUserId);
     res.status(201).json({
       success: true,
       message: `Đặt hàng thành công! Mã đơn: ${order.orderCode}`,
@@ -21,9 +31,16 @@ export async function createOrder(req: Request, res: Response<ApiResponse<Order>
   }
 }
 
-export async function getOrders(_req: Request, res: Response<ApiResponse<Order[]>>): Promise<void> {
+export async function getOrders(req: Request, res: Response<ApiResponse<Order[]>>): Promise<void> {
   try {
-    const orders = await orderService.getOrders();
+    let ownerUserId: number | null = null;
+    if (req.get('authorization')) {
+      const owner = await resolveChatOwner(req, res).catch(() => null);
+      if (owner?.userId) {
+        ownerUserId = owner.userId;
+      }
+    }
+    const orders = await orderService.getOrders(ownerUserId);
     res.json({
       success: true,
       total: orders.length,

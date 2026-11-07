@@ -119,9 +119,9 @@ export async function autoCancelExpiredOrders(): Promise<number> {
   }
 }
 
-export async function getOrders(): Promise<Order[]> {
+export async function getOrders(userId: number | null = null): Promise<Order[]> {
   await autoCancelExpiredOrders();
-  return orderRepo.getAllOrders();
+  return orderRepo.getOrdersByUser(userId);
 }
 
 export async function getOrderById(id: string): Promise<Order | null> {

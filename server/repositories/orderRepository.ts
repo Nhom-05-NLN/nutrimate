@@ -56,26 +56,30 @@ export async function findChatOrderByCode(
   userId: number,
   executeQuery: typeof queryPostgres = queryPostgres,
 ): Promise<ChatOrderSummary | null> {
+  const cleanCode = orderCode.trim().toUpperCase().replace(/^#/, '');
   let result = await executeQuery<ChatOrderRow>(
     `SELECT order_id, order_code, order_date, status, payment_status, total_amount
      FROM orders
-     WHERE order_code = $1 AND (user_id = $2 OR customer_id = $2)
+     WHERE (UPPER(order_code) = $1 OR UPPER(order_code) = '#' || $1)
+       AND (user_id = $2 OR customer_id = $2)
      LIMIT 1`,
-    [orderCode, userId],
+    [cleanCode, userId],
   );
   if (!result.rows[0]) {
     result = await executeQuery<ChatOrderRow>(
       `UPDATE orders AS order_row
-       SET user_id = account.id
+       SET user_id = account.id, customer_id = account.id
        FROM users AS account
-       WHERE order_row.order_code = $1
+       WHERE (UPPER(order_row.order_code) = $1 OR UPPER(order_row.order_code) = '#' || $1)
          AND account.id = $2
          AND account.role = 'customer'
          AND order_row.user_id IS NULL
          AND order_row.customer_id IS NULL
          AND LENGTH(BTRIM(COALESCE(order_row.customer_phone, order_row.receiver_phone, ''))) > 0
-         AND LENGTH(BTRIM(COALESCE(order_row.customer_email, order_row.receiver_email, ''))) > 0
-         AND LENGTH(BTRIM(COALESCE(order_row.customer_name, order_row.receiver_name, ''))) > 0
+         AND (
+           LENGTH(BTRIM(COALESCE(order_row.customer_email, order_row.receiver_email, ''))) > 0
+           OR LENGTH(BTRIM(COALESCE(order_row.customer_name, order_row.receiver_name, ''))) > 0
+         )
          AND (
            (
              LOWER(BTRIM(COALESCE(order_row.customer_email, order_row.receiver_email))) = LOWER(BTRIM(account.email))
@@ -108,7 +112,7 @@ export async function findChatOrderByCode(
          )
        RETURNING order_row.order_id, order_row.order_code, order_row.order_date,
                  order_row.status, order_row.payment_status, order_row.total_amount`,
-      [orderCode, userId],
+      [cleanCode, userId],
     );
   }
   const order = result.rows[0];
@@ -151,6 +155,116 @@ interface OrderItemRow {
   calories: string;
   protein: string;
   is_ai_recommended: boolean;
+}
+
+export async function getOrdersByUser(userId: number | null): Promise<Order[]> {
+  if (isDbConnected()) {
+    try {
+      let isAdmin = false;
+      if (userId) {
+        const userRes = await queryPostgres<{ role: string }>(
+          `SELECT CASE
+             WHEN EXISTS (SELECT 1 FROM admins WHERE user_id = $1) THEN 'admin'
+             ELSE 'customer'
+           END AS role`,
+          [userId],
+        );
+        isAdmin = userRes.rows[0]?.role === 'admin';
+      }
+
+      // Khách chưa đăng nhập: không xem đơn hàng của người khác
+      if (!userId) {
+        return [];
+      }
+
+      const ordersSql = isAdmin
+        ? `
+          SELECT id, order_code, created_at, customer_name, customer_phone,
+                 customer_email, shipping_address, shipping_method, payment_method, payment_status,
+                 status, total_amount, total_calories, total_protein, shipping_fee,
+                 discount_amount, voucher_code, notes
+          FROM orders
+          ORDER BY created_at DESC, id DESC
+        `
+        : `
+          SELECT id, order_code, created_at, customer_name, customer_phone,
+                 customer_email, shipping_address, shipping_method, payment_method, payment_status,
+                 status, total_amount, total_calories, total_protein, shipping_fee,
+                 discount_amount, voucher_code, notes
+          FROM orders
+          WHERE user_id = $1 OR customer_id = $1
+          ORDER BY created_at DESC, id DESC
+        `;
+      const params = isAdmin ? [] : [userId];
+      const ordersResult = await queryPostgres<OrderRow>(ordersSql, params);
+
+      if (ordersResult.rows.length === 0) {
+        return [];
+      }
+
+      const orderIds = ordersResult.rows.map((r) => r.id);
+      const itemsSql = `
+        SELECT order_id, product_id, product_name, product_image,
+               unit_price, quantity, calories, protein, is_ai_recommended
+        FROM order_items
+        WHERE order_id = ANY($1::int[])
+      `;
+      const itemsResult = await queryPostgres<OrderItemRow>(itemsSql, [orderIds]);
+
+      const itemsByOrderId = new Map<string, OrderItem[]>();
+      for (const itemRow of itemsResult.rows) {
+        const list = itemsByOrderId.get(String(itemRow.order_id)) || [];
+        const rawId = itemRow.product_id;
+        const resolvedId = (rawId !== null && rawId !== undefined && String(rawId) !== 'null')
+          ? String(rawId)
+          : (itemRow.product_name ? `prod-${encodeURIComponent(itemRow.product_name)}` : '');
+        list.push({
+          productId: resolvedId,
+          productName: itemRow.product_name,
+          productImage: itemRow.product_image || '',
+          price: parseFloat(itemRow.unit_price),
+          quantity: itemRow.quantity,
+          calories: parseFloat(itemRow.calories),
+          protein: parseFloat(itemRow.protein),
+          isAiRecommended: itemRow.is_ai_recommended,
+        });
+        itemsByOrderId.set(String(itemRow.order_id), list);
+      }
+
+      return ordersResult.rows.map((row) => ({
+        id: String(row.id),
+        orderCode: row.order_code,
+        createdAt: row.created_at,
+        customer: {
+          name: row.customer_name,
+          phone: row.customer_phone,
+          email: row.customer_email,
+          address: row.shipping_address,
+        },
+        items: itemsByOrderId.get(String(row.id)) || [],
+        totalAmount: parseFloat(row.total_amount),
+        totalCalories: parseFloat(row.total_calories),
+        totalProtein: parseFloat(row.total_protein),
+        shippingFee: parseFloat(row.shipping_fee),
+        discountAmount: row.discount_amount ? parseFloat(row.discount_amount) : undefined,
+        voucherCode: row.voucher_code || undefined,
+        shippingMethod: (row.shipping_method as Order['shippingMethod']) || 'standard',
+        paymentMethod: row.payment_method as Order['paymentMethod'],
+        paymentStatus:
+          row.status === 'delivered' && row.payment_method?.toLowerCase() === 'cod'
+            ? 'paid'
+            : (row.payment_status as Order['paymentStatus']),
+        status: row.status as OrderStatus,
+        notes: row.notes || undefined,
+      }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Orders query error';
+      console.warn('[OrderRepository GetOrdersByUser Fallback]:', msg);
+    }
+  }
+
+  if (!userId) return [];
+  return memoryOrders;
 }
 
 export async function getAllOrders(): Promise<Order[]> {
@@ -319,19 +433,24 @@ export async function createOrder(order: Order, ownerUserId: number | null = nul
 
       const orderSql = `
         INSERT INTO orders (
-          user_id, order_code, customer_name, customer_phone, customer_email,
+          user_id, customer_id, order_code, customer_name, customer_phone, customer_email,
+          receiver_name, receiver_phone, receiver_email,
           shipping_address, shipping_method, payment_method, payment_status, status,
           total_amount, total_calories, total_protein, shipping_fee,
           discount_amount, voucher_code, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-        RETURNING id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        RETURNING order_id, id
       `;
       const orderValues = [
+        ownerUserId,
         ownerUserId,
         order.orderCode,
         order.customer.name,
         order.customer.phone,
-        order.customer.email,
+        order.customer.email || null,
+        order.customer.name,
+        order.customer.phone,
+        order.customer.email || null,
         order.customer.address,
         order.shippingMethod || 'standard',
         order.paymentMethod,
@@ -345,10 +464,12 @@ export async function createOrder(order: Order, ownerUserId: number | null = nul
         order.voucherCode || null,
         order.notes || null,
       ];
-      const res = await client.query<{ id: number }>(orderSql, orderValues);
+      const res = await client.query<{ id?: number; order_id?: number }>(orderSql, orderValues);
       const insertedOrder = res.rows[0];
       if (insertedOrder) {
-        order.id = String(insertedOrder.id);
+        const resolvedDbId = insertedOrder.order_id || insertedOrder.id;
+        order.id = String(resolvedDbId);
+        await client.query('UPDATE orders SET id = order_id WHERE order_id = $1 AND id IS NULL', [resolvedDbId]);
       }
 
       for (const item of order.items) {

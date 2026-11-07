@@ -2,105 +2,19 @@ import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { CartItem, Product } from '../types';
 import { useToastStore } from './toastStore';
-
-const STORAGE_KEY = 'nutrimate_cart_items_v1';
-const SELECTED_KEY = 'nutrimate_cart_selected_v1';
+import { useAuthStore } from './authStore';
 
 export function getCartItemKey(productId: string, portion = 'Mặc định'): string {
   return `${productId}___${portion || 'Mặc định'}`;
 }
 
-const DEFAULT_INITIAL_ITEMS: CartItem[] = [
-  {
-    product: {
-      id: 'prod-granola',
-      code: 'NM-GRN-01',
-      name: 'Granola Yến Mạch Hạt Dinh Dưỡng Siêu Hạt 500g - Vị Mật Ong & Vani',
-      category: 'snacks-nuts',
-      categoryName: 'Hạt dinh dưỡng',
-      price: 185000,
-      originalPrice: 215000,
-      image: 'https://images.unsplash.com/photo-1517673132405-a56a62b18caf?auto=format&fit=crop&w=600&q=80',
-      description: 'Granola Yến Mạch nướng mộc mật ong hoa nhãn, hạt macca, hạt điều, hạnh nhân nguyên cám.',
-      ingredients: ['Yến mạch Úc (45%)', 'Hạnh nhân Mỹ (15%)', 'Quả óc chó Chile (10%)', 'Hạt điều Bình Phước (10%)', 'Mật ong hoa nhãn'],
-      nutrition: {
-        servingSize: '40g',
-        calories: 152,
-        protein: 14,
-        carbs: 18,
-        fat: 6,
-        sugar: 3,
-        fiber: 3.2,
-        sodium: 25,
-      },
-      stock: 142,
-      rating: 4.9,
-      reviewCount: 128,
-      badges: ['Bán chạy nhất #1', '100% Tự Nhiên'],
-      bestFor: 'Bữa sáng nhanh, ăn xế nạp năng lượng lành mạnh',
-    },
-    quantity: 1,
-    selectedPortion: 'Hũ 500g',
-  },
-  {
-    product: {
-      id: 'prod-chicken',
-      code: 'NM-CKN-02',
-      name: 'Ức Gà Sấy Giòn Vị Thảo Mộc Tự Nhiên 200g',
-      category: 'high-protein',
-      categoryName: 'Thịt sấy sạch',
-      price: 110000,
-      originalPrice: 135000,
-      image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=600&q=80',
-      description: 'Ức gà phi lê sấy nhiệt thấp không dầu mỡ, tẩm ướp tiêu đen và lá hương thảo tự nhiên.',
-      ingredients: ['Ức gà tươi phi lê 98%', 'Tiêu đen Phú Quốc', 'Lá hương thảo', 'Muối hồng'],
-      nutrition: {
-        servingSize: '50g',
-        calories: 145,
-        protein: 32,
-        carbs: 0,
-        fat: 1.5,
-        sugar: 0,
-      },
-      stock: 58,
-      rating: 5.0,
-      reviewCount: 208,
-      badges: ['High-Protein', '0g Sugar'],
-      bestFor: 'Gymer nạp đạm siết cơ tức thì',
-    },
-    quantity: 2,
-    selectedPortion: 'Gói 200g',
-  },
-  {
-    product: {
-      id: 'prod-peanut',
-      code: 'NM-PNT-03',
-      name: 'Bơ Đậu Phộng Mịn Thuần Chay 350g (Không Đường)',
-      category: 'low-carb',
-      categoryName: 'Bơ hạt dinh dưỡng',
-      price: 90000,
-      originalPrice: 110000,
-      image: 'https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?auto=format&fit=crop&w=600&q=80',
-      description: '100% Đậu phộng sẻ thuần chủng rang mộc nghiền mịn không thêm đường hay dầu cọ.',
-      ingredients: ['Đậu phộng sẻ rang chín', 'Muối biển hầm'],
-      nutrition: {
-        servingSize: '30g',
-        calories: 190,
-        protein: 8,
-        carbs: 6,
-        fat: 16,
-        sugar: 0.8,
-      },
-      stock: 84,
-      rating: 4.7,
-      reviewCount: 142,
-      badges: ['Keto & Vegan', '0g Sugar Added'],
-      bestFor: 'Ăn kèm bánh mì đen, sinh tố keto',
-    },
-    quantity: 1,
-    selectedPortion: 'Hũ 350g',
-  },
-];
+function getCartStorageKey(userId?: string | null): string {
+  return userId ? `nutrimate_cart_items_v2_${userId}` : 'nutrimate_cart_items_v2_guest';
+}
+
+function getSelectedStorageKey(userId?: string | null): string {
+  return userId ? `nutrimate_cart_selected_v2_${userId}` : 'nutrimate_cart_selected_v2_guest';
+}
 
 function loadFromStorage<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
@@ -114,11 +28,12 @@ function loadFromStorage<T>(key: string, fallback: T): T {
 }
 
 export const useCartStore = defineStore('cart', () => {
-  const items = ref<CartItem[]>(loadFromStorage<CartItem[]>(STORAGE_KEY, DEFAULT_INITIAL_ITEMS));
+  const authStore = useAuthStore();
+  const items = ref<CartItem[]>(loadFromStorage<CartItem[]>(getCartStorageKey(authStore.currentUser?.id), []));
 
   // Key format: productId___portion
   const initialSelectedKeys = loadFromStorage<string[]>(
-    SELECTED_KEY,
+    getSelectedStorageKey(authStore.currentUser?.id),
     items.value.map((i) => getCartItemKey(i.product.id, i.selectedPortion))
   );
   const selectedKeys = ref<string[]>(initialSelectedKeys);
@@ -127,12 +42,25 @@ export const useCartStore = defineStore('cart', () => {
   const isCheckoutOpen = ref<boolean>(false);
   const toast = useToastStore();
 
+  // Đồng bộ giỏ hàng khi đổi tài khoản đăng nhập
+  watch(
+    () => authStore.currentUser?.id,
+    (newUserId) => {
+      const userItems = loadFromStorage<CartItem[]>(getCartStorageKey(newUserId), []);
+      items.value = userItems;
+      selectedKeys.value = loadFromStorage<string[]>(
+        getSelectedStorageKey(newUserId),
+        userItems.map((i) => getCartItemKey(i.product.id, i.selectedPortion))
+      );
+    }
+  );
+
   // Đồng bộ localStorage
   watch(
     items,
     (newItems) => {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newItems));
+        localStorage.setItem(getCartStorageKey(authStore.currentUser?.id), JSON.stringify(newItems));
       } catch {
         // Ignored in restricted environments
       }
@@ -144,7 +72,7 @@ export const useCartStore = defineStore('cart', () => {
     selectedKeys,
     (newKeys) => {
       try {
-        localStorage.setItem(SELECTED_KEY, JSON.stringify(newKeys));
+        localStorage.setItem(getSelectedStorageKey(authStore.currentUser?.id), JSON.stringify(newKeys));
       } catch {
         // Ignored in restricted environments
       }
@@ -327,8 +255,8 @@ export const useCartStore = defineStore('cart', () => {
     items.value = [];
     selectedKeys.value = [];
     try {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(SELECTED_KEY);
+      localStorage.removeItem(getCartStorageKey(authStore.currentUser?.id));
+      localStorage.removeItem(getSelectedStorageKey(authStore.currentUser?.id));
     } catch {
       // Ignored
     }

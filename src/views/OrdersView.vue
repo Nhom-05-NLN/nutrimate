@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useCartStore } from '../stores/cartStore';
+import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import { fetchOrders, cancelOrderApi } from '../services/api';
 import { Order, Product } from '../types';
@@ -22,6 +23,7 @@ import {
 const router = useRouter();
 const route = useRoute();
 const cartStore = useCartStore();
+const authStore = useAuthStore();
 const toastStore = useToastStore();
 
 const orders = ref<Order[]>([]);
@@ -36,103 +38,6 @@ const isDetailModalOpen = ref(false);
 const selectedOrderForQr = ref<Order | null>(null);
 const showVietQrModal = ref(false);
 const showMomoModal = ref(false);
-
-const DEFAULT_ORDERS: Order[] = [
-  {
-    id: 'ord-mock-1',
-    orderCode: 'NM-98234',
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-    customer: {
-      name: 'Nguyễn Minh Anh',
-      phone: '0912 345 678',
-      email: 'minhanh.fit@gmail.com',
-      address: 'Số 45 Đường D2, P. 25, Q. Bình Thạnh, TP. Hồ Chí Minh',
-      note: 'Giao giờ hành chính giúp mình',
-    },
-    items: [
-      {
-        productId: 'prod-granola',
-        productName: 'Granola Yến Mạch Hạt Dinh Dưỡng Siêu Hạt 500g',
-        productImage: 'https://images.unsplash.com/photo-1517673132405-a56a62b18caf?auto=format&fit=crop&w=600&q=80',
-        price: 185000,
-        quantity: 1,
-        calories: 152,
-        protein: 14,
-        portion: 'Hũ 500g',
-      },
-      {
-        productId: 'prod-chicken',
-        productName: 'Ức Gà Sấy Giòn Vị Thảo Mộc Tự Nhiên 200g',
-        productImage: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=600&q=80',
-        price: 110000,
-        quantity: 2,
-        calories: 145,
-        protein: 32,
-        portion: 'Gói 200g',
-      },
-      {
-        productId: 'prod-peanut',
-        productName: 'Bơ Đậu Phộng Mịn Thuần Chay 350g',
-        productImage: 'https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?auto=format&fit=crop&w=600&q=80',
-        price: 90000,
-        quantity: 1,
-        calories: 190,
-        protein: 8,
-        portion: 'Hũ 350g',
-      },
-    ],
-    totalAmount: 495000,
-    totalCalories: 632,
-    totalProtein: 86,
-    shippingFee: 0,
-    shippingMethod: 'express_2h',
-    paymentMethod: 'vietqr',
-    paymentStatus: 'paid',
-    status: 'shipping',
-    notes: 'Gọi trước 15 phút',
-  },
-  {
-    id: 'ord-mock-2',
-    orderCode: 'NM-97412',
-    createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
-    customer: {
-      name: 'Nguyễn Minh Anh',
-      phone: '0912 345 678',
-      email: 'minhanh.fit@gmail.com',
-      address: 'Số 45 Đường D2, P. 25, Q. Bình Thạnh, TP. Hồ Chí Minh',
-    },
-    items: [
-      {
-        productId: 'prod-rye-bread',
-        productName: 'Bánh Mì Đen Lúa Mạch Nguyên Cám',
-        productImage: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
-        price: 85000,
-        quantity: 1,
-        calories: 180,
-        protein: 8,
-        portion: 'Ổ 450g',
-      },
-      {
-        productId: 'prod-cashew',
-        productName: 'Hạt Điều Rang Củi Không Muối Hữu Cơ 300g',
-        productImage: 'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&w=600&q=80',
-        price: 135000,
-        quantity: 1,
-        calories: 310,
-        protein: 11,
-        portion: 'Hũ 300g',
-      },
-    ],
-    totalAmount: 220000,
-    totalCalories: 490,
-    totalProtein: 19,
-    shippingFee: 25000,
-    shippingMethod: 'standard',
-    paymentMethod: 'cod',
-    paymentStatus: 'paid',
-    status: 'delivered',
-  },
-];
 
 function applyTrackingSelection() {
   const queryCode = (route.query.code as string) || (route.query.orderCode as string);
@@ -153,19 +58,22 @@ function applyTrackingSelection() {
 async function loadUserOrders() {
   isLoading.value = true;
   try {
-    const data = await fetchOrders();
-    if (data && data.length > 0) {
-      orders.value = data;
-    } else {
-      orders.value = DEFAULT_ORDERS;
-    }
+    const data = await fetchOrders(authStore.accessToken);
+    orders.value = data || [];
   } catch {
-    orders.value = DEFAULT_ORDERS;
+    orders.value = [];
   } finally {
     isLoading.value = false;
     applyTrackingSelection();
   }
 }
+
+watch(
+  () => authStore.currentUser?.id,
+  () => {
+    void loadUserOrders();
+  }
+);
 
 watch(
   () => [route.query.code, route.query.orderCode],
