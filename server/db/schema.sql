@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS categories (
     category_id SERIAL PRIMARY KEY,
     id INT,
     name VARCHAR(100) NOT NULL,
+    status BOOLEAN NOT NULL DEFAULT TRUE,
     slug VARCHAR(100),
     description TEXT,
     diet_type VARCHAR(50) DEFAULT 'all',
@@ -417,6 +418,7 @@ ALTER TABLE users
     ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'customer' CHECK (role IN ('customer', 'admin'));
 
 ALTER TABLE categories 
+    ADD COLUMN IF NOT EXISTS status BOOLEAN NOT NULL DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS id INT,
     ADD COLUMN IF NOT EXISTS slug VARCHAR(100),
     ADD COLUMN IF NOT EXISTS diet_type VARCHAR(50) DEFAULT 'all',

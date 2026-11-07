@@ -102,6 +102,16 @@ export interface AdminProductItem {
   unit?: string;
 }
 
+export interface AdminCategoryRecord {
+  status: boolean;
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  productCount: number;
+  products: Pick<AdminProductItem,'id' | 'sku' | 'name' | 'price' | 'image' | 'status'>[];
+}
+
 export interface CartItem {
   variantId?: string;
   product: Product;

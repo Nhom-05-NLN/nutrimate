@@ -1,25 +1,16 @@
 <script setup lang="ts">
-import { X, Layers, Calendar, CheckCircle2, EyeOff, Tag, FileText } from 'lucide-vue-next';
+import { X, Layers, Tag, FileText } from 'lucide-vue-next';
 import { computed } from 'vue';
-import { useAdminStore, type AdminCategoryItem } from '../../stores/adminStore';
+import type { AdminCategoryRecord as AdminCategoryItem } from '../../types';
 
-export interface AdminCategoryItemWithCount extends AdminCategoryItem {
-  productCount?: number;
-}
+export type AdminCategoryItemWithCount = AdminCategoryItem;
 
 const props = defineProps<{
   modelValue: boolean;
   category: AdminCategoryItemWithCount | null;
 }>();
 
-const adminStore = useAdminStore();
-const categoryProducts = computed(() => {
-  if (!props.category) return [];
-  const categoryName = props.category.name.trim().toLowerCase();
-  return adminStore.products.filter(
-    (product) => product.category?.trim().toLowerCase() === categoryName
-  );
-});
+const categoryProducts = computed(() => props.category?.products ?? []);
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
@@ -30,22 +21,19 @@ function handleClose() {
   emit('update:modelValue', false);
 }
 
-function handleEdit(category: AdminCategoryItemWithCount) {
-  emit('update:modelValue', false);
-  emit('edit', category);
-}
+
 </script>
 
 <template>
   <div
     v-if="modelValue && category"
-    class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 overflow-y-auto"
+    class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-hidden"
   >
     <div
-      class="bg-white rounded-3xl max-w-lg w-full my-8 overflow-hidden shadow-2xl border border-[#E3E8DC] animate-in fade-in zoom-in-95 duration-200"
+      class="bg-white rounded-3xl max-w-lg w-full max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden shadow-2xl border border-[#E3E8DC] animate-in fade-in zoom-in-95 duration-200"
     >
       <!-- Modal Header -->
-      <div class="px-6 py-4 bg-[#FAF9F5] border-b border-[#ECEFE7] flex items-center justify-between">
+      <div class="shrink-0 px-6 py-4 bg-[#FAF9F5] border-b border-[#ECEFE7] flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-2xl bg-[#EBF1E6] text-[#536124] flex items-center justify-center">
             <Layers class="w-5 h-5" />
@@ -67,23 +55,19 @@ function handleEdit(category: AdminCategoryItemWithCount) {
       </div>
 
       <!-- Modal Body -->
-      <div class="p-6 space-y-4 text-xs">
+      <div class="min-h-0 flex-1 flex flex-col gap-4 overflow-hidden p-4 sm:p-6 text-xs">
         <!-- Tên danh mục & Trạng thái -->
-        <div class="p-4 rounded-2xl bg-[#FAF9F5] border border-[#E3E8DC] space-y-3">
+        <div class="shrink-0 p-4 rounded-2xl bg-[#FAF9F5] border border-[#E3E8DC] space-y-3">
           <div class="flex items-start justify-between gap-3">
             <div>
               <span class="text-[11px] font-bold text-[#7A866E] uppercase tracking-wider block">Tên danh mục</span>
-              <h2 class="font-heading text-xl font-black text-[#2D3B1E] mt-0.5">
+              <h2 class="font-heading text-xl font-black text-[#2D3B1E] mt-0.5 break-words">
                 {{ category.name }}
               </h2>
+              <span class="mt-2 inline-block rounded-full px-2.5 py-1 text-[10px] font-bold" :class="category.status ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-500'">
+                {{ category.status ? 'Đang hiển thị' : 'Đang ẩn' }}
+              </span>
             </div>
-            <span
-              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold shrink-0"
-              :class="category.status === 'Hoạt động' ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-700'"
-            >
-              <component :is="category.status === 'Hoạt động' ? CheckCircle2 : EyeOff" class="w-3.5 h-3.5" />
-              <span>{{ category.status }}</span>
-            </span>
           </div>
 
           <div class="grid grid-cols-2 gap-3 pt-2 border-t border-[#ECEFE7]">
@@ -97,19 +81,13 @@ function handleEdit(category: AdminCategoryItemWithCount) {
               </span>
             </div>
 
-            <div class="space-y-0.5">
-              <span class="text-[11px] text-[#7A866E] flex items-center gap-1">
-                <Calendar class="w-3.5 h-3.5 text-[#536124]" />
-                <span>Ngày tạo:</span>
-              </span>
-              <span class="font-bold text-[#2D3B1E]">{{ category.createdAt || '15/10/2026' }}</span>
-            </div>
+
           </div>
         </div>
 
         <!-- Thông tin chi tiết: Mô tả & Số sản phẩm liên kết -->
-        <div class="space-y-3 p-4 rounded-2xl border border-[#E3E8DC] bg-white">
-          <div class="flex items-center justify-between py-1.5 border-b border-[#ECEFE7]">
+        <div class="min-h-0 flex flex-col gap-3 p-4 rounded-2xl border border-[#E3E8DC] bg-white">
+          <div class="shrink-0 flex items-center justify-between py-1.5 border-b border-[#ECEFE7]">
             <span class="text-[#7A866E] flex items-center gap-1.5">
               <Layers class="w-3.5 h-3.5 text-[#536124]" />
               <span>Số sản phẩm thuộc danh mục:</span>
@@ -119,7 +97,7 @@ function handleEdit(category: AdminCategoryItemWithCount) {
             </span>
           </div>
 
-          <ul v-if="categoryProducts.length" class="max-h-64 overflow-y-auto divide-y divide-[#ECEFE7]" aria-label="Sản phẩm thuộc danh mục">
+          <ul v-if="categoryProducts.length" class="min-h-0 max-h-64 overflow-y-auto overscroll-contain divide-y divide-[#ECEFE7]" aria-label="Sản phẩm thuộc danh mục">
             <li v-for="product in categoryProducts" :key="product.id" class="flex items-center gap-3 py-3">
               <img :src="product.image" alt="" class="h-12 w-12 shrink-0 rounded-xl object-cover bg-[#FAF9F5]" loading="lazy" />
               <div class="min-w-0 flex-1 space-y-1">
@@ -136,19 +114,20 @@ function handleEdit(category: AdminCategoryItemWithCount) {
           </ul>
           <p v-else class="py-3 text-center text-[#7A866E]">Chưa có sản phẩm nào thuộc danh mục này.</p>
 
-          <div class="pt-1.5 space-y-1">
+          <div class="shrink-0 pt-1.5 space-y-1">
             <span class="text-[#7A866E] flex items-center gap-1.5">
               <FileText class="w-3.5 h-3.5 text-[#536124]" />
               <span>Mô tả danh mục:</span>
             </span>
-            <p class="text-xs text-[#576449] bg-[#FAF9F5] p-3 rounded-xl border border-[#E3E8DC] leading-relaxed">
+            <p class="text-xs text-[#576449] bg-[#FAF9F5] p-3 rounded-xl border border-[#E3E8DC] leading-relaxed break-words whitespace-pre-line">
               {{ category.description }}
             </p>
           </div>
         </div>
+      </div>
 
         <!-- Actions -->
-        <div class="pt-3 border-t border-[#ECEFE7] flex items-center justify-end gap-3">
+        <div class="shrink-0 px-4 sm:px-6 py-4 border-t border-[#ECEFE7] flex items-center justify-end gap-3 text-xs">
           <button
             type="button"
             @click="handleClose"
@@ -157,7 +136,6 @@ function handleEdit(category: AdminCategoryItemWithCount) {
             Đóng
           </button>
         </div>
-      </div>
     </div>
   </div>
 </template>

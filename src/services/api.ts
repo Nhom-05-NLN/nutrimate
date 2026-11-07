@@ -25,6 +25,22 @@ import {
 
 const API_BASE = '/api';
 
+export async function fetchAdminCategories(): Promise<import('../types').AdminCategoryRecord[]> {
+  const response = await fetchJson<ApiResponse<import('../types').AdminCategoryRecord[]>>('/admin/categories');
+  if (!response.data) throw new Error(response.message || 'Không thể tải danh mục.');
+  return response.data;
+}
+
+export async function saveAdminCategory(payload: { name: string; description: string; status: boolean }, id?: string) {
+  return fetchJson<ApiResponse<{ id: string }>>(`/admin/categories${id ? '/' + encodeURIComponent(id) : ''}`, {
+    method:id ? 'PUT' : 'POST',body:JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminCategory(id: string) {
+  return fetchJson<ApiResponse<null>>(`/admin/categories/${encodeURIComponent(id)}`,{ method:'DELETE' });
+}
+
 export interface ProductReview {
   id: string;
   author: string;

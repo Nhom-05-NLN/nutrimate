@@ -2,8 +2,9 @@
 import { AlertTriangle, X } from 'lucide-vue-next';
 import type { AdminCategoryItemWithCount } from './AdminCategoryDetailModal.vue';
 
-defineProps<{
+const props = defineProps<{
   modelValue: boolean;
+  saving?: boolean;
   category: AdminCategoryItemWithCount | null;
 }>();
 
@@ -13,6 +14,7 @@ const emit = defineEmits<{
 }>();
 
 function handleClose() {
+  if (props.saving) return;
   emit('update:modelValue', false);
 }
 
@@ -86,7 +88,8 @@ function handleConfirm() {
           <button
             type="button"
             @click="handleConfirm"
-            class="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            :disabled="saving || (category.productCount ?? 0) > 0"
+            class="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Xác nhận xóa
           </button>

@@ -1,99 +1,43 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { X, Edit2, AlertCircle } from 'lucide-vue-next';
-import type { AdminCategoryItem } from '../../stores/adminStore';
+import type { AdminCategoryRecord as AdminCategoryItem } from '../../types';
 
 const props = defineProps<{
   modelValue: boolean;
-  category: AdminCategoryItem | null;
+  saving?: boolean;
   existingCategories?: AdminCategoryItem[];
+  category?: AdminCategoryItem | null;
 }>();
-
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
-  (e: 'submit', payload: Omit<AdminCategoryItem, 'id'>): void;
+  (e: 'submit', payload: { name: string; description: string; status: boolean }): void;
 }>();
-
-const form = ref({
-  code: '',
-  name: '',
-  description: '',
-  status: 'Hoạt động' as 'Hoạt động' | 'Tạm ẩn',
-  iconName: 'Flame',
-});
-
-const errors = ref({
-  code: '',
-  name: '',
-  description: '',
-});
-
-watch(
-  () => props.modelValue,
-  (val) => {
-    if (val && props.category) {
-      errors.value = { code: '', name: '', description: '' };
-      form.value = {
-        code: props.category.code || '',
-        name: props.category.name,
-        description: props.category.description,
-        status: props.category.status,
-        iconName: props.category.iconName || 'Flame',
-      };
-    }
-  },
-  { immediate: true }
-);
-
-function validate(): boolean {
-  let isValid = true;
+const form = ref({ code: '', name: '', description: '', status: true });
+const errors = ref({ code: '', name: '', description: '' });
+watch(() => props.modelValue, (open) => {
+  if (!open) return;
   errors.value = { code: '', name: '', description: '' };
-
-  if (!form.value.code.trim()) {
-    errors.value.code = 'Vui lòng nhập mã danh mục';
-    isValid = false;
-  } else {
-    const duplicate = props.existingCategories?.find(
-      (c) => c.code?.toLowerCase() === form.value.code.toLowerCase().trim() && c.id !== props.category?.id
-    );
-    if (duplicate) {
-      errors.value.code = `Mã danh mục "${form.value.code}" đã tồn tại trên danh mục "${duplicate.name}"`;
-      isValid = false;
-    }
-  }
-
-  if (!form.value.name.trim()) {
-    errors.value.name = 'Vui lòng nhập tên danh mục';
-    isValid = false;
-  } else if (form.value.name.trim().length < 2) {
-    errors.value.name = 'Tên danh mục tối thiểu 2 ký tự';
-    isValid = false;
-  }
-
-  if (!form.value.description.trim()) {
-    errors.value.description = 'Vui lòng nhập mô tả danh mục';
-    isValid = false;
-  }
-
-  return isValid;
-}
+  form.value = {
+    status: props.category?.status ?? true,
+    code: props.category?.code ?? '',
+    name: props.category?.name ?? '',
+    description: props.category?.description ?? '',
+  };
+}, { immediate: true });
 
 function handleSubmit() {
-  if (!validate()) return;
-
-  emit('submit', {
-    code: form.value.code.trim().toUpperCase(),
-    name: form.value.name.trim(),
-    description: form.value.description.trim(),
-    status: form.value.status,
-    iconName: form.value.iconName,
-  });
-
-  emit('update:modelValue', false);
+  if (props.saving) return;
+  errors.value = { code: '', name: '', description: '' };
+  const name = form.value.name.trim();
+  const description = form.value.description.trim();
+  if (name.length < 2 || name.length > 100) errors.value.name = 'Tên danh mục phải từ 2–100 ký tự.';
+  if (description.length > 5000) errors.value.description = 'Mô tả tối đa 5000 ký tự.';
+  if (errors.value.name || errors.value.description) return;
+  emit('submit', { name, description, status: form.value.status });
 }
-
 function handleClose() {
-  emit('update:modelValue', false);
+  if (!props.saving) emit('update:modelValue', false);
 }
 </script>
 
@@ -134,7 +78,6 @@ function handleClose() {
           <div class="sm:col-span-1 space-y-1.5">
             <label class="font-bold text-[#2D3B1E] flex items-center gap-1">
               <span>Mã danh mục</span>
-              <span class="text-rose-500">*</span>
             </label>
             <input
               v-model="form.code"
@@ -174,7 +117,6 @@ function handleClose() {
         <div class="space-y-1.5">
           <label class="font-bold text-[#2D3B1E] flex items-center gap-1">
             <span>Mô tả danh mục</span>
-            <span class="text-rose-500">*</span>
           </label>
           <textarea
             v-model="form.description"
@@ -189,23 +131,16 @@ function handleClose() {
           </p>
         </div>
 
-        <!-- Trạng thái hoạt động -->
-        <div class="space-y-1.5">
-          <label class="block font-bold text-[#2D3B1E]">Trạng thái hiển thị</label>
+        <div class="space-y-2">
+          <span class="block font-bold text-[#2D3B1E]">Trạng thái hiển thị</span>
           <div class="grid grid-cols-2 gap-3">
-            <label
-              class="flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition-all"
-              :class="form.status === 'Hoạt động' ? 'border-[#536124] bg-[#FAF9F5] text-[#536124] font-bold' : 'border-[#E3E8DC] text-[#7A866E]'"
-            >
-              <input type="radio" value="Hoạt động" v-model="form.status" class="accent-[#536124]" />
-              <span>Hoạt động</span>
+            <label class="flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer" :class="form.status ? 'border-[#536124] bg-[#FAF9F5] text-[#536124]' : 'border-[#E3E8DC] text-[#7A866E]'">
+              <input v-model="form.status" type="radio" :value="true" :disabled="saving" class="accent-[#536124]" />
+              Đang hiển thị
             </label>
-            <label
-              class="flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition-all"
-              :class="form.status === 'Tạm ẩn' ? 'border-[#536124] bg-[#FAF9F5] text-[#536124] font-bold' : 'border-[#E3E8DC] text-[#7A866E]'"
-            >
-              <input type="radio" value="Tạm ẩn" v-model="form.status" class="accent-[#536124]" />
-              <span>Tạm ẩn</span>
+            <label class="flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer" :class="!form.status ? 'border-[#536124] bg-[#FAF9F5] text-[#536124]' : 'border-[#E3E8DC] text-[#7A866E]'">
+              <input v-model="form.status" type="radio" :value="false" :disabled="saving" class="accent-[#536124]" />
+              Đang ẩn
             </label>
           </div>
         </div>
@@ -221,7 +156,8 @@ function handleClose() {
           </button>
           <button
             type="submit"
-            class="px-5 py-2.5 rounded-xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            :disabled="saving"
+            class="px-5 py-2.5 rounded-xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Lưu thay đổi
           </button>

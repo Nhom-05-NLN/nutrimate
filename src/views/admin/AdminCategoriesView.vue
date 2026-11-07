@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import {
   FolderTree,
   Search,
@@ -12,34 +12,43 @@ import {
   RotateCcw,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
 } from 'lucide-vue-next';
 import { useToastStore } from '../../stores/toastStore';
-import { useAdminStore, type AdminCategoryItem } from '../../stores/adminStore';
+import type { AdminCategoryRecord as AdminCategoryItem } from '../../types';
+import { fetchAdminCategories, saveAdminCategory, deleteAdminCategory } from '../../services/api';
 import AdminCategoryCreateModal from '../../components/admin/AdminCategoryCreateModal.vue';
 import AdminCategoryEditModal from '../../components/admin/AdminCategoryEditModal.vue';
 import AdminCategoryDeleteModal from '../../components/admin/AdminCategoryDeleteModal.vue';
 import AdminCategoryDetailModal, { type AdminCategoryItemWithCount } from '../../components/admin/AdminCategoryDetailModal.vue';
 
 const toastStore = useToastStore();
-const adminStore = useAdminStore();
+const categories = ref<AdminCategoryItem[]>([]);
+const loading = ref(true);
+const loadError = ref('');
+const saving = ref(false);
+
+async function loadCategories() {
+  loading.value = true;
+  loadError.value = '';
+  try { categories.value = await fetchAdminCategories(); }
+  catch (error) {
+    categories.value = [];
+    loadError.value = error instanceof Error ? error.message : 'Không thể tải danh mục.';
+  } finally { loading.value = false; }
+}
+onMounted(loadCategories);
 
 // Tiêu chí tìm kiếm & bộ lọc
 const searchQuery = ref('');
-const selectedStatusFilter = ref('all');
 
-// Thống kê nhanh từ store
-const totalCategoriesCount = computed(() => adminStore.categories.length);
-const activeCategoriesCount = computed(
-  () => adminStore.categories.filter((c) => c.status === 'Hoạt động').length
-);
-const inactiveCategoriesCount = computed(
-  () => adminStore.categories.filter((c) => c.status === 'Tạm ẩn').length
-);
+// Thống kê từ danh mục và sản phẩm trong PostgreSQL.
+const totalCategoriesCount = computed(() => categories.value.length);
+const visibleCategoriesCount = computed(() => categories.value.filter(category => category.status).length);
+const hiddenCategoriesCount = computed(() => categories.value.filter(category => !category.status).length);
 
-// Lọc dữ liệu danh mục (kết nối số lượng sản phẩm thật từ adminStore)
+// Lọc danh mục đã tải từ API.
 const filteredCategories = computed<AdminCategoryItemWithCount[]>(() => {
-  return adminStore.categoriesWithCount.filter((cat) => {
+  return categories.value.filter((cat) => {
     // 1. Search Query
     if (searchQuery.value.trim()) {
       const q = searchQuery.value.toLowerCase().trim();
@@ -47,11 +56,6 @@ const filteredCategories = computed<AdminCategoryItemWithCount[]>(() => {
       const matchName = cat.name.toLowerCase().includes(q);
       const matchDesc = cat.description.toLowerCase().includes(q);
       if (!matchCode && !matchName && !matchDesc) return false;
-    }
-
-    // 2. Filter Status
-    if (selectedStatusFilter.value !== 'all' && cat.status !== selectedStatusFilter.value) {
-      return false;
     }
 
     return true;
@@ -63,13 +67,15 @@ const currentPage = ref(1);
 const itemsPerPage = ref(5); // 5 danh mục mỗi trang
 
 // Reset về trang 1 khi lọc hoặc tìm kiếm
-watch([searchQuery, selectedStatusFilter], () => {
+watch(searchQuery, () => {
   currentPage.value = 1;
 });
 
 const totalPages = computed(() => {
   return Math.ceil(filteredCategories.value.length / itemsPerPage.value) || 1;
 });
+
+watch(totalPages, (pages) => { currentPage.value = Math.min(currentPage.value, pages); });
 
 const paginatedCategories = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage.value;
@@ -93,16 +99,7 @@ function goToPage(page: number) {
 
 function resetFilters() {
   searchQuery.value = '';
-  selectedStatusFilter.value = 'all';
   currentPage.value = 1;
-}
-
-function formatDateNow(): string {
-  const now = new Date();
-  const d = String(now.getDate()).padStart(2, '0');
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const y = now.getFullYear();
-  return `${d}/${m}/${y}`;
 }
 
 // -------------------------------------------------------------
@@ -114,14 +111,16 @@ function openCreateModal() {
   isCreateModalOpen.value = true;
 }
 
-function handleCreateSubmit(payload: Omit<AdminCategoryItem, 'id'>) {
-  const newCategory: AdminCategoryItem = {
-    id: `cat-${Date.now()}`,
-    ...payload,
-    createdAt: formatDateNow(),
-  };
-  adminStore.addCategory(newCategory);
-  toastStore.show('Thêm danh mục thành công!', 'success', newCategory.name);
+async function handleCreateSubmit(payload: { name: string; description: string; status: boolean }) {
+  if (saving.value) return;
+  saving.value = true;
+  try {
+    await saveAdminCategory(payload);
+    isCreateModalOpen.value = false;
+    toastStore.show('Thêm danh mục thành công!', 'success', payload.name);
+    await loadCategories();
+  } catch (error) { toastStore.show(error instanceof Error ? error.message : 'Không thể lưu danh mục.', 'error'); }
+  finally { saving.value = false; }
 }
 
 // -------------------------------------------------------------
@@ -135,14 +134,16 @@ function openEditModal(category: AdminCategoryItem) {
   isEditModalOpen.value = true;
 }
 
-function handleEditSubmit(payload: Omit<AdminCategoryItem, 'id'>) {
-  if (!categoryToEdit.value) return;
-  adminStore.updateCategory({
-    id: categoryToEdit.value.id,
-    createdAt: categoryToEdit.value.createdAt,
-    ...payload,
-  });
-  toastStore.show('Cập nhật danh mục thành công!', 'success', payload.name);
+async function handleEditSubmit(payload: { name: string; description: string; status: boolean }) {
+  if (!categoryToEdit.value || saving.value) return;
+  saving.value = true;
+  try {
+    await saveAdminCategory(payload, categoryToEdit.value.id);
+    isEditModalOpen.value = false;
+    toastStore.show('Cập nhật danh mục thành công!', 'success', payload.name);
+    await loadCategories();
+  } catch (error) { toastStore.show(error instanceof Error ? error.message : 'Không thể lưu danh mục.', 'error'); }
+  finally { saving.value = false; }
 }
 
 // -------------------------------------------------------------
@@ -156,12 +157,17 @@ function openDeleteModal(category: AdminCategoryItemWithCount) {
   isDeleteModalOpen.value = true;
 }
 
-function handleConfirmDelete() {
-  if (!categoryToDelete.value) return;
-  const removedName = categoryToDelete.value.name;
-  adminStore.deleteCategory(categoryToDelete.value.id);
-  toastStore.show('Đã xóa danh mục thành công!', 'success', removedName);
-  categoryToDelete.value = null;
+async function handleConfirmDelete() {
+  if (!categoryToDelete.value || saving.value) return;
+  saving.value = true;
+  try {
+    await deleteAdminCategory(categoryToDelete.value.id);
+    isDeleteModalOpen.value = false;
+    toastStore.show('Đã xóa danh mục thành công!', 'success', categoryToDelete.value.name);
+    categoryToDelete.value = null;
+    await loadCategories();
+  } catch (error) { toastStore.show(error instanceof Error ? error.message : 'Không thể xóa danh mục.', 'error'); }
+  finally { saving.value = false; }
 }
 
 // -------------------------------------------------------------
@@ -193,6 +199,7 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
         <button
           type="button"
           @click="openCreateModal"
+          :disabled="loading || !!loadError"
           class="px-4 py-2.5 rounded-2xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
         >
           <Plus class="w-4 h-4 stroke-[2.5]" />
@@ -211,7 +218,7 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
             <FolderTree class="w-4 h-4" />
           </div>
         </div>
-        <div class="font-heading text-2xl font-black text-[#2D3B1E]">{{ totalCategoriesCount }} <span class="text-xs font-normal">danh mục</span></div>
+        <div class="font-heading text-2xl font-black text-[#2D3B1E]">{{ loading || loadError ? '-' : totalCategoriesCount }} <span class="text-xs font-normal">danh mục</span></div>
       </div>
 
       <!-- Thẻ 2: Đang hiển thị -->
@@ -222,7 +229,7 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
             <CheckCircle2 class="w-4 h-4" />
           </div>
         </div>
-        <div class="font-heading text-2xl font-black text-emerald-700">{{ activeCategoriesCount }} <span class="text-xs font-normal">danh mục</span></div>
+        <div class="font-heading text-2xl font-black text-emerald-700">{{ loading || loadError ? '-' : visibleCategoriesCount }} <span class="text-xs font-normal">danh mục</span></div>
       </div>
 
       <!-- Thẻ 3: Đang ẩn -->
@@ -233,7 +240,7 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
             <EyeOff class="w-4 h-4" />
           </div>
         </div>
-        <div class="font-heading text-2xl font-black text-amber-700">{{ inactiveCategoriesCount }} <span class="text-xs font-normal">danh mục</span></div>
+        <div class="font-heading text-2xl font-black text-amber-700">{{ loading || loadError ? '-' : hiddenCategoriesCount }} <span class="text-xs font-normal">danh mục</span></div>
       </div>
     </div>
 
@@ -252,20 +259,9 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
         </div>
 
         <div class="flex items-center gap-3 w-full md:w-auto flex-wrap">
-          <div class="relative">
-          <select
-            v-model="selectedStatusFilter"
-            class="appearance-none pl-3 pr-9 py-2 rounded-xl border border-[#CCD7BC] bg-[#FAF9F5] text-xs text-[#2D3B1E] focus:outline-hidden focus:border-[#536124]"
-          >
-            <option value="all">Tất cả trạng thái</option>
-            <option value="Hoạt động">Đang hoạt động</option>
-            <option value="Tạm ẩn">Tạm ẩn</option>
-          </select>
-          <ChevronDown aria-hidden="true" class="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#7A866E]" />
-          </div>
 
           <button
-            v-if="searchQuery || selectedStatusFilter !== 'all'"
+            v-if="searchQuery"
             type="button"
             @click="resetFilters"
             class="px-3 py-2 rounded-xl text-xs font-bold text-[#536124] hover:bg-[#EBF1E6] flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -276,8 +272,12 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
         </div>
       </div>
 
+      <p v-if="loading" class="py-10 text-center text-sm text-[#7A866E]">Đang tải danh mục...</p>
+      <div v-else-if="loadError" role="alert" class="p-5 text-sm text-rose-600">
+        {{ loadError }} <button type="button" class="ml-2 underline" @click="loadCategories">Thử lại</button>
+      </div>
       <!-- Categories Data Table -->
-      <div class="overflow-x-auto">
+      <div v-if="!loading && !loadError" class="overflow-x-auto">
         <table class="w-full text-left text-xs">
           <thead class="bg-[#FAF9F5] text-[#7A866E] uppercase text-[10px] font-bold border-b border-[#E3E8DC]">
             <tr>
@@ -328,14 +328,10 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
                 </span>
               </td>
 
-              <!-- Cột 5: Trạng thái -->
               <td class="py-3.5 px-3 text-center">
-                <span
-                  class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold"
-                  :class="cat.status === 'Hoạt động' ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-700'"
-                >
-                  <component :is="cat.status === 'Hoạt động' ? CheckCircle2 : EyeOff" class="w-3 h-3" />
-                  <span>{{ cat.status }}</span>
+                <span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold" :class="cat.status ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-500'">
+                  <component :is="cat.status ? Eye : EyeOff" class="h-3 w-3" />
+                  {{ cat.status ? 'Đang hiển thị' : 'Đang ẩn' }}
                 </span>
               </td>
 
@@ -384,7 +380,7 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
 
       <!-- Pagination Toolbar (Thanh phân trang) -->
       <div
-        v-if="filteredCategories.length > 0"
+        v-if="!loading && !loadError && filteredCategories.length > 0"
         class="p-4 border-t border-[#ECEFE7] bg-[#FAF9F5] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs"
       >
         <span class="text-[#7A866E] font-medium">
@@ -434,7 +430,8 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
     <!-- 1. MODAL THÊM DANH MỤC MỚI -->
     <AdminCategoryCreateModal
       v-model="isCreateModalOpen"
-      :existing-categories="adminStore.categories"
+      :existing-categories="categories"
+      :saving="saving"
       @submit="handleCreateSubmit"
     />
 
@@ -442,7 +439,8 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
     <AdminCategoryEditModal
       v-model="isEditModalOpen"
       :category="categoryToEdit"
-      :existing-categories="adminStore.categories"
+      :existing-categories="categories"
+      :saving="saving"
       @submit="handleEditSubmit"
     />
 
@@ -450,6 +448,7 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
     <AdminCategoryDeleteModal
       v-model="isDeleteModalOpen"
       :category="categoryToDelete"
+      :saving="saving"
       @confirm="handleConfirmDelete"
     />
 
