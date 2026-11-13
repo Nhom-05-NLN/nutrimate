@@ -44,6 +44,7 @@ export async function deleteAdminCategory(id: string) {
 export interface ProductReview {
   id: string;
   author: string;
+  avatarUrl: string | null;
   rating: number;
   content: string;
   createdAt: string;

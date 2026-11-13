@@ -3,6 +3,7 @@ import { queryPostgres } from '../db/index.js';
 interface ReviewRow {
   review_id: number;
   author: string;
+  avatar_url: string | null;
   rating: number;
   comment: string | null;
   created_at: Date | string;
@@ -10,7 +11,7 @@ interface ReviewRow {
 
 export async function listProductReviews(productId: string, executeQuery = queryPostgres) {
   const result = await executeQuery<ReviewRow>(`
-    SELECT r.review_id, COALESCE(u.full_name, 'Khách hàng') AS author,
+    SELECT r.review_id, COALESCE(u.full_name, 'Khách hàng') AS author, u.avt_url AS avatar_url,
            r.rating, r.comment, r.created_at
     FROM product_reviews r
     JOIN products p ON p.product_id = r.product_id
@@ -20,7 +21,7 @@ export async function listProductReviews(productId: string, executeQuery = query
     LIMIT 100
   `, [productId]);
   return result.rows.map(row => ({
-    id: String(row.review_id), author: row.author, rating: row.rating,
+    id: String(row.review_id), author: row.author, avatarUrl: row.avatar_url, rating: row.rating,
     content: row.comment || '', createdAt: new Date(row.created_at).toISOString(),
   }));
 }

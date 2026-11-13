@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, defineAsyncComponent } from 'vue';
 import { useRoute } from 'vue-router';
-import DefaultLayout from './layouts/DefaultLayout.vue';
-import AdminLayout from './layouts/AdminLayout.vue';
 import ToastNotification from './components/common/ToastNotification.vue';
 
+const DefaultLayout = defineAsyncComponent(() => import('./layouts/DefaultLayout.vue'));
+const AdminLayout = defineAsyncComponent(() => import('./layouts/AdminLayout.vue'));
 const route = useRoute();
 const isBlankLayout = computed(() => route.meta.layout === 'blank');
 const isAdminRoute = computed(() => route.path.startsWith('/admin'));

@@ -1,21 +1,36 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useProductStore } from '../../stores/productStore';
-import { Leaf, ArrowRight } from 'lucide-vue-next';
+import { fetchCategories } from '../../services/api';
+import type { Category } from '../../types';
+import { ArrowRight, CandyOff, Dumbbell, Leaf, Nut, Salad } from 'lucide-vue-next';
 
 const router = useRouter();
 const productStore = useProductStore();
+const categories = ref<Category[]>([]);
+const isLoading = ref(true);
+const loadError = ref('');
 
-const categories = computed(() => productStore.categories.map(category => ({
-  key: category.id,
-  title: category.name,
-  desc: category.description,
-  count: `${category.count ?? 0} Sản phẩm`,
-  icon: Leaf,
-})));
+function getCategoryIcon(category: Category) {
+  const categoryKey = `${category.dietType} ${category.slug} ${category.name}`.toLowerCase();
+  if (categoryKey.includes('protein')) return Dumbbell;
+  if (categoryKey.includes('sugar') || categoryKey.includes('đường')) return CandyOff;
+  if (categoryKey.includes('nut') || categoryKey.includes('hạt')) return Nut;
+  if (categoryKey.includes('carb') || categoryKey.includes('keto')) return Salad;
+  return Leaf;
+}
 
-onMounted(() => productStore.loadCategories());
+onMounted(async () => {
+  try {
+    categories.value = await fetchCategories();
+  } catch (error: unknown) {
+    loadError.value = error instanceof Error ? error.message : 'Không thể tải danh mục.';
+    console.error('[DietCategories] Không thể tải danh mục:', error);
+  } finally {
+    isLoading.value = false;
+  }
+});
 
 function selectCategory(catKey: string) {
   productStore.setCategory(catKey);
@@ -35,34 +50,44 @@ function selectCategory(catKey: string) {
         </h2>
       </div>
 
-      <!-- 4 Cards Grid (Figma 01) -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div
+      <p v-if="loadError" role="alert" class="rounded-2xl border border-red-200 bg-white p-5 text-sm text-red-700">
+        {{ loadError }}
+      </p>
+      <p v-else-if="isLoading" role="status" class="rounded-2xl border border-[#E3E8DC] bg-white p-5 text-sm text-[#7A866E]">
+        Đang tải danh mục...
+      </p>
+      <p v-else-if="categories.length === 0" class="rounded-2xl border border-[#E3E8DC] bg-white p-5 text-sm text-[#7A866E]">
+        Hiện chưa có danh mục sản phẩm.
+      </p>
+
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <button
           v-for="cat in categories"
-          :key="cat.key"
-          @click="selectCategory(cat.key)"
-          class="group p-7 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#6B7A3A] hover:shadow-xl transition-all duration-200 cursor-pointer flex flex-col justify-between"
+          :key="cat.id"
+          type="button"
+          @click="selectCategory(cat.id)"
+          class="group w-full p-7 rounded-3xl bg-white border border-[#E3E8DC] text-left hover:border-[#6B7A3A] hover:shadow-xl transition-all duration-200 cursor-pointer flex flex-col justify-between"
         >
           <div class="space-y-4">
             <div class="w-12 h-12 rounded-2xl bg-[#EBF7E5] text-[#6B7A3A] flex items-center justify-center transition-transform group-hover:scale-110">
-              <component :is="cat.icon" class="w-6 h-6 stroke-[1.8]" />
+              <component :is="getCategoryIcon(cat)" class="w-6 h-6 stroke-[1.8]" />
             </div>
 
             <div>
               <h3 class="font-heading text-base font-bold text-[#242424] group-hover:text-[#6B7A3A] transition-colors">
-                {{ cat.title }}
+                {{ cat.name }}
               </h3>
               <p class="text-xs text-[#7A866E] mt-2 leading-relaxed">
-                {{ cat.desc }}
+                {{ cat.description }}
               </p>
             </div>
           </div>
 
           <div class="pt-6 flex items-center justify-between text-xs font-bold text-[#6B7A3A]">
-            <span>{{ cat.count }}</span>
+            <span>{{ cat.count ?? 0 }} Sản phẩm</span>
             <ArrowRight class="w-4 h-4 transition-transform group-hover:translate-x-1" />
           </div>
-        </div>
+        </button>
       </div>
     </div>
   </section>
