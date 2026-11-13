@@ -201,7 +201,6 @@ async function handleLogin() {
                 <input type="checkbox" v-model="rememberMe" class="h-4 w-4 rounded accent-[#536124]" />
                 <span>{{ isAdminLogin ? 'Ghi nhớ đăng nhập' : 'Ghi nhớ tôi trên thiết bị này' }}</span>
               </label>
-              <a href="#" class="text-xs font-bold text-[#536124] transition hover:text-[#34451F] hover:underline">Quên mật khẩu?</a>
             </div>
 
             <button
