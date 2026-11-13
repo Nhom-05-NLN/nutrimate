@@ -254,9 +254,7 @@ async function openNotification(notification: AdminNotification) {
   }
   closeNotifications();
   await router.push(
-    notification.type === 'customer_registered' || notification.type === 'customer_logged_in'
-      ? '/admin/customers'
-      : '/admin',
+    notification.type === 'customer_registered' ? '/admin/customers' : '/admin/orders',
   );
 }
 
@@ -987,7 +985,8 @@ async function handleAdminLogout() {
                     @click="openNotification(notification)"
                   >
                     <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#EBF7E5] text-[#536124] ring-1 ring-inset ring-[#DCE7D2]">
-                      <Users class="h-5 w-5" />
+                      <Users v-if="notification.type === 'customer_registered'" class="h-5 w-5" />
+                      <ShoppingCart v-else class="h-5 w-5" />
                     </span>
                     <span class="min-w-0 flex-1 pt-0.5">
                       <span class="flex items-start justify-between gap-3">

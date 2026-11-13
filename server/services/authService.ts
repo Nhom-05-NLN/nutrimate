@@ -209,10 +209,6 @@ export async function login(
     throw new AuthServiceError('Email, số điện thoại hoặc mật khẩu không chính xác.', 401);
   }
 
-  if (user.role === 'customer') {
-    await authRepository.createCustomerLoginNotification(user);
-  }
-
   return {
     id: String(user.id),
     name: user.name,

@@ -1,6 +1,6 @@
 export interface AdminNotification {
   id: string;
-  type: 'customer_registered' | 'customer_logged_in';
+  type: 'customer_registered' | 'order_placed';
   title: string;
   message: string;
   customerId: string | null;
