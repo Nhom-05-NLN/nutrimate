@@ -69,6 +69,36 @@ const routes: RouteRecordRaw[] = [
     name: 'blogs',
     component: () => import('../views/BlogsView.vue'),
   },
+  {
+    path: '/partners',
+    name: 'partners',
+    component: () => import('../views/FooterInfoView.vue'),
+  },
+  {
+    path: '/returns',
+    name: 'returns',
+    component: () => import('../views/FooterInfoView.vue'),
+  },
+  {
+    path: '/privacy',
+    name: 'privacy',
+    component: () => import('../views/FooterInfoView.vue'),
+  },
+  {
+    path: '/terms',
+    name: 'terms',
+    component: () => import('../views/FooterInfoView.vue'),
+  },
+  {
+    path: '/nutribot-guide',
+    name: 'nutribot-guide',
+    component: () => import('../views/FooterInfoView.vue'),
+  },
+  {
+    path: '/help',
+    name: 'help',
+    component: () => import('../views/FooterInfoView.vue'),
+  },
   // Admin Routes
   {
     path: '/admin',

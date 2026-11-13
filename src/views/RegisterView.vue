@@ -297,7 +297,7 @@ async function handleRegister() {
           <!-- Checkbox Điều Khoản -->
           <label class="flex cursor-pointer items-center gap-2 pt-0.5 text-xs leading-5 text-[#64705B] sm:text-sm lg:text-xs lg:leading-4">
             <input type="checkbox" v-model="isAgreed" required class="h-4 w-4 shrink-0 rounded accent-[#536124]" />
-            <span>Tôi đồng ý với <a href="#" class="font-bold text-[#35432A] underline underline-offset-2">Điều khoản dịch vụ</a> và <a href="#" class="font-bold text-[#35432A] underline underline-offset-2">Chính sách bảo vệ dữ liệu sức khỏe</a> của NutriMate.</span>
+            <span>Tôi đồng ý với <RouterLink to="/terms" class="font-bold text-[#35432A] underline underline-offset-2">Điều khoản dịch vụ</RouterLink> và <RouterLink to="/privacy" class="font-bold text-[#35432A] underline underline-offset-2">Chính sách bảo vệ dữ liệu sức khỏe</RouterLink> của NutriMate.</span>
           </label>
 
           <!-- Nút Submit (Xanh rêu đậm Figma 16) -->
@@ -324,8 +324,8 @@ async function handleRegister() {
       <div class="mx-auto flex w-full max-w-[720px] flex-col items-center justify-between gap-2 border-t border-[#F0F3EC] pt-4 text-center text-xs text-[#7A866E] sm:flex-row sm:text-left lg:pt-3 lg:text-[11px]">
         <span>© 2026 NutriMate Vietnam. Nền tảng thực phẩm sạch và dinh dưỡng AI.</span>
         <div class="flex items-center gap-4 font-semibold text-[#242424]">
-          <a href="#" class="hover:underline">Trợ giúp</a>
-          <a href="#" class="hover:underline">Chính sách bảo mật</a>
+          <RouterLink to="/help" class="hover:underline">Trợ giúp</RouterLink>
+          <RouterLink to="/privacy" class="hover:underline">Chính sách bảo mật</RouterLink>
         </div>
       </div>
     </div>
