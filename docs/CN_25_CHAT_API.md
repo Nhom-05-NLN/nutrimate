@@ -10,6 +10,7 @@ Cấu hình riêng trong `.env`, không commit file hoặc khóa:
 
 ```dotenv
 LLM_API_KEY=<khoa-cua-nha-cung-cap>
+LLM_PROVIDER=gemini
 LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 LLM_MODEL=gemini-2.5-flash
 GROQ_API_KEY=<khoa-groq-du-phong>
@@ -19,6 +20,8 @@ JWT_SECRET=<bi-mat-HS256-dung-chung-voi-module-dang-nhap-it-nhat-32-ky-tu>
 ```
 
 `OPENAI_API_KEY` là tên dự phòng cho `LLM_API_KEY`. URL phải dùng HTTPS, không chứa username/password, query hay fragment. Backend gọi `${LLM_BASE_URL}/chat/completions`; model phải hỗ trợ giao thức Chat Completions, system messages và `max_tokens`. Không hardcode model hay đưa biến bí mật vào `VITE_*`.
+
+`LLM_PROVIDER` là metadata không bí mật được lưu cùng cấu hình NutriBot trong PostgreSQL; API key vẫn chỉ lấy từ biến môi trường.
 
 Adapter tham chiếu [OpenAI Docs — Create chat completion](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create); mức tương thích của từng nhà cung cấp cần kiểm thử bằng model được cấu hình.
 
@@ -33,6 +36,14 @@ psql -v ON_ERROR_STOP=1 -f server/db/migrations/003_chat_conversation_schema_com
 ```
 
 Migration tương thích chạy trong transaction, giữ nguyên `chat_sessions` và đổi tên bảng tin nhắn cũ thành `chat_messages_legacy`, sau đó tạo các bảng/index cần cho API hiện tại. Nội dung legacy được giữ nguyên để tra cứu/đối chiếu; không tự gán hội thoại cũ cho Guest hoặc Customer vì không có liên kết danh tính an toàn tới chủ phiên chat mới. Migration không tự chạy trong bootstrap hoặc tạo database thứ hai. Nếu tồn tại đồng thời bảng archive hoặc schema khác không nhận diện được, migration dừng và rollback để tránh ghi đè dữ liệu.
+
+Sau khi có `chat_conversations` và `chat_messages`, chạy migration liên kết NutriBot:
+
+```bash
+psql -v ON_ERROR_STOP=1 -f server/db/migrations/015_nutribot_chat_links.sql
+```
+
+Migration bổ sung metadata provider/model, gắn các hội thoại hiện có với một bot đang hoạt động, và giữ tin nhắn liên kết qua `conversation_id`. API key không được lưu trong PostgreSQL; `LLM_PROVIDER`, `LLM_MODEL` và API key vẫn lấy từ cấu hình môi trường.
 
 Các repository chat cũng hỗ trợ schema NutriMate chuẩn (`chatbot_knowledge` và bảng `products` có nutrition columns) lẫn schema chuẩn hóa đang dùng ở một số database hiện hữu (`knowledge_base`, `products.product_id`, `nutrition_facts`, `inventory`). Việc chọn cấu trúc chỉ dựa trên metadata PostgreSQL và không sửa schema. Chỉ sản phẩm có đủ khẩu phần, Calories, Protein, Carbs, Fat và Sugar mới được gợi ý; không có Nutrition Facts thì kết quả sản phẩm để trống thay vì dùng dữ liệu mẫu.
 
@@ -123,7 +134,7 @@ Response 200 chứa `conversationId`, `reply`, `suggestedProducts` và `messages
 - Client tạo UUID `requestId` cho mỗi lần gửi mới. Gửi lại dùng đúng UUID và nội dung cũ. Nếu lượt trước đã commit, server trả lại hai tin đã lưu mà không gọi AI/lưu trùng. Dùng lại UUID với nội dung khác trả 409.
 - Mỗi hội thoại khóa dòng `FOR UPDATE NOWAIT` khi xử lý; gửi đồng thời cùng hội thoại trả 409. Lịch sử và hai tin được lưu nguyên tử trong transaction; lỗi AI không ghi lượt dang dở. Tin đang chờ hoặc thất bại nằm ở UI, chưa phải lịch sử bền vững cho đến khi gửi thành công.
 - Lịch sử ngữ cảnh được đọc từ PostgreSQL, chỉ lấy các cặp User/Assistant gần nhất: tối đa 20 tin và 16000 ký tự (kể cả câu hỏi mới). System prompt/dữ liệu tham chiếu được giới hạn riêng; tối đa 1000 output tokens. Đây là giới hạn ký tự, không phải tokenizer riêng của từng model.
-- Timeout AI 30 giây trả 504; lỗi nhà cung cấp/phản hồi rỗng trả 502; thiếu cấu hình AI hoặc lỗi PostgreSQL trả 503. Không chuyển lỗi thành trả lời sản phẩm mẫu. Chi tiết lỗi nội bộ/API key không được gửi ra client.
+- Timeout AI 30 giây trả 504; lỗi nhà cung cấp hoặc phản hồi rỗng trả 502; HTTP 401/403 từ nhà cung cấp được ghi log chỉ với mã HTTP và trả 503 yêu cầu quản trị viên kiểm tra quyền cấu hình. Thiếu cấu hình AI hoặc lỗi PostgreSQL cũng trả 503. Không chuyển lỗi thành trả lời sản phẩm mẫu; chi tiết lỗi nội bộ/API key không được gửi ra client.
 - Giữ truy xuất FAQ/sản phẩm theo từ khóa đang có, qua chế độ PostgreSQL bắt buộc; tối đa ba sản phẩm thực. Không mở rộng CN_26–CN_28 thành bộ truy vấn AI hay dùng SQL do model sinh.
 - Nút “Hỏi NutriBot” từ đơn hàng gửi mã đơn trong tin nhắn. Với câu hỏi có mã `NM-######`, backend tra cứu bằng truy vấn tham số hóa và giới hạn `user_id`/`customer_id` theo danh tính JWT; chỉ trả trạng thái, thanh toán, ngày tạo, tổng tiền và tên/số lượng sản phẩm, không gửi thông tin giao hàng hay dữ liệu cá nhân cho AI. Khi Customer/Admin đặt đơn có JWT hợp lệ, server gắn `user_id` lấy từ JWT; không tự ghi `customer_id` vì khóa ngoại thực tế có thể trỏ bảng `customers`. Đơn cũ chưa liên kết chỉ được gắn cho tài khoản Customer nếu email và số điện thoại khớp, hoặc họ tên và số điện thoại khớp sau chuẩn hóa định dạng số điện thoại; kết quả phải khớp duy nhất một Customer. Đơn đã có chủ khác không thể được nhận. Guest được yêu cầu đăng nhập; mã không thuộc tài khoản hiện tại được báo không tìm thấy. Trả lời lấy trực tiếp từ PostgreSQL, không gọi AI; câu hỏi tiếp theo về đơn trong cùng hội thoại dùng mã đơn gần nhất đã gửi.
 - Mọi phản hồi AI được ứng dụng bổ sung câu cảnh báo chỉ mang tính tham khảo. Nội dung được Vue render như text, không dùng `v-html`.

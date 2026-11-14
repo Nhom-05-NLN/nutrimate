@@ -6,6 +6,7 @@ const router = Router();
 router.get('/', voucherController.getVouchers);
 router.post('/validate', voucherController.validateVoucher);
 router.post('/', voucherController.createVoucher);
+router.put('/:id', voucherController.updateVoucher);
 router.patch('/:id/toggle', voucherController.toggleVoucher);
 router.delete('/:id', voucherController.deleteVoucher);
 

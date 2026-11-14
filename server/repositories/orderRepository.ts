@@ -280,6 +280,35 @@ export async function getOrdersByUser(userId: number | null): Promise<Order[]> {
   return memoryOrders;
 }
 
+export async function hasPriorOrder(identifier: string): Promise<boolean> {
+  const cleanId = identifier.trim().toLowerCase();
+  if (!cleanId) return false;
+
+  if (isDbConnected()) {
+    try {
+      const sql = `
+        SELECT 1
+        FROM orders
+        WHERE (LOWER(TRIM(customer_phone)) = $1 OR LOWER(TRIM(customer_email)) = $1)
+          AND status != 'cancelled'
+        LIMIT 1
+      `;
+      const res = await queryPostgres(sql, [cleanId]);
+      return (res.rowCount ?? 0) > 0;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'hasPriorOrder error';
+      console.warn('[OrderRepository hasPriorOrder Fallback]:', msg);
+    }
+  }
+
+  return memoryOrders.some(
+    (o) =>
+      o.status !== 'cancelled' &&
+      ((o.customer.phone && o.customer.phone.trim().toLowerCase() === cleanId) ||
+        (o.customer.email && o.customer.email.trim().toLowerCase() === cleanId))
+  );
+}
+
 export async function getAllOrders(): Promise<Order[]> {
   if (isDbConnected()) {
     try {
@@ -453,11 +482,14 @@ export async function createOrder(order: Order, ownerUserId: number | null = nul
           shipping_address, shipping_method, payment_method, payment_status, status,
           total_amount, total_calories, total_protein, shipping_fee,
           discount_amount, voucher_code, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+        ) VALUES (
+          $1,
+          CASE WHEN $1::int IS NOT NULL AND EXISTS (SELECT 1 FROM customers WHERE user_id = $1::int) THEN $1::int ELSE NULL END,
+          $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+        )
         RETURNING order_id, id
       `;
       const orderValues = [
-        ownerUserId,
         ownerUserId,
         order.orderCode,
         order.customer.name,

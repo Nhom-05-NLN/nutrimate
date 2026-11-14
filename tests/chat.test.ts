@@ -154,7 +154,7 @@ test('order lookup scopes the parameterized query to the authenticated user', as
   const order = await findChatOrderByCode('NM-123456', 41, execute);
   assert.equal(order?.status, 'shipping');
   assert.equal(order?.items[0]?.productName, 'Bún Shirataki');
-  assert.match(calls[0]?.sql || '', /order_code = \$1 AND \(user_id = \$2 OR customer_id = \$2\)/);
+  assert.match(calls[0]?.sql || '', /(?:order_code\s*=\s*\$1|UPPER\(order_code\)\s*=\s*\$1)[\s\S]*AND\s*\(user_id\s*=\s*\$2\s*OR\s*customer_id\s*=\s*\$2\)/);
   assert.deepEqual(calls[0]?.params, ['NM-123456', 41]);
   assert.deepEqual(calls[1]?.params, [17]);
 });

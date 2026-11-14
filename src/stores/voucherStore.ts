@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { Voucher, CreateVoucherPayload } from '../types';
+import { Voucher, CreateVoucherPayload, UpdateVoucherPayload } from '../types';
 import {
   fetchVouchers,
   createVoucherApi,
+  updateVoucherApi,
   toggleVoucherApi,
   deleteVoucherApi,
 } from '../services/api';
@@ -44,6 +45,15 @@ export const useVoucherStore = defineStore('voucher', () => {
     return newVoucher;
   }
 
+  async function editVoucher(id: string, payload: UpdateVoucherPayload): Promise<Voucher> {
+    const updated = await updateVoucherApi(id, payload);
+    const idx = vouchers.value.findIndex((v) => v.id === id);
+    if (idx !== -1) {
+      vouchers.value[idx] = updated;
+    }
+    return updated;
+  }
+
   async function toggleVoucher(id: string): Promise<Voucher> {
     const updated = await toggleVoucherApi(id);
     const idx = vouchers.value.findIndex((v) => v.id === id);
@@ -66,6 +76,51 @@ export const useVoucherStore = defineStore('voucher', () => {
     return vouchers.value.find((v) => v.code.toUpperCase() === normalized);
   }
 
+  /**
+   * Tính số tiền giảm giá thực tế của một voucher dựa trên giá trị đơn hàng
+   */
+  function calculateDiscount(voucher: Voucher, subtotal: number): number {
+    if (subtotal < voucher.minOrderAmount) return 0;
+    if (voucher.discountType === 'fixed') {
+      return Math.min(voucher.discountValue, subtotal);
+    }
+    if (voucher.discountType === 'percent') {
+      let discount = Math.round(subtotal * (voucher.discountValue / 100));
+      if (voucher.maxDiscountAmount && voucher.maxDiscountAmount > 0) {
+        discount = Math.min(discount, voucher.maxDiscountAmount);
+      }
+      return discount;
+    }
+    return 0;
+  }
+
+  /**
+   * Tìm voucher tối ưu nhất (giảm nhiều tiền nhất) cho một mức subtotal
+   */
+  function findBestVoucher(subtotal: number, isCustomerNew = true): Voucher | null {
+    if (subtotal <= 0) return null;
+    const candidates = activeVouchers.value.filter((v) => {
+      if (subtotal < v.minOrderAmount) return false;
+      if (v.targetType === 'first_order' && !isCustomerNew) return false;
+      return true;
+    });
+
+    if (candidates.length === 0) return null;
+
+    let bestVoucher: Voucher | null = null;
+    let maxDiscount = 0;
+
+    for (const v of candidates) {
+      const discount = calculateDiscount(v, subtotal);
+      if (discount > maxDiscount) {
+        maxDiscount = discount;
+        bestVoucher = v;
+      }
+    }
+
+    return bestVoucher;
+  }
+
   return {
     vouchers,
     isLoading,
@@ -73,8 +128,11 @@ export const useVoucherStore = defineStore('voucher', () => {
     activeVouchers,
     loadVouchers,
     addVoucher,
+    editVoucher,
     toggleVoucher,
     removeVoucher,
     getVoucherByCode,
+    calculateDiscount,
+    findBestVoucher,
   };
 });

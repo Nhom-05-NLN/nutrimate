@@ -1,4 +1,4 @@
-import { Voucher, CreateVoucherPayload } from '../types/index.js';
+import { Voucher, CreateVoucherPayload, UpdateVoucherPayload } from '../types/index.js';
 import * as voucherRepo from '../repositories/voucherRepository.js';
 import * as orderRepo from '../repositories/orderRepository.js';
 
@@ -61,14 +61,8 @@ export async function validateVoucher(
 
   // Kiểm tra khách hàng mới nếu targetType === 'first_order'
   if (voucher.targetType === 'first_order' && customerIdentifier) {
-    const allOrders = await orderRepo.getAllOrders();
-    const cleanId = customerIdentifier.trim().toLowerCase();
-    const hasPriorOrder = allOrders.some(
-      (o) =>
-        (o.customer.phone && o.customer.phone.trim().toLowerCase() === cleanId) ||
-        (o.customer.email && o.customer.email.trim().toLowerCase() === cleanId)
-    );
-    if (hasPriorOrder) {
+    const hasPrior = await orderRepo.hasPriorOrder(customerIdentifier);
+    if (hasPrior) {
       return {
         isValid: false,
         discountAmount: 0,
@@ -133,6 +127,29 @@ export async function createVoucher(payload: CreateVoucherPayload): Promise<Vouc
   };
 
   return voucherRepo.createVoucher(voucher);
+}
+
+export async function updateVoucher(id: string, payload: UpdateVoucherPayload): Promise<Voucher> {
+  const existing = await voucherRepo.getVoucherById(id);
+  if (!existing) {
+    throw new Error(`Không tìm thấy voucher với id ${id}`);
+  }
+
+  if (payload.discountValue !== undefined && payload.discountValue <= 0) {
+    throw new Error('Giá trị chiết khấu phải lớn hơn 0');
+  }
+
+  const effectiveType = payload.discountType || existing.discountType;
+  const effectiveVal = payload.discountValue !== undefined ? payload.discountValue : existing.discountValue;
+  if (effectiveType === 'percent' && effectiveVal > 100) {
+    throw new Error('Chiết khấu theo phần trăm không được vượt quá 100%');
+  }
+
+  const updated = await voucherRepo.updateVoucher(id, payload);
+  if (!updated) {
+    throw new Error('Không thể cập nhật voucher');
+  }
+  return updated;
 }
 
 export async function toggleVoucher(id: string): Promise<Voucher | null> {

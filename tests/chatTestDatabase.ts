@@ -19,10 +19,28 @@ export async function createChatTestDatabase() {
       .replace(/^BEGIN;\s*$/m, '').replace(/^COMMIT;\s*$/m, '');
     await client.query(migration);
     await client.query(migration);
-    await client.query('CREATE TABLE nutrition_images (image_id INTEGER PRIMARY KEY, image_url TEXT)');
+    const imageMigration = (await readFile(new URL('../server/db/migrations/002_nutrition_images.sql', import.meta.url), 'utf8'))
+      .replace(/^BEGIN;\s*$/m, '').replace(/^COMMIT;\s*$/m, '');
+    await client.query(imageMigration);
     const imageHistoryMigration = (await readFile(new URL('../server/db/migrations/006_chat_image_history.sql', import.meta.url), 'utf8'))
       .replace(/^BEGIN;\s*$/m, '').replace(/^COMMIT;\s*$/m, '');
     await client.query(imageHistoryMigration);
+    await client.query(`
+      CREATE TABLE nutribot (
+        bot_id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        model VARCHAR(150) NOT NULL,
+        description TEXT NOT NULL
+      )
+    `);
+    await client.query(
+      `INSERT INTO nutribot (name, model, description)
+       VALUES ('NutriBot', 'legacy-model', 'Legacy bot metadata')`,
+    );
+    const botMigration = (await readFile(new URL('../server/db/migrations/015_nutribot_chat_links.sql', import.meta.url), 'utf8'))
+      .replace(/^BEGIN;\s*$/m, '').replace(/^COMMIT;\s*$/m, '');
+    await client.query(botMigration);
+    await client.query(botMigration);
     const transactionalClient = {
       async query(sql: string, params?: unknown[]) {
         if (sql === 'BEGIN') return client.query('SAVEPOINT chat_turn');
