@@ -37,7 +37,7 @@ export async function createOrder(payload: CreateOrderPayload, ownerUserId: numb
       discountAmount = validation.discountAmount;
       appliedCode = validation.voucher?.code || rawCode;
     } else {
-      console.warn(`[OrderService] Voucher ${rawCode} không hợp lệ: ${validation.message}`);
+      throw new Error(validation.message || `Mã giảm giá ${rawCode} không hợp lệ hoặc không đủ điều kiện`);
     }
   }
 

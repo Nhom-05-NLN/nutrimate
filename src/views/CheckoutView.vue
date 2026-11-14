@@ -5,7 +5,7 @@ import { useCartStore, getCartItemKey } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import { useVoucherStore } from '../stores/voucherStore';
-import { fetchUserAddresses, postOrder } from '../services/api';
+import { fetchUserAddresses, postOrder, validateVoucherApi } from '../services/api';
 import { CustomerInfo, Order, PaymentMethod, CreateOrderPayload, Voucher } from '../types';
 import ShippingAddressForm from '../components/checkout/ShippingAddressForm.vue';
 import VietQrModal from '../components/checkout/VietQrModal.vue';
@@ -144,7 +144,7 @@ const totalProtein = computed(() => {
 });
 
 const isFreeShipping = computed(() => {
-  return subtotal.value >= 300000 || (appliedVoucher.value?.code?.toUpperCase().includes('FREESHIP') ?? false);
+  return subtotal.value >= 300000;
 });
 
 const baseShippingFee = computed(() => {
@@ -154,17 +154,7 @@ const baseShippingFee = computed(() => {
 
 const voucherDiscount = computed(() => {
   if (!appliedVoucher.value) return 0;
-  const v = appliedVoucher.value;
-  if (subtotal.value < v.minOrderAmount) return 0;
-
-  if (v.discountType === 'fixed') {
-    return Math.min(v.discountValue, subtotal.value);
-  }
-  let discount = Math.round(subtotal.value * (v.discountValue / 100));
-  if (v.maxDiscountAmount && v.maxDiscountAmount > 0) {
-    discount = Math.min(discount, v.maxDiscountAmount);
-  }
-  return discount;
+  return voucherStore.calculateDiscount(appliedVoucher.value, subtotal.value);
 });
 
 const shippingFee = computed(() => {
@@ -175,7 +165,60 @@ const grandTotal = computed(() => {
   return Math.max(0, subtotal.value + shippingFee.value - voucherDiscount.value);
 });
 
-function selectVoucher(v: Voucher) {
+// Người dùng đã tự tay chọn mã hay hệ thống tự động chọn
+const isUserSelectedVoucher = ref(false);
+
+/**
+ * Tự động chọn voucher tối ưu nhất (giảm nhiều tiền nhất)
+ */
+function autoSelectBestVoucher(notify = false) {
+  if (subtotal.value <= 0) return;
+
+  // Nếu người dùng đã tự chọn mã và mã đó vẫn đủ điều kiện thì giữ nguyên
+  if (isUserSelectedVoucher.value && appliedVoucher.value) {
+    if (subtotal.value < appliedVoucher.value.minOrderAmount) {
+      const removedCode = appliedVoucher.value.code;
+      appliedVoucher.value = null;
+      voucherInput.value = '';
+      isUserSelectedVoucher.value = false;
+      toastStore.show(`Đơn hàng không còn đủ điều kiện áp dụng mã ${removedCode}`, 'warning');
+    } else {
+      return;
+    }
+  }
+
+  const best = voucherStore.findBestVoucher(subtotal.value);
+  if (best) {
+    const isNewBest = !appliedVoucher.value || appliedVoucher.value.code !== best.code;
+    appliedVoucher.value = best;
+    voucherInput.value = best.code;
+    if (notify && isNewBest) {
+      const discount = voucherStore.calculateDiscount(best, subtotal.value);
+      toastStore.show(
+        `Đã tự động áp dụng mã ưu đãi tối ưu nhất ${best.code} (-${formatVnd(discount)})`,
+        'success'
+      );
+    }
+  } else if (!isUserSelectedVoucher.value) {
+    appliedVoucher.value = null;
+    voucherInput.value = '';
+  }
+}
+
+// Watch subtotal hoặc danh sách voucher để tự động gợi ý mã tối ưu
+watch(
+  [() => subtotal.value, () => voucherStore.activeVouchers.length],
+  ([newSubtotal, voucherCount]) => {
+    if (newSubtotal > 0 && voucherCount > 0 && !appliedVoucher.value) {
+      autoSelectBestVoucher(false);
+    } else if (appliedVoucher.value && newSubtotal < appliedVoucher.value.minOrderAmount) {
+      autoSelectBestVoucher(false);
+    }
+  },
+  { immediate: true }
+);
+
+async function selectVoucher(v: Voucher) {
   if (subtotal.value < v.minOrderAmount) {
     const diff = v.minOrderAmount - subtotal.value;
     toastStore.show(
@@ -185,18 +228,35 @@ function selectVoucher(v: Voucher) {
     return;
   }
 
+  // Nếu là mã cho khách mới đặt đơn đầu tiên, kiểm tra với server
+  if (v.targetType === 'first_order') {
+    const phone = customer.value.phone?.trim();
+    const email = customer.value.email?.trim();
+    if (phone || email) {
+      try {
+        await validateVoucherApi(v.code, subtotal.value, phone, email);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Mã không áp dụng được';
+        toastStore.show(msg, 'warning');
+        return;
+      }
+    }
+  }
+
   appliedVoucher.value = v;
   voucherInput.value = v.code;
+  isUserSelectedVoucher.value = true;
   toastStore.show(`Đã áp dụng mã ${v.code}`, 'success');
 }
 
 function removeVoucher() {
   appliedVoucher.value = null;
   voucherInput.value = '';
+  isUserSelectedVoucher.value = true; // Đánh dấu người dùng cố ý gỡ mã, không tự động áp lại ngay
   toastStore.show('Đã gỡ bỏ mã giảm giá', 'info');
 }
 
-function applyVoucherInput() {
+async function applyVoucherInput() {
   const code = voucherInput.value.trim().toUpperCase();
   if (!code) {
     removeVoucher();
@@ -204,9 +264,24 @@ function applyVoucherInput() {
   }
   const found = voucherStore.getVoucherByCode(code);
   if (found) {
-    selectVoucher(found);
+    await selectVoucher(found);
   } else {
-    toastStore.show('Mã voucher không hợp lệ hoặc đã hết hạn', 'warning');
+    // Thử validate trực tiếp qua API (đề phòng mã kín không có trong store)
+    try {
+      const res = await validateVoucherApi(
+        code,
+        subtotal.value,
+        customer.value.phone?.trim(),
+        customer.value.email?.trim()
+      );
+      appliedVoucher.value = res.voucher;
+      voucherInput.value = res.voucher.code;
+      isUserSelectedVoucher.value = true;
+      toastStore.show(res.message || `Đã áp dụng mã ${res.voucher.code}`, 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Mã voucher không hợp lệ hoặc đã hết hạn';
+      toastStore.show(msg, 'warning');
+    }
   }
 }
 
@@ -646,6 +721,12 @@ function handlePaymentModalClose() {
                         class="px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]"
                       >
                         -{{ v.discountValue / 1000 }}k
+                      </span>
+                      <span
+                        v-if="v.code === voucherStore.findBestVoucher(subtotal)?.code && subtotal >= v.minOrderAmount"
+                        class="px-2 py-0.2 rounded-full bg-[#4D6A34] text-white font-bold text-[10px]"
+                      >
+                        Tối ưu nhất
                       </span>
                     </div>
 

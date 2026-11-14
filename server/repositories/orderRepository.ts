@@ -280,6 +280,35 @@ export async function getOrdersByUser(userId: number | null): Promise<Order[]> {
   return memoryOrders;
 }
 
+export async function hasPriorOrder(identifier: string): Promise<boolean> {
+  const cleanId = identifier.trim().toLowerCase();
+  if (!cleanId) return false;
+
+  if (isDbConnected()) {
+    try {
+      const sql = `
+        SELECT 1
+        FROM orders
+        WHERE (LOWER(TRIM(customer_phone)) = $1 OR LOWER(TRIM(customer_email)) = $1)
+          AND status != 'cancelled'
+        LIMIT 1
+      `;
+      const res = await queryPostgres(sql, [cleanId]);
+      return (res.rowCount ?? 0) > 0;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'hasPriorOrder error';
+      console.warn('[OrderRepository hasPriorOrder Fallback]:', msg);
+    }
+  }
+
+  return memoryOrders.some(
+    (o) =>
+      o.status !== 'cancelled' &&
+      ((o.customer.phone && o.customer.phone.trim().toLowerCase() === cleanId) ||
+        (o.customer.email && o.customer.email.trim().toLowerCase() === cleanId))
+  );
+}
+
 export async function getAllOrders(): Promise<Order[]> {
   if (isDbConnected()) {
     try {

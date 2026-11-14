@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useVoucherStore } from '../../stores/voucherStore';
 import { useToastStore } from '../../stores/toastStore';
-import { Voucher, CreateVoucherPayload } from '../../types';
+import { Voucher, CreateVoucherPayload, UpdateVoucherPayload } from '../../types';
 import {
   Ticket,
   Plus,
@@ -15,6 +15,7 @@ import {
   RefreshCw,
   AlertCircle,
   Users,
+  Pencil,
 } from 'lucide-vue-next';
 
 const voucherStore = useVoucherStore();
@@ -23,6 +24,8 @@ const toastStore = useToastStore();
 const searchQuery = ref('');
 const statusFilter = ref<'all' | 'active' | 'inactive' | 'expired'>('all');
 const showCreateModal = ref(false);
+const showEditModal = ref(false);
+const editingVoucherId = ref<string | null>(null);
 const isSubmitting = ref(false);
 const isLoading = ref(false);
 
@@ -37,6 +40,32 @@ const newVoucher = ref<CreateVoucherPayload>({
   targetType: 'all',
   usageLimit: 100,
   endDate: new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0],
+  isActive: true,
+});
+
+const editingVoucher = ref<{
+  code: string;
+  title: string;
+  description: string;
+  discountType: 'fixed' | 'percent';
+  discountValue: number;
+  minOrderAmount: number;
+  maxDiscountAmount: number | undefined;
+  targetType: 'all' | 'first_order';
+  usageLimit: number;
+  endDate: string;
+  isActive: boolean;
+}>({
+  code: '',
+  title: '',
+  description: '',
+  discountType: 'fixed',
+  discountValue: 20000,
+  minOrderAmount: 150000,
+  maxDiscountAmount: undefined,
+  targetType: 'all',
+  usageLimit: 100,
+  endDate: new Date().toISOString().split('T')[0],
   isActive: true,
 });
 
@@ -125,7 +154,12 @@ async function handleToggleStatus(voucher: Voucher) {
 }
 
 async function handleDeleteVoucher(voucher: Voucher) {
-  if (!confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn voucher ${voucher.code}?`)) {
+  let confirmMessage = `Bạn có chắc chắn muốn xóa vĩnh viễn voucher ${voucher.code}?`;
+  if (voucher.usedCount > 0) {
+    confirmMessage = `CẢNH BÁO: Voucher ${voucher.code} đã có ${voucher.usedCount} lượt sử dụng trong các đơn hàng!\nViệc xóa có thể ảnh hưởng đến lịch sử tra cứu đơn hàng.\n(Gợi ý: bạn nên dùng nút Tạm dừng thay vì xóa).\n\nBạn vẫn muốn tiếp tục xóa vĩnh viễn?`;
+  }
+
+  if (!confirm(confirmMessage)) {
     return;
   }
   try {
@@ -154,6 +188,63 @@ function openCreateModal() {
     isActive: true,
   };
   showCreateModal.value = true;
+}
+
+function openEditModal(voucher: Voucher) {
+  editingVoucherId.value = voucher.id;
+  editingVoucher.value = {
+    code: voucher.code,
+    title: voucher.title,
+    description: voucher.description || '',
+    discountType: voucher.discountType,
+    discountValue: voucher.discountValue,
+    minOrderAmount: voucher.minOrderAmount,
+    maxDiscountAmount: voucher.maxDiscountAmount,
+    targetType: voucher.targetType,
+    usageLimit: voucher.usageLimit,
+    endDate: voucher.endDate ? voucher.endDate.split('T')[0] : '',
+    isActive: voucher.isActive,
+  };
+  showEditModal.value = true;
+}
+
+async function handleUpdateVoucher() {
+  if (!editingVoucherId.value) return;
+  if (!editingVoucher.value.title.trim()) {
+    toastStore.show('Vui lòng nhập tiêu đề khuyến mãi', 'warning');
+    return;
+  }
+  if (editingVoucher.value.discountValue <= 0) {
+    toastStore.show('Giá trị giảm phải lớn hơn 0', 'warning');
+    return;
+  }
+  if (editingVoucher.value.discountType === 'percent' && editingVoucher.value.discountValue > 100) {
+    toastStore.show('Phần trăm giảm không được vượt quá 100%', 'warning');
+    return;
+  }
+
+  isSubmitting.value = true;
+  try {
+    await voucherStore.editVoucher(editingVoucherId.value, {
+      title: editingVoucher.value.title.trim(),
+      description: editingVoucher.value.description?.trim(),
+      discountType: editingVoucher.value.discountType,
+      discountValue: editingVoucher.value.discountValue,
+      minOrderAmount: editingVoucher.value.minOrderAmount,
+      maxDiscountAmount: editingVoucher.value.discountType === 'percent' ? (editingVoucher.value.maxDiscountAmount || null) : null,
+      targetType: editingVoucher.value.targetType,
+      usageLimit: editingVoucher.value.usageLimit,
+      endDate: editingVoucher.value.endDate ? new Date(editingVoucher.value.endDate).toISOString() : undefined,
+      isActive: editingVoucher.value.isActive,
+    });
+    toastStore.show(`Đã cập nhật thành công voucher ${editingVoucher.value.code}`, 'success');
+    showEditModal.value = false;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Lỗi khi cập nhật voucher';
+    toastStore.show(msg, 'error');
+  } finally {
+    isSubmitting.value = false;
+  }
 }
 
 async function handleCreateVoucher() {
@@ -483,6 +574,15 @@ async function handleCreateVoucher() {
                 <div class="flex items-center justify-end gap-1.5">
                   <button
                     type="button"
+                    @click="openEditModal(v)"
+                    class="p-2 rounded-xl text-[#4D6A34] border border-[#CCD7BC] bg-white hover:bg-[#EBF7E5] transition-colors cursor-pointer"
+                    title="Chỉnh sửa voucher"
+                  >
+                    <Pencil class="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
                     @click="handleToggleStatus(v)"
                     class="p-2 rounded-xl transition-colors cursor-pointer border"
                     :class="v.isActive ? 'text-[#4D6A34] border-[#CCD7BC] bg-white hover:bg-[#EBF7E5]' : 'text-stone-400 border-stone-200 bg-stone-50 hover:bg-stone-100'"
@@ -658,6 +758,172 @@ async function handleCreateVoucher() {
               class="px-5 py-2 rounded-xl bg-[#4D6A34] hover:bg-[#3D5529] disabled:bg-slate-300 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
             >
               {{ isSubmitting ? 'Đang lưu...' : 'Lưu Voucher' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal Chỉnh Sửa Voucher -->
+    <div
+      v-if="showEditModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+      @click.self="showEditModal = false"
+    >
+      <div class="bg-white rounded-3xl w-full max-w-lg p-6 sm:p-7 shadow-2xl border border-[#E3E8DC] space-y-5 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between border-b border-[#F0F3EC] pb-4">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center">
+              <Pencil class="w-4 h-4" />
+            </div>
+            <div>
+              <h3 class="font-heading text-lg font-black text-[#2D3B1E]">Chỉnh Sửa Voucher</h3>
+              <span class="text-xs text-[#7A866E]">Cập nhật thông số ưu đãi cho mã {{ editingVoucher.code }}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            @click="showEditModal = false"
+            class="p-1.5 rounded-xl text-[#7A866E] hover:bg-[#FAF9F5] transition-colors cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form @submit.prevent="handleUpdateVoucher" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-[#576449] mb-1">Mã Voucher (Không thể sửa)</label>
+            <input
+              type="text"
+              :value="editingVoucher.code"
+              disabled
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs sm:text-sm font-black uppercase text-slate-500 cursor-not-allowed outline-none"
+            />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-[#576449] mb-1">Tiêu đề khuyến mãi *</label>
+            <input
+              type="text"
+              v-model="editingVoucher.title"
+              placeholder="VD: Giảm 20.000đ cho đơn thực phẩm Eat-Clean"
+              class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs sm:text-sm text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
+              required
+            />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-[#576449] mb-1">Mô tả chi tiết</label>
+            <textarea
+              v-model="editingVoucher.description"
+              rows="2"
+              placeholder="Ghi chú thêm về điều kiện áp dụng..."
+              class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
+            ></textarea>
+          </div>
+
+          <!-- Loại giảm giá -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-[#576449] mb-1">Hình thức giảm</label>
+              <select
+                v-model="editingVoucher.discountType"
+                class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-semibold text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
+              >
+                <option value="fixed">Số tiền cố định (VNĐ)</option>
+                <option value="percent">Theo phần trăm (%)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-[#576449] mb-1">
+                Giá trị giảm {{ editingVoucher.discountType === 'fixed' ? '(VNĐ)' : '(%)' }} *
+              </label>
+              <input
+                type="number"
+                v-model.number="editingVoucher.discountValue"
+                :min="1"
+                :max="editingVoucher.discountType === 'percent' ? 100 : undefined"
+                class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-bold text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
+                required
+              />
+            </div>
+          </div>
+
+          <!-- Trần giảm giá nếu là % -->
+          <div v-if="editingVoucher.discountType === 'percent'">
+            <label class="block text-xs font-bold text-[#576449] mb-1">Giảm tối đa (VNĐ)</label>
+            <input
+              type="number"
+              v-model.number="editingVoucher.maxDiscountAmount"
+              placeholder="VD: 40000 (Để trống nếu không giới hạn)"
+              class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
+            />
+          </div>
+
+          <!-- Đơn tối thiểu & Đối tượng -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-[#576449] mb-1">Đơn hàng tối thiểu (VNĐ)</label>
+              <input
+                type="number"
+                v-model.number="editingVoucher.minOrderAmount"
+                step="10000"
+                class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-bold text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-[#576449] mb-1">Đối tượng áp dụng</label>
+              <select
+                v-model="editingVoucher.targetType"
+                class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-semibold text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
+              >
+                <option value="all">Mọi khách hàng</option>
+                <option value="first_order">Khách hàng mới (Đơn đầu)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Số lượng phát hành & Hạn sử dụng -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-[#576449] mb-1">Số lượt phát hành</label>
+              <input
+                type="number"
+                v-model.number="editingVoucher.usageLimit"
+                :min="1"
+                class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-bold text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
+                required
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-[#576449] mb-1">Ngày hết hạn *</label>
+              <input
+                type="date"
+                v-model="editingVoucher.endDate"
+                class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-semibold text-[#2D3B1E] outline-none focus:border-[#4D6A34]"
+                required
+              />
+            </div>
+          </div>
+
+          <!-- Nút bấm Modal Edit -->
+          <div class="pt-4 border-t border-[#F0F3EC] flex items-center justify-end gap-3">
+            <button
+              type="button"
+              @click="showEditModal = false"
+              class="px-4 py-2 rounded-xl border border-[#CCD7BC] text-xs font-bold text-[#576449] hover:bg-[#FAF9F5] transition-colors cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              :disabled="isSubmitting"
+              class="px-5 py-2 rounded-xl bg-[#4D6A34] hover:bg-[#3D5529] disabled:bg-slate-300 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+            >
+              {{ isSubmitting ? 'Đang cập nhật...' : 'Cập nhật Voucher' }}
             </button>
           </div>
         </form>

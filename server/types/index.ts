@@ -94,6 +94,19 @@ export interface CreateVoucherPayload {
   isActive?: boolean;
 }
 
+export interface UpdateVoucherPayload {
+  title?: string;
+  description?: string;
+  discountType?: VoucherDiscountType;
+  discountValue?: number;
+  minOrderAmount?: number;
+  maxDiscountAmount?: number | null;
+  targetType?: VoucherTargetType;
+  usageLimit?: number;
+  endDate?: string;
+  isActive?: boolean;
+}
+
 export type OrderStatus = 'pending' | 'confirmed' | 'shipping' | 'delivered' | 'cancelled';
 export type PaymentMethod = 'cod' | 'vietqr' | 'momo';
 export type PaymentStatus = 'pending' | 'paid' | 'failed';
