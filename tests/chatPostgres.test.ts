@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { createChatTestDatabase } from './chatTestDatabase.js';
+import { config } from '../server/config.js';
 import { ChatConversationRepository } from '../server/repositories/chatConversationRepository.js';
 import { createChatService } from '../server/services/chatService.js';
 import { ChatError } from '../server/types/chat.js';
@@ -72,6 +73,19 @@ test('PostgreSQL: additive migration, ownership, atomic history, rollback and id
     const owner = { userId: 1, guestHash: null } as const;
     const other = { userId: 2, guestHash: null } as const;
     const conversation = await repository.create(owner);
+    const botLink = await database.pool.query<{ bot_id: number; provider: string; model: string }>(
+      `SELECT bot.bot_id, bot.provider, bot.model
+       FROM chat_conversations AS conversation
+       JOIN nutribot AS bot ON bot.bot_id = conversation.bot_id
+       WHERE conversation.id = $1`,
+      [conversation.id],
+    );
+    assert.equal(botLink.rowCount, 1);
+    assert.equal(botLink.rows[0]?.provider, config.chat.provider);
+    assert.equal(botLink.rows[0]?.model, config.chat.model || 'unconfigured');
+    await database.pool.query('UPDATE nutribot SET is_active = FALSE');
+    await assert.rejects(repository.create(owner), ChatError);
+    await database.pool.query('UPDATE nutribot SET is_active = TRUE');
     let aiFails = false;
     let aiCalls = 0;
     const service = createChatService(repository, async () => {

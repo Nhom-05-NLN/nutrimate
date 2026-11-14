@@ -14,6 +14,7 @@ export const config = {
   chat: {
     apiKey: process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || '',
     baseUrl: process.env.LLM_BASE_URL || 'https://api.openai.com/v1',
+    provider: process.env.LLM_PROVIDER || 'openai-compatible',
     model: process.env.LLM_MODEL || '',
     timeoutMs: 30000,
     maxContextMessages: 20,

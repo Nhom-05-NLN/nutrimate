@@ -359,6 +359,18 @@ CREATE TABLE IF NOT EXISTS water_logs (
 COMMENT ON TABLE water_logs IS 'Ghi nhận lượng nước người dùng đã uống theo ngày.';
 
 -- 11. Bảng cơ sở tri thức của chatbot NutriBot.
+CREATE TABLE IF NOT EXISTS nutribot (
+    bot_id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    provider VARCHAR(80) NOT NULL DEFAULT 'openai-compatible',
+    model VARCHAR(150) NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE nutribot IS 'Lưu metadata nhà cung cấp và model NutriBot; API key chỉ cấu hình qua biến môi trường.';
+
 CREATE TABLE IF NOT EXISTS knowledge_base (
     knowledge_id SERIAL PRIMARY KEY,
     question TEXT,

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
+import { config } from '../config.js';
 import { getPool } from '../db/index.js';
 import { ChatError, type ChatOwner, type ChatSuggestedProduct, type Conversation, type StoredChatMessage } from '../types/chat.js';
 
@@ -11,10 +12,31 @@ export class ChatConversationRepository {
   constructor(private pool: Pool = getPool()) {}
   async create(owner: ChatOwner): Promise<Conversation> {
     const result = await this.pool.query<Conversation>(
-      'INSERT INTO chat_conversations (id, user_id, guest_owner_hash) VALUES ($1, $2, $3) RETURNING id, created_at AS "createdAt", updated_at AS "updatedAt"',
-      [randomUUID(), owner.userId, owner.guestHash],
+      `WITH active_bot AS (
+         UPDATE nutribot
+         SET provider = $4,
+             model = COALESCE(NULLIF($5, ''), model),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE bot_id = (
+           SELECT bot_id
+           FROM nutribot
+           WHERE is_active IS TRUE
+           ORDER BY bot_id
+           LIMIT 1
+         )
+         RETURNING bot_id
+       )
+       INSERT INTO chat_conversations (id, bot_id, user_id, guest_owner_hash)
+       SELECT $1, active_bot.bot_id, $2, $3
+       FROM active_bot
+       RETURNING id, created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [randomUUID(), owner.userId, owner.guestHash, config.chat.provider, config.chat.model],
     );
-    return result.rows[0]!;
+    const conversation = result.rows[0];
+    if (!conversation) {
+      throw new ChatError(503, 'NutriBot chưa có cấu hình đang hoạt động.');
+    }
+    return conversation;
   }
   async list(owner: ChatOwner): Promise<Conversation[]> {
     const result = await this.pool.query<Conversation>(
