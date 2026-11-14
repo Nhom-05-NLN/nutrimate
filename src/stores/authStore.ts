@@ -139,6 +139,18 @@ export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string | null>(restoredSession?.token ?? null);
   const toast = useToastStore();
 
+  function handleSessionExpired(): void {
+    if (accessToken.value) void logout(true);
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('nutrimate:session-expired', handleSessionExpired);
+    window.addEventListener('focus', checkSessionExpiry);
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', checkSessionExpiry);
+  }
+
   function getTokenExpiry(token: string): number | null {
     const encodedPayload = token.split('.')[1];
     if (!encodedPayload || typeof atob !== 'function') return null;
@@ -177,6 +189,13 @@ export const useAuthStore = defineStore('auth', () => {
     sessionExpiredHandler = handler;
   }
 
+  function checkSessionExpiry(): void {
+    const token = accessToken.value;
+    if (!token) return;
+    const expiresAt = getTokenExpiry(token);
+    if (expiresAt !== null && Date.now() >= expiresAt) void logout(true);
+  }
+
   function scheduleSessionExpiry(token: string): void {
     clearSessionExpiryTimer();
     const expiresAt = getTokenExpiry(token);
@@ -189,7 +208,7 @@ export const useAuthStore = defineStore('auth', () => {
         scheduleSessionExpiry(token);
         return;
       }
-      void logout(true);
+      checkSessionExpiry();
     }, Math.min(delay, 2_147_000_000));
   }
 
@@ -221,6 +240,9 @@ export const useAuthStore = defineStore('auth', () => {
         (cachedProfile?.defaultAddress?.isDefault ? cachedProfile.defaultAddress : null) ??
         null,
       dietPreferences: user.dietPreferences ?? cachedProfile?.dietPreferences ?? [],
+      currentDiet:
+        (user.dietPreferences ?? cachedProfile?.dietPreferences ?? []).join(' & ') ||
+        'Chưa chọn',
     };
   }
 

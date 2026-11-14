@@ -2,7 +2,7 @@ import { createHmac, scrypt, timingSafeEqual } from 'node:crypto';
 import { isDbConnected } from '../db/index.js';
 import { config } from '../config.js';
 import * as authRepository from '../repositories/authRepository.js';
-import { DuplicateEmailError } from '../repositories/authRepository.js';
+import { DuplicateEmailError, DuplicatePhoneError } from '../repositories/authRepository.js';
 import { hashPassword } from '../utils/password.js';
 
 export interface RegisterUserInput {
@@ -102,14 +102,20 @@ function requireString(value: unknown, fieldName: string): string {
   return value.trim();
 }
 
-function createAccessToken(userId: number): string {
+function createAccessToken(user: { id: number; role: "customer" | "admin" }): string {
   const secret = config.chat.jwtSecret;
   if (secret.length < 32) {
     throw new AuthServiceError('Máy chủ chưa được cấu hình xác thực an toàn.', 503);
   }
   const now = Math.floor(Date.now() / 1000);
+  const lifetimeSeconds = user.role === 'admin' ? 60 * 60 : 12 * 60 * 60;
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-  const payload = Buffer.from(JSON.stringify({ sub: String(userId), iat: now, exp: now + 3600 })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    sub: String(user.id),
+    role: user.role,
+    iat: now,
+    exp: now + lifetimeSeconds,
+  })).toString('base64url');
   const signature = createHmac('sha256', secret).update(`${header}.${payload}`).digest('base64url');
   return `${header}.${payload}.${signature}`;
 }
@@ -167,13 +173,16 @@ export async function register(input: RegisterUserInput): Promise<AuthenticatedU
       name: user.name,
       email: user.email,
       phone: user.phone,
-      accessToken: createAccessToken(user.id),
+      accessToken: createAccessToken({ id: user.id, role: 'customer' }),
       role: 'customer',
       dietPreferences: [],
     };
   } catch (err: unknown) {
     if (err instanceof DuplicateEmailError) {
       throw new AuthServiceError('Email này đã được đăng ký.', 409);
+    }
+    if (err instanceof DuplicatePhoneError) {
+      throw new AuthServiceError(err.message, 409);
     }
     throw err;
   }
@@ -214,7 +223,7 @@ export async function login(
     name: user.name,
     email: user.email,
     phone: user.phone,
-    accessToken: createAccessToken(user.id),
+    accessToken: createAccessToken({ id: user.id, role: user.role }),
     role: user.role,
     avatarUrl: user.avatarUrl,
     dietPreferences: user.dietPreferences,
