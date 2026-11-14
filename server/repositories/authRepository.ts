@@ -145,20 +145,6 @@ export async function findUserForLogin(
   };
 }
 
-export async function createCustomerLoginNotification(
-  user: Pick<LoginUserRecord, "id" | "name" | "email">,
-): Promise<void> {
-  if (!isDbConnected()) {
-    throw new Error("PostgreSQL chưa sẵn sàng.");
-  }
-
-  await getPool().query(
-    `INSERT INTO admin_notifications (type, title, message, customer_id)
-     VALUES ('customer_logged_in', 'Khách hàng đăng nhập', $1, $2)`,
-    [`${user.name} (${user.email}) vừa đăng nhập.`, user.id],
-  );
-}
-
 export async function findUserById(id: string): Promise<CurrentUserRecord | null> {
   if (!isDbConnected()) {
     throw new Error("PostgreSQL chưa sẵn sàng.");

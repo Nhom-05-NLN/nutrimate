@@ -514,6 +514,15 @@ export async function createOrder(order: Order, ownerUserId: number | null = nul
         ]);
       }
 
+      await client.query(
+        `INSERT INTO admin_notifications (type, title, message, customer_id)
+         VALUES ('order_placed', 'Đơn hàng mới', $1, $2)`,
+        [
+          `Đơn hàng #${order.orderCode} của ${order.customer.name} (${order.totalAmount.toLocaleString('vi-VN')}đ) vừa được đặt.`,
+          ownerUserId,
+        ],
+      );
+
       await client.query('COMMIT');
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);

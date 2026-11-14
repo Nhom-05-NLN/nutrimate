@@ -56,13 +56,20 @@ COMMENT ON TABLE admins IS 'Đánh dấu tài khoản người dùng có vai tr�
 -- 3a. Thông báo dành cho quản trị viên.
 CREATE TABLE IF NOT EXISTS admin_notifications (
     id BIGSERIAL PRIMARY KEY,
-    type VARCHAR(40) NOT NULL CHECK (type IN ('customer_registered', 'customer_logged_in')),
+    type VARCHAR(40) NOT NULL CHECK (type IN ('customer_registered', 'order_placed')),
     title VARCHAR(180) NOT NULL,
     message TEXT NOT NULL,
     customer_id INT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     read_at TIMESTAMP WITH TIME ZONE
 );
+ALTER TABLE admin_notifications
+    DROP CONSTRAINT IF EXISTS admin_notifications_type_check;
+DELETE FROM admin_notifications
+WHERE type = 'customer_logged_in';
+ALTER TABLE admin_notifications
+    ADD CONSTRAINT admin_notifications_type_check
+    CHECK (type IN ('customer_registered', 'order_placed'));
 CREATE INDEX IF NOT EXISTS idx_admin_notifications_created
     ON admin_notifications(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_admin_notifications_unread

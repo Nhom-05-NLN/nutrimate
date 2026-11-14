@@ -1,130 +1,139 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
-import HomeView from '../views/HomeView.vue';
-import CatalogView from '../views/CatalogView.vue';
-import ProductDetailView from '../views/ProductDetailView.vue';
-import CartView from '../views/CartView.vue';
-import CheckoutView from '../views/CheckoutView.vue';
-import OrdersView from '../views/OrdersView.vue';
-import ProfileView from '../views/ProfileView.vue';
-import NutritionDashboardView from '../views/NutritionDashboardView.vue';
-import LoginView from '../views/LoginView.vue';
-import RegisterView from '../views/RegisterView.vue';
-import BlogsView from '../views/BlogsView.vue';
-import NotFoundView from '../views/NotFoundView.vue';
 import { useAuthStore } from '../stores/authStore';
-
-// Admin Views
-import AdminDashboardView from '../views/admin/AdminDashboardView.vue';
-import AdminProductsView from '../views/admin/AdminProductsView.vue';
-import AdminCategoriesView from '../views/admin/AdminCategoriesView.vue';
-import AdminOrdersView from '../views/admin/AdminOrdersView.vue';
-import AdminCustomersView from '../views/admin/AdminCustomersView.vue';
-import AdminVouchersView from '../views/admin/AdminVouchersView.vue';
-import AdminKnowledgeBaseView from '../views/admin/AdminKnowledgeBaseView.vue';
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'home',
-    component: HomeView,
+    component: () => import('../views/HomeView.vue'),
   },
   {
     path: '/catalog',
     name: 'catalog',
-    component: CatalogView,
+    component: () => import('../views/CatalogView.vue'),
   },
   {
     path: '/product/:id',
     name: 'product-detail',
-    component: ProductDetailView,
+    component: () => import('../views/ProductDetailView.vue'),
   },
   {
     path: '/cart',
     name: 'cart',
-    component: CartView,
+    component: () => import('../views/CartView.vue'),
     meta: { requiresAuth: true },
   },
   {
     path: '/checkout',
     name: 'checkout',
-    component: CheckoutView,
+    component: () => import('../views/CheckoutView.vue'),
   },
   {
     path: '/orders',
     name: 'orders',
-    component: OrdersView,
+    component: () => import('../views/OrdersView.vue'),
     meta: { requiresAuth: true },
   },
   {
     path: '/profile',
     name: 'profile',
-    component: ProfileView,
+    component: () => import('../views/ProfileView.vue'),
     meta: { requiresAuth: true },
   },
   {
     path: '/nutrition',
     name: 'nutrition',
-    component: NutritionDashboardView,
+    component: () => import('../views/NutritionDashboardView.vue'),
     meta: { requiresAuth: true },
   },
   {
     path: '/login',
     name: 'login',
-    component: LoginView,
+    component: () => import('../views/LoginView.vue'),
     meta: { layout: 'blank' },
   },
   {
     path: '/admin/login',
     name: 'admin-login',
-    component: LoginView,
+    component: () => import('../views/LoginView.vue'),
     meta: { layout: 'blank' },
   },
   {
     path: '/register',
     name: 'register',
-    component: RegisterView,
+    component: () => import('../views/RegisterView.vue'),
     meta: { layout: 'blank' },
   },
   {
     path: '/blogs',
     name: 'blogs',
-    component: BlogsView,
+    component: () => import('../views/BlogsView.vue'),
+  },
+  {
+    path: '/partners',
+    name: 'partners',
+    component: () => import('../views/FooterInfoView.vue'),
+  },
+  {
+    path: '/returns',
+    name: 'returns',
+    component: () => import('../views/FooterInfoView.vue'),
+  },
+  {
+    path: '/privacy',
+    name: 'privacy',
+    component: () => import('../views/FooterInfoView.vue'),
+  },
+  {
+    path: '/terms',
+    name: 'terms',
+    component: () => import('../views/FooterInfoView.vue'),
+  },
+  {
+    path: '/nutribot-guide',
+    name: 'nutribot-guide',
+    component: () => import('../views/FooterInfoView.vue'),
+  },
+  {
+    path: '/help',
+    name: 'help',
+    component: () => import('../views/FooterInfoView.vue'),
   },
   // Admin Routes
   {
     path: '/admin',
     name: 'admin-dashboard',
-    component: AdminDashboardView,
+    component: () => import('../views/admin/AdminDashboardView.vue'),
     meta: { layout: 'admin' },
   },
   {
     path: '/admin/products',
     name: 'admin-products',
-    component: AdminProductsView,
+    component: () => import('../views/admin/AdminProductsView.vue'),
     meta: { layout: 'admin' },
   },
   {
     path: '/admin/categories',
     name: 'admin-categories',
-    component: AdminCategoriesView,
+    component: () => import('../views/admin/AdminCategoriesView.vue'),
     meta: { layout: 'admin' },
   },
   {
     path: '/admin/orders',
     name: 'admin-orders',
-    component: AdminOrdersView,
+    component: () => import('../views/admin/AdminOrdersView.vue'),
     meta: { layout: 'admin' },
   },
   {
     path: '/admin/customers',
     name: 'admin-customers',
-    component: AdminCustomersView,
+    component: () => import('../views/admin/AdminCustomersView.vue'),
     meta: { layout: 'admin' },
   },
   {
     path: '/admin/vouchers',
     name: 'admin-vouchers',
-    component: AdminVouchersView,
+    component: () => import('../views/admin/AdminVouchersView.vue'),
     meta: { layout: 'admin' },
   },
   {
@@ -134,13 +143,13 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/admin/knowledge-base',
     name: 'admin-knowledge-base',
-    component: AdminKnowledgeBaseView,
+    component: () => import('../views/admin/AdminKnowledgeBaseView.vue'),
     meta: { layout: 'admin' },
   },
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
-    component: NotFoundView,
+    component: () => import('../views/NotFoundView.vue'),
   },
 ];
 
