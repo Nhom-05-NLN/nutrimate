@@ -12,17 +12,9 @@ export interface NutritionFacts {
 }
 
 export type NutritionFact = NutritionFacts;
-export interface ProductVariant {
-  id: string;
-  productId: string;
-  name: string;
-  weight: number | null;
-  price: number;
-  status: boolean;
-}
-
 export interface Product {
-  variants?: ProductVariant[];
+  unit?: string;
+  package_size?: string;
   id: string;
   code: string;
   name: string;

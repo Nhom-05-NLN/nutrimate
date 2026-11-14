@@ -4,10 +4,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { useProductStore, FIGMA_SEED_PRODUCTS } from '../stores/productStore';
 import { useCartStore } from '../stores/cartStore';
 import { useToastStore } from '../stores/toastStore';
-import { fetchProductById, fetchProductReviews, postProductReview, type ProductReview } from '../services/api';
-import { useAuthStore } from '../stores/authStore';
+import { fetchProductById, fetchProductReviews, type ProductReview } from '../services/api';
 import { Product } from '../types';
-import ProductReviewModal from '../components/catalog/ProductReviewModal.vue';
 import {
   ChevronRight,
   Star,
@@ -20,7 +18,6 @@ import {
   Check,
   ArrowLeft,
   AlertCircle,
-  MessageSquare,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -28,7 +25,6 @@ const router = useRouter();
 const productStore = useProductStore();
 const cartStore = useCartStore();
 const toastStore = useToastStore();
-const authStore = useAuthStore();
 
 const loadedProduct = ref<Product | null>(null);
 const product = computed(() => loadedProduct.value);
@@ -50,17 +46,13 @@ function changeQuantity(amount: number) {
   normalizeQuantity();
   quantity.value = Math.min(Math.max(1, Number(quantity.value) + amount), Math.max(1, availableStock.value));
 }
-const selectedPortion = ref<string>('');
 const activeTab = ref<'desc' | 'traceability' | 'reviews'>('desc');
 const activeImageIndex = ref(0);
 
-// Trạng thái modal đánh giá
-const showReviewModal = ref(false);
 
 const reviewsList = ref<ProductReview[]>([]);
 const reviewsLoading = ref(false);
 const reviewsError = ref('');
-const reviewSubmitting = ref(false);
 
 async function loadReviews(productId: string) {
   reviewsLoading.value = true;
@@ -78,13 +70,6 @@ async function loadReviews(productId: string) {
   }
 }
 
-function openReviewModal() {
-  if (!authStore.currentUser) {
-    toastStore.show('Vui lòng đăng nhập để viết đánh giá.', 'info');
-    return;
-  }
-  showReviewModal.value = true;
-}
 
 // Danh sách hình ảnh động
 const gallery = computed<string[]>(() => {
@@ -103,25 +88,9 @@ const gallery = computed<string[]>(() => {
 });
 
 // Danh sách quy cách sản phẩm
-const variants = computed(() => product.value?.variants ?? []);
-const selectedVariant = computed(() => variants.value.find(variant => variant.id === selectedPortion.value));
-const canPurchase = computed(() => availableStock.value > 0 &&
-  (variants.value.length === 0 || selectedVariant.value?.status === true));
+const canPurchase = computed(() => availableStock.value > 0);
+const currentPrice = computed(() => product.value?.price ?? 0);
 
-const currentPrice = computed(() => selectedVariant.value?.price ?? product.value?.price ?? 0);
-
-function selectVariant(id: string) {
-  const variant = variants.value.find(item => item.id === id);
-  if (!variant?.status) return;
-  selectedPortion.value = id;
-  quantity.value = 1;
-}
-
-function formatVariantWeight(weight: number | null): string {
-  return weight === null ? '' : weight.toLocaleString('vi-VN') + ' g';
-}
-
-// Tính phần trăm giảm giá
 const discountPercent = computed(() => {
   if (!product.value?.originalPrice || product.value.originalPrice <= currentPrice.value) return 0;
   return Math.round(((product.value.originalPrice - currentPrice.value) / product.value.originalPrice) * 100);
@@ -198,9 +167,6 @@ async function loadProductDetail(productId: string) {
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Không thể tải sản phẩm từ cơ sở dữ liệu.';
   } finally {
-    if (product.value) {
-      selectedPortion.value = variants.value.find(variant => variant.status)?.id ?? '';
-    }
     isLoading.value = false;
   }
 }
@@ -215,11 +181,8 @@ function handleAddToCart() {
   cartStore.addItem(
     route.query.source === 'ai' ? { ...productToAdd, isAiRecommended: true } : productToAdd,
     Number(quantity.value),
-    selectedVariant.value
-      ? [selectedVariant.value.name, formatVariantWeight(selectedVariant.value.weight)].filter(Boolean).join(' · ')
-      : '',
-    selectedVariant.value?.id,
   );
+  toastStore.show('Đã thêm vào giỏ hàng', 'success', `${product.value.name}`);
 }
 
 function handleBuyNow() {
@@ -231,25 +194,6 @@ function goToProduct(targetId: string) {
   router.push(`/product/${targetId}`);
 }
 
-async function handleReviewSubmit(payload: { rating: number; content: string }) {
-  if (!product.value || reviewSubmitting.value) return;
-  const productId = String(route.params.id);
-  reviewSubmitting.value = true;
-  try {
-    await postProductReview(productId, payload);
-    showReviewModal.value = false;
-    if (String(route.params.id) === productId) {
-      await Promise.all([loadReviews(productId), fetchProductById(productId).then(detail => {
-        if (String(route.params.id) === productId) loadedProduct.value = detail;
-      })]);
-    }
-    toastStore.show('Đã lưu đánh giá của bạn!', 'success');
-  } catch (error) {
-    toastStore.show(error instanceof Error ? error.message : 'Không thể gửi đánh giá.', 'error');
-  } finally {
-    reviewSubmitting.value = false;
-  }
-}
 
 onMounted(() => {
   if (productStore.products.length === 0) {
@@ -264,7 +208,6 @@ watch(
   () => route.params.id,
   (newId) => {
     if (newId) {
-      showReviewModal.value = false;
       loadProductDetail(String(newId));
       loadReviews(String(newId));
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -425,8 +368,8 @@ watch(
               <span class="font-bold text-[#242424]">
                 Tóm tắt dinh dưỡng nổi bật
               </span>
-              <span class="text-xs text-[#7A866E]">
-                Khẩu phần: <strong class="text-[#242424]">{{ product.nutrition?.servingSize || '100g' }}</strong>
+              <span v-if="product.unit || product.package_size" class="text-xs text-[#7A866E]">
+                <strong class="text-[#242424]">{{ [product.unit, product.package_size].filter(Boolean).join(' ') }}</strong>
               </span>
             </div>
             <div class="grid grid-cols-4 gap-3 text-center">
@@ -455,54 +398,6 @@ watch(
                 </span>
               </div>
             </div>
-          </div>
-
-          <!-- Phân loại & Trọng lượng -->
-          <div class="space-y-3">
-            <div class="flex items-center justify-between text-sm">
-              <span class="font-bold text-[#242424]">Phân loại & Trọng lượng</span>
-              <span class="text-[#4D6A34] font-bold text-xs sm:text-sm">
-                {{ selectedVariant ? formatVariantWeight(selectedVariant.weight) : '' }}
-              </span>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-              <button
-                v-for="p in variants"
-                :key="p.id"
-                type="button"
-                @click="selectVariant(p.id)"
-                :disabled="!p.status"
-                :aria-pressed="selectedPortion === p.id"
-                class="disabled:opacity-40 disabled:cursor-not-allowed py-4 px-3 rounded-2xl border flex flex-col items-center justify-center text-center transition-all relative cursor-pointer"
-                :class="
-                  selectedPortion === p.id
-                    ? 'border-2 border-[#536124] bg-[#EAEFE3] shadow-xs'
-                    : 'border border-[#E3E8DC] bg-white hover:border-[#CCD7BC]'
-                "
-              >
-                <!-- Checkmark badge ở góc trên phải -->
-                <div
-                  v-if="selectedPortion === p.id"
-                  class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[#536124] text-white flex items-center justify-center border-2 border-white shadow-xs"
-                >
-                  <Check class="w-3 h-3 stroke-[3]" />
-                </div>
-
-                <span class="font-heading text-base font-bold text-[#242424] text-center block">
-                  {{ p.name }}
-                </span>
-                <span v-if="p.weight !== null" class="mt-1 text-xs text-[#7A866E]">{{ formatVariantWeight(p.weight) }}</span>
-                <span v-if="!p.status" class="mt-1 text-xs text-stone-500">Ngừng kinh doanh</span>
-                <span
-                  class="text-sm font-bold text-center mt-1 block"
-                  :class="selectedPortion === p.id ? 'text-[#4D6A34]' : 'text-[#7A866E]'"
-                >
-                  {{ formatVnd(p.price) }}
-                </span>
-              </button>
-            </div>
-            <p v-if="!variants.length" class="text-xs text-[#7A866E]">Chưa có phân loại cho sản phẩm này.</p>
           </div>
 
           <!-- Bộ chọn số lượng & Trạng thái tồn kho -->
@@ -697,15 +592,6 @@ watch(
                   </div>
                   <span class="text-xs text-[#7A866E] block">Dựa trên {{ displayReviewCount }} lượt đánh giá thực tế</span>
                 </div>
-
-                <button
-                  type="button"
-                  @click="openReviewModal"
-                  class="px-5 py-3 rounded-xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
-                >
-                  <MessageSquare class="w-4 h-4" />
-                  <span>Viết đánh giá</span>
-                </button>
               </div>
 
               <p v-if="reviewsLoading" class="py-6 text-center text-sm text-[#7A866E]">Đang tải đánh giá...</p>
@@ -759,16 +645,11 @@ watch(
               <p class="text-xs text-[#7A866E]">Chuẩn kiểm định Viện Dinh Dưỡng</p>
             </div>
 
-            <div class="flex justify-between text-sm py-1 border-b border-[#ECEFE7]">
-              <span class="font-bold text-[#242424]">Khẩu phần khuyến nghị</span>
-              <span class="font-normal text-[#242424]">{{ product.nutrition?.servingSize || '100g' }}</span>
-            </div>
-
             <!-- Calo lớn -->
             <div class="flex items-center justify-between py-3 border-b-2 border-[#242424]">
               <div>
                 <span class="text-sm font-bold text-[#242424] block uppercase">Năng Lượng / Calo</span>
-                <span class="text-xs text-[#7A866E]">{{ product.nutrition?.servingSize || '100g' }}</span>
+                <span class="text-xs text-[#7A866E]">{{ [product.unit, product.package_size].filter(Boolean).join(' ') }}</span>
               </div>
               <span class="font-heading text-4xl font-black text-[#242424]">
                 {{ product.nutrition?.calories || 0 }} <span class="text-base font-normal">kcal</span>
@@ -904,13 +785,5 @@ watch(
       </div>
     </div>
 
-    <!-- MODAL VIẾT ĐÁNH GIÁ -->
-    <ProductReviewModal
-      v-model="showReviewModal"
-      :submitting="reviewSubmitting"
-      :author-name="authStore.currentUser?.name"
-      :product-name="product?.name"
-      @submit="handleReviewSubmit"
-    />
   </div>
 </template>

@@ -4,7 +4,9 @@ import { useRouter, useRoute } from 'vue-router';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
-import { fetchOrders, cancelOrderApi } from '../services/api';
+import { fetchOrders, cancelOrderApi, postProductReview } from '../services/api';
+import ProductReviewModal from '../components/catalog/ProductReviewModal.vue';
+import type { OrderItem } from '../types';
 import { Order, Product } from '../types';
 import OrderCard from '../components/orders/OrderCard.vue';
 import OrderTrackingTimeline from '../components/orders/OrderTrackingTimeline.vue';
@@ -25,6 +27,29 @@ const route = useRoute();
 const cartStore = useCartStore();
 const authStore = useAuthStore();
 const toastStore = useToastStore();
+
+const selectedReviewProduct = ref<OrderItem | null>(null);
+const showReviewModal = ref(false);
+const reviewSubmitting = ref(false);
+
+function openReview(item: OrderItem) {
+  selectedReviewProduct.value = item;
+  showReviewModal.value = true;
+}
+
+async function submitReview(payload: { rating: number; content: string }) {
+  if (!selectedReviewProduct.value || reviewSubmitting.value) return;
+  reviewSubmitting.value = true;
+  try {
+    await postProductReview(selectedReviewProduct.value.productId, payload);
+    showReviewModal.value = false;
+    toastStore.show('Đã lưu đánh giá của bạn!', 'success');
+  } catch (error) {
+    toastStore.show(error instanceof Error ? error.message : 'Không thể gửi đánh giá.', 'error');
+  } finally {
+    reviewSubmitting.value = false;
+  }
+}
 
 const orders = ref<Order[]>([]);
 const isLoading = ref<boolean>(true);
@@ -250,7 +275,7 @@ function handleReorder(order: Order) {
       badges: ['Mua lại'],
       bestFor: 'Bữa ăn kiêng',
     };
-    cartStore.addItem(mockProduct, item.quantity, item.portion || 'Tiêu chuẩn', true);
+    cartStore.addItem(mockProduct, item.quantity, true);
   }
 
   toastStore.show(
@@ -425,6 +450,7 @@ async function handleCancelOrder(order: Order) {
           @reorder="handleReorder"
           @pay-now="handlePayNow"
           @cancel-order="handleCancelOrder"
+          @review="openReview"
         />
       </div>
 
@@ -476,4 +502,6 @@ async function handleCancelOrder(order: Order) {
       @payment-success="handlePaymentSuccess"
     />
   </div>
+    <ProductReviewModal v-model="showReviewModal" :product-name="selectedReviewProduct?.productName"
+      :author-name="authStore.currentUser?.name" :submitting="reviewSubmitting" @submit="submitReview" />
 </template>

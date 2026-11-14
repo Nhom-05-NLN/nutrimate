@@ -20,17 +20,16 @@ test('product detail maps stock directly from the database, including zero stock
   }
 });
 
-test('product detail links variants by product ID and preserves their distinct IDs and prices', async () => {
-  const variants = [
-    { id: '20', productId: '2', name: 'Standard', weight: 200, price: 68000, status: true },
-    { id: '29', productId: '2', name: 'Standard', weight: 200, price: 70000, status: false },
-  ];
+test('product detail returns fixed packaging and product price without a secondary price source', async () => {
   const executeQuery = (async (sql: string) => {
-    assert.match(sql, /v.product_id = products.id/);
-    assert.match(sql, /ORDER BY v.variant_id/);
-    return { rows: [{ id: 2, price: '68000', rating: '0', variants }] };
+    assert.match(sql, /p.unit, p.package_size/);
+    const row = { id: 2, price: '68000', rating: '0', unit: 'jar', package_size: '250 g' };
+    return { rows: [row] };
   }) as unknown as typeof queryPostgres;
-  assert.deepEqual((await findProductById('2', executeQuery))?.variants, variants);
+  const product = await findProductById('2', executeQuery);
+  assert.equal(product?.unit, 'jar');
+  assert.equal(product?.package_size, '250 g');
+  assert.equal(product?.price, 68000);
 });
 
 test('popular products aggregate delivered quantities and sort before pagination', async () => {

@@ -478,7 +478,6 @@ function addRecommendedProduct(product: Product) {
   cartStore.addItem(
     { ...product, isAiRecommended: true },
     1,
-    product.nutrition.servingSize || "Mặc định",
   );
 }
 

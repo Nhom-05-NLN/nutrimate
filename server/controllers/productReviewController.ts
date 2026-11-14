@@ -20,7 +20,7 @@ export async function createReview(req: Request<{ id: string }>, res: Response<u
   try {
     const id = await insertProductReview(req.params.id, res.locals.auth.sub, rating, content.trim());
     if (!id) {
-      res.status(404).json({ success: false, message: 'Không tìm thấy sản phẩm hoặc tài khoản.' });
+      res.status(403).json({ success: false, message: 'Bạn chỉ có thể đánh giá sản phẩm đã mua trong đơn hàng được giao thành công.' });
       return;
     }
     res.status(201).json({ success: true, data: { id } });
