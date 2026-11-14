@@ -30,24 +30,24 @@ import TestimonialsSection from '../components/home/TestimonialsSection.vue';
 </template>
 
 <style scoped>
-:deep(.home-page button:not(:disabled)),
-:deep(.home-page a) {
+.home-page :deep(button:not(:disabled)),
+.home-page :deep(a) {
   transition:
     transform 180ms ease,
     filter 180ms ease,
     box-shadow 180ms ease;
 }
 
-:deep(.home-page button:not(:disabled):hover),
-:deep(.home-page a:hover) {
+.home-page :deep(button:not(:disabled):hover),
+.home-page :deep(a:hover) {
   transform: translateY(-4px) scale(1.04);
   filter: brightness(1.08);
   box-shadow: 0 10px 22px rgb(45 59 30 / 24%);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :deep(.home-page button),
-  :deep(.home-page a) {
+  .home-page :deep(button),
+  .home-page :deep(a) {
     transition: none;
   }
 }

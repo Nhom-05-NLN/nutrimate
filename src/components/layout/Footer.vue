@@ -117,12 +117,10 @@ function handleSubscribe() {
           </ul>
         </nav>
       </div>
-
-      <div class="mt-6 border-t border-[#8E966D]/60 pt-4 text-center text-[11px] text-[#3E4A2E]">
-        <p class="inline-flex items-center justify-center gap-2">
-          <ShieldCheck class="h-4 w-4 text-[#6B7A3A]" />
-          © 2026 NutriMate. All rights reserved.
-        </p>
+    </div>
+    <div class="mx-auto max-w-[1316px] px-4 pb-5 text-center sm:px-8">
+      <div class="border-t border-[#8E966D]/60 pt-4 text-[11px] text-[#3E4A2E]">
+        © 2026 NutriMate. All rights reserved.
       </div>
     </div>
   </footer>

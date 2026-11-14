@@ -1,51 +1,22 @@
 <script setup lang="ts">
 import { useChatStore } from '../../stores/chatStore';
-import { useCartStore } from '../../stores/cartStore';
 import {
   Bot,
   CheckCircle2,
+  ChevronDown,
+  ImagePlus,
   MessageSquare,
+  Plus,
+  Send,
   Sparkles,
+  X,
 } from 'lucide-vue-next';
 
 const chatStore = useChatStore();
-const cartStore = useCartStore();
-
-function handleAddAiCombo() {
-  cartStore.addItem(
-    {
-      id: 'combo-snack-ai',
-      code: 'NM-AI-SNACK',
-      name: 'Combo Nhẹ Bụng 4h Chiều: 1 Hũ Sữa Chua + 25g Hạt Macca Hạnh Nhân',
-      category: 'snacks-nuts',
-      categoryName: 'Gợi ý NutriBot',
-      price: 65000,
-      image: 'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&w=400&q=80',
-      description: 'Combo nhẹ bụng bổ sung protein & chất xơ, calo cực thấp cho bữa xế.',
-      ingredients: ['Sữa chua Hy Lạp', 'Hạt macca', 'Hạnh nhân'],
-      nutrition: {
-        servingSize: '1 phần',
-        calories: 140,
-        protein: 6,
-        carbs: 8,
-        fat: 9,
-        sugar: 0,
-      },
-      stock: 99,
-      rating: 5.0,
-      reviewCount: 42,
-      badges: ['AI Recommended', '140 kcal'],
-      isAiRecommended: true,
-      bestFor: 'Ăn xế văn phòng',
-    },
-    1,
-    'Combo 1 người'
-  );
-}
 </script>
 
 <template>
-  <section class="w-full bg-[#C0C59F] py-16">
+  <section class="w-full bg-[#AEB78B] py-16">
     <div class="max-w-[1316px] mx-auto px-4 sm:px-8">
       <!-- Container to mau Trang Mint (Figma 01) -->
       <div class="rounded-4xl bg-[#F7FBF4] border border-[#CCD7BC] p-8 sm:p-12 lg:p-16 shadow-xl">
@@ -88,76 +59,75 @@ function handleAddAiCombo() {
             </div>
           </div>
 
-          <!-- Cột Phải: Mockup Chatbox của NutriBot AI (Figma 01) -->
+          <!-- Cột Phải: Xem trước giao diện NutriBot khi mở hội thoại mới -->
           <div class="lg:col-span-6">
-            <div class="bg-white rounded-3xl shadow-xl border border-[#DCE4D2] overflow-hidden">
-              <!-- Header bar chatbox -->
-              <div class="px-5 py-3.5 bg-[#FAF9F5] border-b border-[#E3E8DC] flex items-center justify-between">
-                <div class="flex items-center gap-2.5">
-                  <div class="w-8 h-8 rounded-xl bg-[#4D6A34] text-white flex items-center justify-center">
-                    <Bot class="w-4 h-4" />
+            <div class="overflow-hidden rounded-3xl border border-[#DCE4D2] bg-white shadow-xl">
+              <div class="flex items-center justify-between bg-[#3B4E24] px-4 py-3.5 text-white sm:px-5">
+                <div class="flex min-w-0 items-center gap-3">
+                  <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#647C47] bg-[#4D6A34] text-[#EBF1E6]">
+                    <Bot class="h-5 w-5" />
                   </div>
-                  <div>
-                    <h4 class="font-heading text-xs font-bold text-[#242424]">NutriBot AI Consultant</h4>
-                    <span class="text-[10px] text-[#7A866E] flex items-center gap-1">
-                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Đang trực tuyến
-                    </span>
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <h4 class="font-heading text-sm font-bold text-white">NutriBot AI Consultant</h4>
+                      <span class="inline-flex items-center gap-1 rounded-full bg-[#5A733E] px-1.5 py-0.5 text-[10px] font-semibold text-emerald-100">
+                        <Sparkles class="h-2.5 w-2.5" /> v2.5
+                      </span>
+                    </div>
+                    <p class="flex items-center gap-1 text-[10px] text-[#DCE7D0] sm:text-[11px]">
+                      <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                      Đang trực tuyến • Chuyên gia cá nhân hóa dinh dưỡng
+                    </p>
                   </div>
                 </div>
-                <span class="text-[10px] text-[#7A866E]">Phiên bản 2.5</span>
+                <div class="ml-2 hidden h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[#DCE7D0] sm:flex">
+                  <span class="sr-only">Đóng khung chat</span>
+                  <X aria-hidden="true" class="h-5 w-5" />
+                </div>
               </div>
 
-              <!-- Body messages -->
-              <div class="p-5 space-y-4 text-xs">
-                <!-- User message -->
-                <div class="flex justify-end">
-                  <div class="max-w-[85%] bg-[#F0F4EA] text-[#242424] p-3.5 rounded-2xl rounded-tr-xs border border-[#CCD7BC]">
-                    "Tôi muốn giảm cân nhưng hay đói vặt vào tầm 4h chiều, nên ăn món gì lành mạnh mà ít calo?"
+              <div class="flex items-center gap-2 border-b border-[#E3E8DC] bg-white px-4 py-2.5">
+                <div class="relative min-w-0 flex-1">
+                  <div class="flex items-center justify-between rounded-xl border border-[#E3E8DC] bg-[#FAF9F5] py-2 pl-3 pr-2 text-xs font-semibold text-[#344625]">
+                    <span>Hội thoại mới</span>
+                    <ChevronDown class="h-4 w-4 text-[#71805F]" />
                   </div>
                 </div>
+                <div class="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#4D6A34] px-3 text-xs font-semibold text-white shadow-sm">
+                  <Plus class="h-4 w-4" />
+                  <span>Chat mới</span>
+                </div>
+              </div>
 
-                <!-- Bot response message -->
-                <div class="flex items-start gap-2.5">
-                  <div class="w-7 h-7 rounded-lg bg-[#4D6A34] text-white flex items-center justify-center shrink-0 mt-1">
-                    <Bot class="w-3.5 h-3.5" />
+              <div class="flex min-h-[260px] flex-col bg-[#FAF9F5] p-4 sm:min-h-[300px] sm:p-5">
+                <div class="flex items-start gap-2">
+                  <div class="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-[#EBF1E6] text-[#4D6A34]">
+                    <Bot class="h-4 w-4" />
                   </div>
-                  <div class="max-w-[90%] space-y-3">
-                    <div class="bg-[#FAF9F5] p-3.5 rounded-2xl rounded-tl-xs border border-[#E3E8DC] text-[#242424] leading-relaxed">
-                      Chào bạn! Để tránh tích mỡ nhưng vẫn no lâu vào cử xế chiều, bạn nên ưu tiên món <strong>giàu protein & chất xơ</strong>, dưới <strong>150 kcal</strong>.
-                      <br /><br />
-                      NutriBot gợi ý combo nhẹ bụng này:
-                    </div>
-
-                    <!-- Product recommendation card inside chat -->
-                    <div class="p-3 bg-white rounded-2xl border border-[#CCD7BC] shadow-xs flex items-center justify-between gap-3">
-                      <div class="flex items-center gap-2.5 min-w-0">
-                        <div class="w-9 h-9 rounded-xl bg-[#EBF7E5] text-[#4D6A34] flex items-center justify-center shrink-0">
-                          <Sparkles class="w-4 h-4" />
-                        </div>
-                        <div class="min-w-0">
-                          <p class="font-bold text-[#242424] truncate">1 Hũ Sữa Chua + 25g Hạt Macca Hạnh Nhân</p>
-                          <p class="text-[10px] text-[#7A866E]">140 kcal • 6g Protein • 0g Đường bổ sung</p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        @click="handleAddAiCombo"
-                        class="px-3 py-1.5 rounded-xl bg-[#4D6A34] hover:bg-[#3B4E24] hover:shadow-md text-white font-bold text-[11px] shrink-0 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8EA675] focus-visible:ring-offset-2"
-                      >
-                        Thêm vào giỏ
-                      </button>
-                    </div>
-
-                    <!-- Quick pill buttons -->
-                    <div class="flex flex-wrap gap-2 pt-1">
-                      <span class="px-2.5 py-1 rounded-full bg-[#EBF7E5] text-[10px] text-[#4D6A34] font-semibold border border-[#CCD7BC]">
-                        Tính chỉ số TDEE của tôi
-                      </span>
-                      <span class="px-2.5 py-1 rounded-full bg-[#EBF7E5] text-[10px] text-[#4D6A34] font-semibold border border-[#CCD7BC]">
-                        Gợi ý bữa tối dưới 400 kcal
-                      </span>
-                    </div>
+                  <div class="max-w-[95%] rounded-2xl rounded-tl-xs border border-[#E3E8DC] bg-white p-3.5 text-xs leading-relaxed text-[#2D3B1E] shadow-xs sm:text-sm">
+                    Chào bạn! Mình là NutriBot. Bạn muốn tìm hiểu về sản phẩm hay dinh dưỡng? Thông tin chỉ mang tính tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.
                   </div>
+                </div>
+              </div>
+
+              <div class="flex gap-1.5 overflow-hidden border-t border-[#ECEFE7] bg-white px-4 py-2">
+                <span class="shrink-0 rounded-full border border-[#DEE5D4] bg-[#F3F6EE] px-2.5 py-1 text-[10px] font-medium text-[#556345]">
+                  Gợi ý món giàu protein, ít đường
+                </span>
+                <span class="shrink-0 rounded-full border border-[#DEE5D4] bg-[#F3F6EE] px-2.5 py-1 text-[10px] font-medium text-[#556345]">
+                  Tìm món ít calo cho bữa tối
+                </span>
+              </div>
+
+              <div class="flex items-center gap-2 border-t border-[#ECEFE7] bg-white p-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#DEE5D4] bg-white text-[#4D6A34]">
+                  <ImagePlus class="h-4 w-4" />
+                </div>
+                <div class="flex h-10 min-w-0 flex-1 items-center rounded-xl border border-[#DEE5D4] bg-[#FAF9F5] px-3.5 text-xs text-[#8C9882] sm:text-sm">
+                  Hỏi về calo, đạm, thực đơn giảm cân...
+                </div>
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#4D6A34] text-white">
+                  <Send class="h-4 w-4" />
                 </div>
               </div>
             </div>

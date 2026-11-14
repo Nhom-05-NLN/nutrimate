@@ -108,6 +108,11 @@ const goalOptions: { value: NutritionGoal; label: string }[] = [
   { value: 'maintain_weight', label: 'Duy trì cân nặng' },
   { value: 'gain_weight', label: 'Tăng cân lành mạnh' },
 ];
+const profileGoalLabel = computed(() => {
+  const savedGoal = caloriePlanData.value?.profile.nutritionGoal;
+  const goal = savedGoal ?? selectedGoal.value;
+  return goal ? goalLabels[goal] : 'Chưa thiết lập';
+});
 const activityOptions: { value: ActivityLevel; label: string }[] = [
   { value: 'sedentary', label: 'Ít vận động' },
   { value: 'light', label: 'Vận động nhẹ' },
@@ -430,7 +435,7 @@ async function handleAvatarChange(event: Event) {
 </script>
 
 <template>
-  <div class="max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-8">
+  <div class="profile-page max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-8">
     <!-- Breadcrumb -->
     <nav class="flex items-center gap-2 text-sm font-medium text-[#7E8B73]">
       <RouterLink to="/" class="hover:text-[#242424]">Trang chủ</RouterLink>
@@ -476,15 +481,14 @@ async function handleAvatarChange(event: Event) {
           </p>
 
           <!-- Thông tin tổng quan (To, rõ, dễ đọc) -->
-          <div class="space-y-2">
-            <h1 class="font-heading text-2xl sm:text-3xl lg:text-4xl font-black text-[#242424]">
+          <div class="min-w-0 space-y-2">
+            <h1 class="break-words font-heading text-2xl sm:text-3xl lg:text-4xl font-black text-[#242424]">
               {{ authStore.currentUser?.name || 'Tài khoản' }}
             </h1>
 
-            <div class="flex flex-wrap items-center gap-4 text-sm text-[#576449] pt-1">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[#576449] pt-1" aria-live="polite">
               <span>Chế độ ăn: <strong class="text-[#242424]">{{ currentDietLabel }}</strong></span>
-              <span>•</span>
-              <span>Mục tiêu: <strong class="text-[#242424]">{{ selectedGoal ? goalLabels[selectedGoal] : 'Chưa thiết lập' }}</strong></span>
+              <span>Mục tiêu: <strong class="text-[#242424]">{{ profileGoalLabel }}</strong></span>
             </div>
           </div>
         </div>
@@ -1002,3 +1006,19 @@ async function handleAvatarChange(event: Event) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.profile-page :deep(button:not(:disabled)) {
+  transition: filter 140ms ease;
+}
+
+.profile-page :deep(button:not(:disabled):hover) {
+  filter: brightness(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-page :deep(button) {
+    transition: none;
+  }
+}
+</style>
