@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue';
+import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useChatStore } from '../../stores/chatStore';
 import { useCartStore } from '../../stores/cartStore';
@@ -27,6 +27,7 @@ const cartStore = useCartStore();
 
 const inputText = ref('');
 const messagesContainer = ref<HTMLDivElement | null>(null);
+const chatPanelRef = ref<HTMLDivElement | null>(null);
 const imageInput = ref<HTMLInputElement | null>(null);
 const pendingImage = ref<File | null>(null);
 const pendingImagePreview = ref('');
@@ -99,7 +100,24 @@ function clearPendingImage() {
   pendingImage.value = null;
 }
 
-onBeforeUnmount(clearPendingImage);
+function handleDocumentPointerDown(event: PointerEvent) {
+  if (
+    chatStore.isOpen &&
+    event.target instanceof Node &&
+    !chatPanelRef.value?.contains(event.target)
+  ) {
+    chatStore.closeChat();
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', handleDocumentPointerDown);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleDocumentPointerDown);
+  clearPendingImage();
+});
 
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -147,12 +165,14 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
     </button>
 
     <!-- Chat Modal / Drawer Widget -->
-    <div
-      v-if="chatStore.isOpen"
-      class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[calc(100vw-20px)] sm:w-[480px] h-[660px] max-h-[90vh] bg-white rounded-3xl shadow-2xl border border-[#E3E8DC] flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-200"
-      role="dialog"
-      aria-modal="true"
-    >
+    <Transition name="chat-panel">
+      <div
+        v-if="chatStore.isOpen"
+        ref="chatPanelRef"
+        class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[calc(100vw-20px)] sm:w-[480px] h-[660px] max-h-[90vh] bg-white rounded-3xl shadow-2xl border border-[#E3E8DC] flex flex-col overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+      >
       <!-- Chat Header -->
       <div class="p-4 bg-[#3B4E24] text-white flex items-center justify-between shadow-xs">
         <div class="flex items-center gap-3">
@@ -374,11 +394,23 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
         </button>
         </div>
       </form>
-    </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
+.chat-panel-enter-active,
+.chat-panel-leave-active {
+  transition: opacity 220ms ease, transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.chat-panel-enter-from,
+.chat-panel-leave-to {
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
+}
+
 .chat-prompt-strip {
   scrollbar-width: thin;
   scrollbar-color: #a8b995 #f3f6ee;
@@ -396,5 +428,12 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
 .chat-prompt-strip::-webkit-scrollbar-thumb {
   background: #a8b995;
   border-radius: 999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-panel-enter-active,
+  .chat-panel-leave-active {
+    transition: none;
+  }
 }
 </style>

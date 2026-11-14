@@ -30,7 +30,7 @@ onMounted(async () => {
     reviews.value = productReviews
       .flatMap(({ product, reviews: productReviewList }) =>
         productReviewList
-          .filter((review) => review.content.trim())
+          .filter((review) => review.content.trim() && review.rating >= 4 && review.rating <= 5)
           .map((review) => ({ ...review, productName: product.name })),
       )
       .slice(0, 3);

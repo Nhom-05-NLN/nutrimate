@@ -132,6 +132,7 @@ export const useAuthStore = defineStore('auth', () => {
   let sessionInitialized = false;
   let sessionRequest: Promise<void> | null = null;
   let sessionExpiryTimer: ReturnType<typeof setTimeout> | null = null;
+  let sessionExpiredHandler: (() => void) | null = null;
 
   const isAuthModalOpen = ref<boolean>(false);
   // Set only from the real authentication module's response. Demo login has no JWT.
@@ -170,6 +171,10 @@ export const useAuthStore = defineStore('auth', () => {
       clearTimeout(sessionExpiryTimer);
       sessionExpiryTimer = null;
     }
+  }
+
+  function setSessionExpiredHandler(handler: () => void): void {
+    sessionExpiredHandler = handler;
   }
 
   function scheduleSessionExpiry(token: string): void {
@@ -343,11 +348,6 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout(sessionExpired = false): Promise<void> {
     const wasAuthenticated = currentUser.value !== null;
     clearSessionExpiryTimer();
-    try {
-      await postLogout();
-    } catch {
-      console.error('[AuthStore] Could not clear the server login session.');
-    }
     currentUser.value = null;
     accessToken.value = null;
     activeStorage = null;
@@ -364,6 +364,14 @@ export const useAuthStore = defineStore('auth', () => {
           : "Đã đăng xuất tài khoản thành công.",
         "info",
       );
+    }
+
+    if (sessionExpired) sessionExpiredHandler?.();
+
+    try {
+      await postLogout();
+    } catch {
+      console.error('[AuthStore] Could not clear the server login session.');
     }
   }
 
@@ -385,6 +393,7 @@ export const useAuthStore = defineStore('auth', () => {
     currentUser,
     isAuthModalOpen,
     restoreSession,
+    setSessionExpiredHandler,
     openAuthModal,
     closeAuthModal,
     updateProfile,

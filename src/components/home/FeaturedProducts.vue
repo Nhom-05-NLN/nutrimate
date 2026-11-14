@@ -117,14 +117,14 @@ function showProductsPage(page: number) {
           <div
             v-for="prod in visibleProducts"
             :key="prod.id"
-            class="group flex flex-col justify-between overflow-hidden rounded-3xl border border-[#D5DFC8] bg-white shadow-sm transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-[1.02] hover:border-[#3B4E24] hover:shadow-xl"
+            class="featured-product-card group flex flex-col justify-between overflow-hidden rounded-3xl border border-[#D5DFC8] bg-white"
           >
           <!-- Image & Badges -->
           <div class="relative overflow-hidden cursor-pointer" @click="goToDetail(prod.id)">
             <img
               :src="prod.image"
               :alt="prod.name"
-              class="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
+              class="w-full h-48 object-cover"
             />
             <div v-if="prod.badges.length" class="absolute top-3.5 left-3.5 flex flex-col gap-1 z-10">
               <span
@@ -190,7 +190,7 @@ function showProductsPage(page: number) {
               <button
                 type="button"
                 @click="handleAdd(prod)"
-                class="w-10 h-10 rounded-2xl bg-[#4D6A34] text-white flex items-center justify-center transition-all duration-200 shadow-sm hover:scale-110 hover:bg-[#3B4E24] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8EA675] focus-visible:ring-offset-2"
+                class="w-10 h-10 rounded-2xl bg-[#4D6A34] text-white flex items-center justify-center transition-colors duration-200 shadow-sm hover:bg-[#3B4E24] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8EA675] focus-visible:ring-offset-2"
                 title="Thêm vào giỏ hàng"
                 aria-label="Thêm vào giỏ hàng"
               >
@@ -226,22 +226,33 @@ function showProductsPage(page: number) {
 </template>
 
 <style scoped>
+.featured-product-card {
+  box-shadow: 0 1px 3px rgb(45 59 30 / 8%);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.featured-product-card:hover,
+.featured-product-card:focus-within {
+  transform: translateY(-3px);
+  border-color: #6b7a3a;
+  box-shadow: 0 14px 28px rgb(45 59 30 / 22%);
+}
+
 .featured-page-enter-active,
 .featured-page-leave-active {
-  transition: opacity 240ms ease, transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: opacity 250ms ease;
 }
 
-.featured-page-enter-from {
-  opacity: 0;
-  transform: translateY(14px);
-}
-
+.featured-page-enter-from,
 .featured-page-leave-to {
   opacity: 0;
-  transform: translateY(-10px);
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .featured-product-card {
+    transition: none;
+  }
+
   .featured-page-enter-active,
   .featured-page-leave-active {
     transition: none;
