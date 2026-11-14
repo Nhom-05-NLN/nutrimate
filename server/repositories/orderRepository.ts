@@ -453,11 +453,14 @@ export async function createOrder(order: Order, ownerUserId: number | null = nul
           shipping_address, shipping_method, payment_method, payment_status, status,
           total_amount, total_calories, total_protein, shipping_fee,
           discount_amount, voucher_code, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+        ) VALUES (
+          $1,
+          CASE WHEN $1::int IS NOT NULL AND EXISTS (SELECT 1 FROM customers WHERE user_id = $1::int) THEN $1::int ELSE NULL END,
+          $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+        )
         RETURNING order_id, id
       `;
       const orderValues = [
-        ownerUserId,
         ownerUserId,
         order.orderCode,
         order.customer.name,
