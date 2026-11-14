@@ -80,7 +80,7 @@ function handleAddAiCombo() {
               <button
                 type="button"
                 @click="chatStore.openChat()"
-                class="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white font-bold text-sm shadow-md transition-all"
+                class="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-[#4D6A34] hover:bg-[#3B4E24] hover:shadow-lg text-white font-bold text-sm shadow-md transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8EA675] focus-visible:ring-offset-2"
               >
                 <MessageSquare class="w-4 h-4" />
                 <span>Trò chuyện ngay với NutriBot</span>
@@ -142,7 +142,7 @@ function handleAddAiCombo() {
                       <button
                         type="button"
                         @click="handleAddAiCombo"
-                        class="px-3 py-1.5 rounded-xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white font-bold text-[11px] shrink-0 transition-colors"
+                        class="px-3 py-1.5 rounded-xl bg-[#4D6A34] hover:bg-[#3B4E24] hover:shadow-md text-white font-bold text-[11px] shrink-0 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8EA675] focus-visible:ring-offset-2"
                       >
                         Thêm vào giỏ
                       </button>

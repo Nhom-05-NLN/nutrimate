@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { Package, X } from 'lucide-vue-next';
+import { Package, X, UploadCloud, Loader2, Trash2, CheckCircle2, AlertCircle } from 'lucide-vue-next';
 import type { AdminProductItem } from './AdminProductDetailModal.vue';
+import { uploadImageToCloudinary } from '@/services/cloudinary';
 
 const props = defineProps<{
   modelValue: boolean;
   mode: 'create' | 'edit';
   initialData?: AdminProductItem | null;
-  categories: string[];
+  categories: { id: string; name: string }[];
+  saving?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -17,7 +19,7 @@ const emit = defineEmits<{
     name: string;
     category: string;
     price: number;
-    originalPrice?: number;
+    stock?: number;
     calo: number;
     protein: number;
     carbs?: number;
@@ -33,7 +35,7 @@ const form = ref({
   name: '',
   category: '',
   price: 0,
-  originalPrice: 0,
+  stock: 0,
   calo: 0,
   protein: 0,
   carbs: 0,
@@ -47,22 +49,31 @@ const formErrors = ref({
   sku: '',
   name: '',
   price: '',
+  stock: '',
   calo: '',
   protein: '',
 });
+
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const isUploading = ref(false);
+const uploadError = ref('');
+const isDragging = ref(false);
 
 watch(
   () => props.modelValue,
   (isOpen) => {
     if (isOpen) {
-      formErrors.value = { sku: '', name: '', price: '', calo: '', protein: '' };
+      uploadError.value = '';
+      isUploading.value = false;
+      isDragging.value = false;
+      formErrors.value = { sku: '', name: '', price: '', stock: '', calo: '', protein: '' };
       if (props.mode === 'edit' && props.initialData) {
         form.value = {
           sku: props.initialData.sku,
           name: props.initialData.name,
-          category: props.initialData.category,
+          category: props.initialData.categoryId || '',
           price: props.initialData.price,
-          originalPrice: props.initialData.originalPrice || props.initialData.price,
+          stock: props.initialData.stock ?? 0,
           calo: props.initialData.calo,
           protein: props.initialData.protein,
           carbs: props.initialData.carbs || 0,
@@ -75,16 +86,16 @@ watch(
         form.value = {
           sku: `NM-PRD-${Math.floor(10 + Math.random() * 90)}`,
           name: '',
-          category: props.categories[0] || 'High-Protein',
-          price: 95000,
-          originalPrice: 110000,
-          calo: 180,
-          protein: 15,
-          carbs: 20,
-          fat: 5,
-          sugar: 1,
+          category: props.categories[0]?.id || '',
+          price: 0,
+          stock: 0,
+          calo: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+          sugar: 0,
           status: 'Đang bán',
-          image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=400&q=80',
+          image: '',
         };
       }
     }
@@ -94,7 +105,12 @@ watch(
 
 function validateProductForm(): boolean {
   let isValid = true;
-  formErrors.value = { sku: '', name: '', price: '', calo: '', protein: '' };
+  formErrors.value = { sku: '', name: '', price: '', stock: '', calo: '', protein: '' };
+
+  if (props.mode === 'create' && (!Number.isInteger(form.value.stock) || form.value.stock < 0 || form.value.stock > 2147483647)) {
+    formErrors.value.stock = 'Số lượng phải là số nguyên từ 0 đến 2.147.483.647.';
+    isValid = false;
+  }
 
   if (!form.value.sku.trim()) {
     formErrors.value.sku = 'Mã SKU không được để trống.';
@@ -127,8 +143,51 @@ function validateProductForm(): boolean {
   return isValid;
 }
 
+function triggerFileInput() {
+  if (isUploading.value || props.saving) return;
+  fileInputRef.value?.click();
+}
+
+async function handleFileUpload(file: File) {
+  uploadError.value = '';
+  isUploading.value = true;
+  try {
+    const result = await uploadImageToCloudinary(file);
+    form.value.image = result.secureUrl;
+  } catch (err: unknown) {
+    uploadError.value = err instanceof Error ? err.message : 'Tải ảnh lên thất bại.';
+  } finally {
+    isUploading.value = false;
+    if (fileInputRef.value) {
+      fileInputRef.value.value = '';
+    }
+  }
+}
+
+function handleFileChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (file) {
+    void handleFileUpload(file);
+  }
+}
+
+function handleDrop(event: DragEvent) {
+  isDragging.value = false;
+  if (isUploading.value || props.saving) return;
+  const file = event.dataTransfer?.files?.[0];
+  if (file) {
+    void handleFileUpload(file);
+  }
+}
+
+function removeImage() {
+  form.value.image = '';
+  uploadError.value = '';
+}
+
 function handleSubmit() {
-  if (!validateProductForm()) {
+  if (props.saving || isUploading.value || !validateProductForm()) {
     return;
   }
 
@@ -137,19 +196,19 @@ function handleSubmit() {
     name: form.value.name.trim(),
     category: form.value.category,
     price: form.value.price,
-    originalPrice: form.value.originalPrice > 0 ? form.value.originalPrice : undefined,
+    ...(props.mode === 'create' ? { stock: form.value.stock } : {}),
     calo: form.value.calo,
     protein: form.value.protein,
     carbs: form.value.carbs,
     fat: form.value.fat,
     sugar: form.value.sugar,
     status: form.value.status,
-    image: form.value.image || 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=400&q=80',
+    image: form.value.image,
   });
-  emit('update:modelValue', false);
 }
 
 function handleClose() {
+  if (props.saving) return;
   emit('update:modelValue', false);
 }
 </script>
@@ -222,8 +281,8 @@ function handleClose() {
               v-model="form.category"
               class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124]"
             >
-              <option v-for="cat in categories" :key="cat" :value="cat">
-                {{ cat }}
+              <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+                {{ cat.name }}
               </option>
             </select>
           </div>
@@ -258,17 +317,28 @@ function handleClose() {
             </span>
           </div>
 
-          <div>
-            <label class="block font-bold text-[#2D3B1E] mb-1.5">Giá gốc trước giảm (VNĐ)</label>
+          <div v-if="mode === 'create'">
+            <label for="product-initial-stock" class="block font-bold text-[#2D3B1E] mb-1.5">
+              Số lượng <span class="text-rose-500">*</span>
+            </label>
             <input
+              id="product-initial-stock"
+              v-model.number="form.stock"
               type="number"
-              v-model.number="form.originalPrice"
               min="0"
-              step="1000"
-              class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124]"
+              max="2147483647"
+              step="1"
+              :disabled="saving"
+              class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border text-[#2D3B1E] focus:outline-[#536124]"
+              :class="formErrors.stock ? 'border-rose-400 bg-rose-50/20' : 'border-[#DEE5D4]'"
             />
+            <span v-if="formErrors.stock" class="text-[11px] text-rose-500 font-medium mt-1 block">
+              {{ formErrors.stock }}
+            </span>
           </div>
         </div>
+
+
 
         <!-- Thông số Macro -->
         <div class="p-4 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] space-y-3">
@@ -323,14 +393,130 @@ function handleClose() {
           </div>
         </div>
 
-        <div>
-          <label class="block font-bold text-[#2D3B1E] mb-1.5">Đường dẫn hình ảnh (URL)</label>
+        <!-- Khối Hình ảnh sản phẩm (Cloudinary) -->
+        <div class="space-y-2.5">
+          <div class="flex items-center justify-between">
+            <label class="block font-bold text-[#2D3B1E]">
+              Hình ảnh sản phẩm
+              <span class="text-xs font-normal text-[#7A866E] ml-1">(Lưu trữ Cloudinary)</span>
+            </label>
+            <span
+              v-if="form.image && form.image.includes('cloudinary.com')"
+              class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200"
+            >
+              <CheckCircle2 class="w-3.5 h-3.5" /> Cloudinary CDN
+            </span>
+          </div>
+
+          <!-- Trạng thái Đang có ảnh (Preview) -->
+          <div
+            v-if="form.image"
+            class="p-3.5 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] flex items-center gap-4"
+          >
+            <div class="w-20 h-20 rounded-xl overflow-hidden bg-white border border-[#CCD7BC] shrink-0 relative shadow-2xs">
+              <img
+                :src="form.image"
+                alt="Ảnh sản phẩm"
+                class="w-full h-full object-cover"
+              />
+            </div>
+            <div class="flex-1 min-w-0 space-y-1.5">
+              <p class="text-xs font-bold text-[#2D3B1E] truncate">
+                {{ form.name || 'Ảnh sản phẩm' }}
+              </p>
+              <p class="text-[11px] text-[#7A866E] font-mono truncate" :title="form.image">
+                {{ form.image }}
+              </p>
+              <div class="flex items-center gap-2 pt-0.5">
+                <button
+                  type="button"
+                  @click="triggerFileInput"
+                  :disabled="isUploading || saving"
+                  class="px-3 py-1.5 rounded-xl bg-white border border-[#DEE5D4] text-xs font-bold text-[#536124] hover:bg-stone-50 cursor-pointer transition-colors"
+                >
+                  Đổi ảnh khác
+                </button>
+                <button
+                  type="button"
+                  @click="removeImage"
+                  :disabled="isUploading || saving"
+                  class="px-3 py-1.5 rounded-xl bg-white border border-rose-200 text-xs font-bold text-rose-600 hover:bg-rose-50 cursor-pointer transition-colors inline-flex items-center gap-1"
+                >
+                  <Trash2 class="w-3.5 h-3.5" />
+                  Xóa ảnh
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Vùng Kéo thả / Chọn file (Khi chưa có ảnh) -->
+          <div
+            v-else
+            @click="triggerFileInput"
+            @dragover.prevent="isDragging = true"
+            @dragleave.prevent="isDragging = false"
+            @drop.prevent="handleDrop"
+            class="relative border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-200"
+            :class="[
+              isDragging
+                ? 'border-[#536124] bg-[#EBF1E6]/40 scale-[1.01]'
+                : 'border-[#DEE5D4] bg-[#FAF9F5] hover:border-[#536124] hover:bg-white',
+              isUploading ? 'pointer-events-none opacity-80' : ''
+            ]"
+          >
+            <div v-if="isUploading" class="flex flex-col items-center justify-center space-y-2 py-2">
+              <Loader2 class="w-8 h-8 text-[#536124] animate-spin" />
+              <p class="text-xs font-bold text-[#2D3B1E]">Đang tải ảnh lên Cloudinary...</p>
+              <p class="text-[11px] text-[#7A866E]">Vui lòng đợi trong giây lát</p>
+            </div>
+
+            <div v-else class="flex flex-col items-center justify-center space-y-2">
+              <div class="w-12 h-12 rounded-2xl bg-[#EBF1E6] text-[#536124] flex items-center justify-center">
+                <UploadCloud class="w-6 h-6" />
+              </div>
+              <div>
+                <p class="text-xs font-bold text-[#2D3B1E]">
+                  Nhấn để chọn ảnh từ máy tính hoặc kéo thả vào đây
+                </p>
+                <p class="text-[11px] text-[#7A866E] mt-0.5">
+                  Hỗ trợ JPG, PNG, WebP (Tối đa 10MB) • Tự động đẩy lên Cloudinary
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Input file ẩn -->
           <input
-            type="text"
-            v-model="form.image"
-            placeholder="https://images.unsplash.com/..."
-            class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124]"
+            ref="fileInputRef"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+            class="hidden"
+            @change="handleFileChange"
           />
+
+          <!-- Báo lỗi upload nếu có -->
+          <div
+            v-if="uploadError"
+            class="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700"
+          >
+            <AlertCircle class="w-4 h-4 shrink-0" />
+            <span>{{ uploadError }}</span>
+          </div>
+
+          <!-- Nhập URL thủ công -->
+          <details class="text-xs text-[#7A866E]">
+            <summary class="cursor-pointer hover:text-[#536124] font-medium transition-colors select-none">
+              Hoặc dán URL ảnh trực tiếp
+            </summary>
+            <div class="mt-2">
+              <input
+                type="text"
+                v-model="form.image"
+                placeholder="https://res.cloudinary.com/... hoặc https://images.unsplash.com/..."
+                class="w-full px-3.5 py-2 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124] text-xs font-mono"
+              />
+            </div>
+          </details>
         </div>
       </div>
 
@@ -346,9 +532,13 @@ function handleClose() {
         <button
           type="button"
           @click="handleSubmit"
-          class="px-5 py-2.5 rounded-2xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs font-bold shadow-xs cursor-pointer"
+          :disabled="saving || isUploading"
+          class="px-5 py-2.5 rounded-2xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
         >
-          {{ mode === 'create' ? 'Lưu sản phẩm mới' : 'Lưu thay đổi' }}
+          <Loader2 v-if="saving || isUploading" class="w-3.5 h-3.5 animate-spin" />
+          <span>
+            {{ isUploading ? 'Đang tải ảnh...' : (mode === 'create' ? 'Lưu sản phẩm mới' : 'Lưu thay đổi') }}
+          </span>
         </button>
       </div>
     </div>

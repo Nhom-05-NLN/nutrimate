@@ -11,7 +11,6 @@ import {
   Truck,
   Bot,
   Search,
-  Filter,
   RefreshCw,
   AlertTriangle,
 } from 'lucide-vue-next';
@@ -96,16 +95,19 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
     // Cập nhật state local
     const idx = orders.value.findIndex((o) => o.id === payload.orderId || o.orderCode === payload.orderId);
     if (idx !== -1) {
-      if (updated) {
-        orders.value[idx] = { ...orders.value[idx], ...updated };
-      } else {
-        orders.value[idx].status = payload.status;
-      }
+      const currentOrder = orders.value[idx];
+      if (currentOrder) {
+        if (updated) {
+          orders.value[idx] = { ...currentOrder, ...updated };
+        } else {
+          currentOrder.status = payload.status;
+        }
 
-      // Khi giao hàng thành công, tự động hiểu và cập nhật đã thanh toán (Đã thu)
-      if (payload.status === 'delivered') {
-        orders.value[idx].paymentStatus = 'paid';
-        patchOrderPaymentStatus(payload.orderId, 'paid').catch(() => {});
+        // Khi giao hàng thành công, tự động hiểu và cập nhật đã thanh toán (Đã thu)
+        if (payload.status === 'delivered') {
+          currentOrder.paymentStatus = 'paid';
+          patchOrderPaymentStatus(payload.orderId, 'paid').catch(() => {});
+        }
       }
     }
 

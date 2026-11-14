@@ -6,6 +6,7 @@ import { useCartStore } from '../../stores/cartStore';
 import { ChatSuggestedProduct, Product } from '../../types';
 import { useAuthStore } from '../../stores/authStore';
 import { useToastStore } from '../../stores/toastStore';
+import { formatChatMessage } from '../../utils/chatMessageFormatter';
 import {
   Bot,
   X,
@@ -73,16 +74,6 @@ function handleQuickPrompt(promptText: string) {
   else chatStore.sendMessage(promptText);
 }
 
-function formatMessageText(text: string): string {
-  const disclaimer = 'Thông tin chỉ mang tính tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.';
-  const flexibleDisclaimer = disclaimer
-    .split(/\s+/)
-    .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('\\s+');
-  const repeatedDisclaimer = new RegExp(`(?:${flexibleDisclaimer})(?:\\s*(?:${flexibleDisclaimer}))+`, 'giu');
-  return text.replace(/\*\*/g, '').replace(repeatedDisclaimer, disclaimer);
-}
-
 function handleImageSelected(event: Event) {
   const input = event.target;
   if (!(input instanceof HTMLInputElement)) return;
@@ -137,7 +128,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
       v-if="!chatStore.isOpen"
       type="button"
       @click="chatStore.openChat()"
-      class="fixed bottom-6 right-6 z-40 bg-[#4D6A34] hover:bg-[#3B4E24] text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-3 transition-all hover:scale-105 group border border-white/20 min-h-[44px]"
+      class="fixed bottom-6 right-6 z-40 bg-[#4D6A34] hover:bg-[#3B4E24] text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-3 transition-all duration-200 hover:scale-105 active:scale-95 group border border-white/20 min-h-[44px]"
       title="NutriBot AI - Tư vấn thực đơn & Macros"
       aria-label="Mở tư vấn NutriBot AI"
     >
@@ -188,7 +179,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
         <button
           type="button"
           @click="chatStore.closeChat()"
-          class="w-8 h-8 rounded-xl text-[#DCE7D0] hover:text-white hover:bg-[#4D6A34] flex items-center justify-center transition-colors min-h-[44px] min-w-[44px]"
+          class="w-8 h-8 rounded-xl text-[#DCE7D0] hover:text-white hover:bg-[#4D6A34] hover:scale-105 active:scale-95 flex items-center justify-center transition-all duration-200 min-h-[44px] min-w-[44px]"
           aria-label="Đóng khung chat"
         >
           <X class="w-5 h-5" />
@@ -214,7 +205,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
           type="button"
           :disabled="chatBlocked"
           @click="chatStore.newConversation()"
-          class="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#4D6A34] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#3B4E24] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8EA675] disabled:cursor-not-allowed disabled:opacity-50"
+          class="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#4D6A34] px-3 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#3B4E24] hover:shadow-md active:translate-y-0 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8EA675] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm disabled:active:scale-100"
           aria-label="Bắt đầu hội thoại mới"
           title="Bắt đầu hội thoại mới"
         >
@@ -226,7 +217,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
         ref="messagesContainer"
         class="flex-1 overflow-y-auto p-4 space-y-4 bg-[#FAF9F5]"
       >
-        <button v-if="chatStore.hasEarlier" type="button" :disabled="chatBlocked" class="text-xs text-[#4D6A34] underline" @click="chatStore.loadEarlier()">Tải tin nhắn trước</button>
+        <button v-if="chatStore.hasEarlier" type="button" :disabled="chatBlocked" class="rounded-md text-xs text-[#4D6A34] underline transition-colors hover:text-[#2D3B1E] disabled:cursor-not-allowed disabled:opacity-50" @click="chatStore.loadEarlier()">Tải tin nhắn trước</button>
         <div
           v-for="msg in chatStore.messages"
           :key="msg.id"
@@ -248,9 +239,9 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
               alt="Ảnh thực phẩm được gửi để phân tích"
               class="mb-2 max-h-48 max-w-full rounded-xl object-contain"
             />
-            <p class="whitespace-pre-line break-words">{{ msg.sender === 'bot' ? formatMessageText(msg.text) : msg.text }}</p>
+            <p class="whitespace-pre-line break-words">{{ msg.sender === 'bot' ? formatChatMessage(msg.text) : msg.text }}</p>
           </div>
-          <button v-if="msg.failed" type="button" :disabled="chatBlocked" class="text-xs text-red-700 underline" @click="chatStore.retryMessage(msg)">Gửi lại tin nhắn</button>
+          <button v-if="msg.failed" type="button" :disabled="chatBlocked" class="rounded-md text-xs text-red-700 underline transition-colors hover:text-red-900 disabled:cursor-not-allowed disabled:opacity-50" @click="chatStore.retryMessage(msg)">Gửi lại tin nhắn</button>
 
           <!-- Suggested Products Card in Bot Reply -->
           <div
@@ -296,7 +287,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
                   v-if="hasNutritionFacts(prod)"
                   type="button"
                   @click.stop="handleAddToCartFromChat(prod)"
-                  class="px-2.5 py-1.5 rounded-xl bg-[#EBF1E6] hover:bg-[#4D6A34] text-[#4D6A34] hover:text-white shrink-0 transition-colors text-xs font-bold flex items-center gap-1"
+                  class="px-2.5 py-1.5 rounded-xl bg-[#EBF1E6] hover:bg-[#4D6A34] text-[#4D6A34] hover:text-white hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 active:scale-95 shrink-0 transition-all duration-200 text-xs font-bold flex items-center gap-1"
                   title="Thêm vào giỏ"
                   aria-label="Thêm món này vào giỏ hàng"
                 >
@@ -323,8 +314,8 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
       <div v-if="chatStore.error" role="alert" class="px-4 py-2 bg-red-50 text-red-800 text-xs">
         {{ chatStore.error }}
         <RouterLink v-if="chatStore.requiresAuthentication || chatStore.requiresImageAuthentication" to="/login" class="underline ml-2">Đăng nhập Customer</RouterLink>
-        <button v-else-if="chatStore.guestSessionExpired" type="button" :disabled="chatStore.isThinking" class="underline ml-2" @click="chatStore.restartGuestSession()">Bắt đầu phiên Guest mới</button>
-        <button v-else-if="!chatStore.conversationId" type="button" :disabled="chatStore.isThinking" class="underline ml-2" @click="chatStore.initialize()">Thử kết nối lại</button>
+        <button v-else-if="chatStore.guestSessionExpired" type="button" :disabled="chatStore.isThinking" class="ml-2 rounded-sm underline transition-colors hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-50" @click="chatStore.restartGuestSession()">Bắt đầu phiên Guest mới</button>
+        <button v-else-if="!chatStore.conversationId" type="button" :disabled="chatStore.isThinking" class="ml-2 rounded-sm underline transition-colors hover:text-red-950 disabled:cursor-not-allowed disabled:opacity-50" @click="chatStore.initialize()">Thử kết nối lại</button>
       </div>
       <div class="chat-prompt-strip flex gap-1.5 overflow-x-auto overscroll-x-contain border-t border-[#ECEFE7] bg-white px-4 py-2 touch-pan-x">
         <button
@@ -333,7 +324,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
           type="button"
           @click="handleQuickPrompt(qp)"
           :disabled="chatBlocked"
-          class="shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#F3F6EE] hover:bg-[#EBF1E6] hover:text-[#2D3B1E] text-[#556345] transition-colors border border-[#DEE5D4]"
+          class="shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#F3F6EE] hover:bg-[#EBF1E6] hover:text-[#2D3B1E] hover:border-[#B8C9A8] hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 active:scale-95 text-[#556345] transition-all duration-200 border border-[#DEE5D4] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none disabled:active:scale-100"
         >
           {{ qp }}
         </button>
@@ -344,7 +335,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
         <div v-if="pendingImagePreview" class="flex items-center gap-2 rounded-xl border border-[#DEE5D4] bg-[#F3F6EE] p-2">
           <img :src="pendingImagePreview" alt="Ảnh đính kèm" class="h-12 w-12 rounded-lg object-cover" />
           <span class="min-w-0 flex-1 truncate text-xs text-[#556345]">{{ pendingImage?.name }}</span>
-          <button type="button" class="rounded-lg px-2 py-1 text-xs text-red-700 hover:bg-white" @click="clearPendingImage">Bỏ ảnh</button>
+          <button type="button" class="rounded-lg px-2 py-1 text-xs text-red-700 transition-all duration-200 hover:bg-white hover:shadow-sm active:scale-95" @click="clearPendingImage">Bỏ ảnh</button>
         </div>
         <div class="flex items-center gap-2">
         <input
@@ -358,7 +349,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
           type="button"
           :disabled="chatBlocked"
           @click="imageInput?.click()"
-          class="p-2.5 rounded-xl border border-[#DEE5D4] bg-white text-[#4D6A34] hover:bg-[#F3F6EE] disabled:opacity-40 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
+          class="p-2.5 rounded-xl border border-[#DEE5D4] bg-white text-[#4D6A34] hover:border-[#B8C9A8] hover:bg-[#F3F6EE] hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 active:scale-95 disabled:opacity-40 transition-all duration-200 min-h-[44px] min-w-[44px] flex items-center justify-center disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none disabled:active:scale-100"
           aria-label="Tải ảnh thực phẩm để ước tính dinh dưỡng"
           :title="authStore.accessToken ? 'Phân tích ảnh thực phẩm' : 'Đăng nhập Customer để phân tích ảnh'"
         >
@@ -376,7 +367,7 @@ function openSuggestedProduct(product: ChatSuggestedProduct) {
         <button
           type="submit"
           :disabled="(!inputText.trim() && !pendingImage) || chatBlocked"
-          class="p-2.5 rounded-xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white disabled:opacity-40 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
+          class="p-2.5 rounded-xl bg-[#4D6A34] hover:bg-[#3B4E24] hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-95 text-white disabled:opacity-40 transition-all duration-200 min-h-[44px] min-w-[44px] flex items-center justify-center disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none disabled:active:scale-100"
           aria-label="Gửi tin nhắn"
         >
           <Send class="w-4 h-4" />

@@ -12,6 +12,8 @@ import nutritionDiaryRoutes from './nutritionDiaryRoutes.js';
 import adminCustomerRoutes from './adminCustomerRoutes.js';
 import adminNotificationRoutes from './adminNotificationRoutes.js';
 import adminDashboardRoutes from './adminDashboardRoutes.js';
+import adminProductRoutes from './adminProductRoutes.js';
+import adminCategoryRoutes from './adminCategoryRoutes.js';
 
 const apiRouter = Router();
 
@@ -28,5 +30,7 @@ apiRouter.use('/knowledge', knowledgeRoutes);
 apiRouter.use('/admin/customers', adminCustomerRoutes);
 apiRouter.use('/admin/notifications', adminNotificationRoutes);
 apiRouter.use('/admin/dashboard', adminDashboardRoutes);
+apiRouter.use('/admin/products', adminProductRoutes);
+apiRouter.use('/admin/categories', adminCategoryRoutes);
 
 export default apiRouter;

@@ -25,9 +25,26 @@ import {
 
 const API_BASE = '/api';
 
+export async function fetchAdminCategories(): Promise<import('../types').AdminCategoryRecord[]> {
+  const response = await fetchJson<ApiResponse<import('../types').AdminCategoryRecord[]>>('/admin/categories');
+  if (!response.data) throw new Error(response.message || 'Không thể tải danh mục.');
+  return response.data;
+}
+
+export async function saveAdminCategory(payload: { name: string; description: string; status: boolean }, id?: string) {
+  return fetchJson<ApiResponse<{ id: string }>>(`/admin/categories${id ? '/' + encodeURIComponent(id) : ''}`, {
+    method:id ? 'PUT' : 'POST',body:JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminCategory(id: string) {
+  return fetchJson<ApiResponse<null>>(`/admin/categories/${encodeURIComponent(id)}`,{ method:'DELETE' });
+}
+
 export interface ProductReview {
   id: string;
   author: string;
+  avatarUrl: string | null;
   rating: number;
   content: string;
   createdAt: string;
@@ -43,6 +60,28 @@ export async function postProductReview(productId: string, payload: { rating: nu
   return fetchJson<ApiResponse<{ id: string }>>(`/products/${encodeURIComponent(productId)}/reviews`, {
     method: 'POST', body: JSON.stringify(payload),
   });
+}
+
+export interface AdminProductsData {
+  totalSold: number;
+  products: import('../types').AdminProductItem[];
+  categories: { id: string; name: string }[];
+}
+
+export async function fetchAdminProducts(): Promise<AdminProductsData> {
+  const response = await fetchJson<ApiResponse<AdminProductsData>>('/admin/products');
+  if (!response.data) throw new Error(response.message || 'Không thể tải sản phẩm.');
+  return response.data;
+}
+
+export async function saveAdminProduct(payload: Omit<import('../types').AdminProductItem,'id'>, id?: string) {
+  return fetchJson<ApiResponse<{ id: string }>>(`/admin/products${id ? '/' + encodeURIComponent(id) : ''}`, {
+    method: id ? 'PUT' : 'POST', body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminProduct(id: string) {
+  return fetchJson<ApiResponse<null>>(`/admin/products/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 export async function fetchProductSalesSummary(): Promise<number> {
@@ -441,6 +480,15 @@ export async function postNutritionMeal(payload: CreateNutritionDiaryMeal): Prom
   return response.data;
 }
 
+export async function deleteNutritionMeal(id: number, date: string): Promise<NutritionDiaryDay> {
+  const response = await fetchJson<ApiResponse<NutritionDiaryDay>>(
+    `/nutrition-diary/meals/${encodeURIComponent(id)}?date=${encodeURIComponent(date)}`,
+    { method: 'DELETE' },
+  );
+  if (!response.data) throw new Error(response.message || 'Không thể xóa món ăn.');
+  return response.data;
+}
+
 export async function postNutritionWater(date: string, amountMl: number): Promise<NutritionDiaryDay> {
   const response = await fetchJson<ApiResponse<NutritionDiaryDay>>('/nutrition-diary/water', { method: 'POST', body: JSON.stringify({ date, amountMl }) });
   if (!response.data) throw new Error(response.message || 'Không thể lưu lượng nước.');
@@ -717,7 +765,7 @@ export interface AdminCustomerMutationInput {
 
 export interface AdminNotification {
   id: string;
-  type: 'customer_registered' | 'customer_logged_in';
+  type: 'customer_registered' | 'order_placed';
   title: string;
   message: string;
   customerId: string | null;

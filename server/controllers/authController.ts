@@ -21,7 +21,7 @@ function setAuthCookie(
   user: authService.AuthenticatedUser,
   rememberMe: boolean
 ): void {
-  const { token, expiresInSeconds } = createAuthToken(user, rememberMe);
+  const { token, expiresInSeconds } = createAuthToken(user);
   res.cookie(AUTH_COOKIE_NAME, token, {
     ...AUTH_COOKIE_OPTIONS,
     ...(rememberMe ? { maxAge: expiresInSeconds * 1000 } : {}),

@@ -453,7 +453,7 @@ export async function createOrder(order: Order, ownerUserId: number | null = nul
           shipping_address, shipping_method, payment_method, payment_status, status,
           total_amount, total_calories, total_protein, shipping_fee,
           discount_amount, voucher_code, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
         RETURNING order_id, id
       `;
       const orderValues = [
@@ -492,12 +492,16 @@ export async function createOrder(order: Order, ownerUserId: number | null = nul
           INSERT INTO order_items (
             order_id, product_id, product_name, product_image,
             unit_price, quantity, calories, protein, subtotal, is_ai_recommended
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          ) VALUES (
+            $1,
+            CASE WHEN $2::int IS NOT NULL AND EXISTS (SELECT 1 FROM products WHERE product_id = $2::int) THEN $2::int ELSE NULL END,
+            $3, $4, $5, $6, $7, $8, $9, $10
+          )
         `;
         const subtotal = item.price * item.quantity;
         const parsedProdId = item.productId && !isNaN(Number(item.productId)) ? Number(item.productId) : null;
         await client.query(itemSql, [
-          order.id,
+          Number(order.id),
           parsedProdId,
           item.productName,
           item.productImage,
@@ -510,10 +514,19 @@ export async function createOrder(order: Order, ownerUserId: number | null = nul
         ]);
       }
 
+      await client.query(
+        `INSERT INTO admin_notifications (type, title, message, customer_id)
+         VALUES ('order_placed', 'Đơn hàng mới', $1, $2)`,
+        [
+          `Đơn hàng #${order.orderCode} của ${order.customer.name} (${order.totalAmount.toLocaleString('vi-VN')}đ) vừa được đặt.`,
+          ownerUserId,
+        ],
+      );
+
       await client.query('COMMIT');
     } catch (err: unknown) {
-      const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : 'unknown';
-      console.warn('[OrderRepository Create Failed]:', code);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.warn('[OrderRepository Create Failed]:', errMsg);
       try {
         await client.query('ROLLBACK');
       } catch {

@@ -35,7 +35,6 @@ import {
 
   FolderTree,
 
-  Boxes,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -255,9 +254,7 @@ async function openNotification(notification: AdminNotification) {
   }
   closeNotifications();
   await router.push(
-    notification.type === 'customer_registered' || notification.type === 'customer_logged_in'
-      ? '/admin/customers'
-      : '/admin',
+    notification.type === 'customer_registered' ? '/admin/customers' : '/admin/orders',
   );
 }
 
@@ -349,7 +346,6 @@ const coreNavItems = [
   { path: '/admin', label: 'Tổng quan', icon: LayoutDashboard },
   { path: '/admin/products', label: 'Sản phẩm', icon: Package },
   { path: '/admin/categories', label: 'Danh mục', icon: FolderTree },
-  { path: '/admin/inventory', label: 'Tồn kho', icon: Boxes, badge: '4 cảnh báo' },
   { path: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
   { path: '/admin/customers', label: 'Khách hàng', icon: Users },
   { path: '/admin/vouchers', label: 'Mã giảm giá', icon: Ticket, badge: 'Ưu đãi' },
@@ -989,7 +985,8 @@ async function handleAdminLogout() {
                     @click="openNotification(notification)"
                   >
                     <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#EBF7E5] text-[#536124] ring-1 ring-inset ring-[#DCE7D2]">
-                      <Users class="h-5 w-5" />
+                      <Users v-if="notification.type === 'customer_registered'" class="h-5 w-5" />
+                      <ShoppingCart v-else class="h-5 w-5" />
                     </span>
                     <span class="min-w-0 flex-1 pt-0.5">
                       <span class="flex items-start justify-between gap-3">

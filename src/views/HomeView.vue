@@ -1,27 +1,14 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { useProductStore } from '../stores/productStore';
 import HeroSection from '../components/home/HeroSection.vue';
 import DietCategories from '../components/home/DietCategories.vue';
 import FeaturedProducts from '../components/home/FeaturedProducts.vue';
 import WhyChooseUs from '../components/home/WhyChooseUs.vue';
 import AiAssistantFeature from '../components/home/AiAssistantFeature.vue';
 import TestimonialsSection from '../components/home/TestimonialsSection.vue';
-
-const productStore = useProductStore();
-
-onMounted(() => {
-  if (productStore.products.length === 0) {
-    productStore.loadProducts();
-  }
-  if (productStore.categories.length === 0) {
-    productStore.loadCategories();
-  }
-});
 </script>
 
 <template>
-  <div class="w-full flex flex-col">
+  <main class="home-page w-full flex flex-col">
     <!-- Section 1: Hero Section (bg-linear from #EDEDE1 to #DFE3CE) -->
     <HeroSection />
 
@@ -39,5 +26,29 @@ onMounted(() => {
 
     <!-- Section 6: Cộng Đồng NutriMate (bg #F7F3E8) -->
     <TestimonialsSection />
-  </div>
+  </main>
 </template>
+
+<style scoped>
+:deep(.home-page button:not(:disabled)),
+:deep(.home-page a) {
+  transition:
+    transform 180ms ease,
+    filter 180ms ease,
+    box-shadow 180ms ease;
+}
+
+:deep(.home-page button:not(:disabled):hover),
+:deep(.home-page a:hover) {
+  transform: translateY(-4px) scale(1.04);
+  filter: brightness(1.08);
+  box-shadow: 0 10px 22px rgb(45 59 30 / 24%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :deep(.home-page button),
+  :deep(.home-page a) {
+    transition: none;
+  }
+}
+</style>

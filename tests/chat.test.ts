@@ -237,6 +237,44 @@ test('meal suggestion answers do not append the nutrition disclaimer', async () 
   assert.equal(result.reply, 'Bạn có thể chọn các món ít calo dưới đây.');
   assert.ok(!result.reply.includes(CHAT_DISCLAIMER));
 });
+test('product suggestions use real product context even when nutrition knowledge is unmatched or matched', async () => {
+  const suggestionRepository = new MemoryRepository();
+  const owner = { userId: 1, guestHash: null } as const;
+  const conversation = await suggestionRepository.create(owner);
+  const product: Product = {
+    id: '42',
+    code: 'NM-42',
+    name: 'Đậu gà',
+    category: 'high-protein',
+    categoryName: 'Giàu đạm',
+    price: 25000,
+    image: '/images/chickpea.png',
+    description: 'Đậu gà rang',
+    ingredients: ['Đậu gà'],
+    nutrition: { servingSize: '30 g', calories: 120, protein: 8, carbs: 18, fat: 2, sugar: 1 },
+    stock: 5,
+    rating: 0,
+    reviewCount: 0,
+    badges: [],
+    bestFor: '',
+  };
+  let generated = false;
+  const suggestionService = createChatService(suggestionRepository, async messages => {
+    generated = true;
+    assert.match(messages[0]?.content ?? '', /kể cả khi knowledge_base trống hoặc không khớp/i);
+    assert.match(messages[0]?.content ?? '', /Đậu gà/);
+    return 'Bạn có thể thử Đậu gà rang: 8 g protein và 1 g đường mỗi khẩu phần.';
+  }, async () => ({
+    products: [product],
+    knowledge: '',
+    knowledgeAnswer: 'FAQ chung không trả lời yêu cầu gợi ý sản phẩm.',
+  }));
+  const result = await suggestionService.ask(owner, conversation.id, randomUUID(), 'Gợi ý món giàu protein, ít đường');
+  assert.equal(generated, true);
+  assert.match(result.reply, /Đậu gà rang/);
+  assert.deepEqual(result.suggestedProducts, [product]);
+  assert.ok(!result.reply.includes(CHAT_DISCLAIMER));
+});
 test('session bootstrap creates/restores Guest without creating conversations and rejects expired Customer JWT', async () => {
   const before = repository.records.size;
   const response = await request('/session', {});
@@ -378,6 +416,48 @@ test('provider parses compatible response and rejects empty/error/timeout respon
     for (const fake of [async () => Response.json({ choices: [] }), async () => new Response('Secret provider failure', { status: 500 })]) {
       await assert.rejects(generateChatReply([], fake), (error: unknown) => error instanceof ChatError && error.status === 502 && !error.message.includes('Secret'));
     }
+    const messages = [{ role: 'user' as const, content: 'Xin tư vấn' }];
+    let groqCalls = 0;
+    const groqFallback = async (received: LlmMessage[]) => {
+      groqCalls++;
+      assert.deepEqual(received, messages);
+      return 'Phản hồi dự phòng từ Groq';
+    };
+    assert.equal(
+      await generateChatReply(messages, async () => Response.json({}, { status: 429 }), groqFallback),
+      'Phản hồi dự phòng từ Groq',
+    );
+    assert.equal(groqCalls, 1);
+    assert.equal(
+      await generateChatReply(messages, async () => Response.json({}, { status: 403 }), groqFallback),
+      'Phản hồi dự phòng từ Groq',
+    );
+    assert.equal(groqCalls, 2);
+    await assert.rejects(
+      generateChatReply(messages, async () => Response.json({}, { status: 400 }), groqFallback),
+      (error: unknown) => error instanceof ChatError && error.status === 502,
+    );
+    assert.equal(groqCalls, 2);
+    await assert.rejects(
+      generateChatReply(messages, async () => Response.json({}, { status: 429 }), async () => {
+        throw new Error('Private Groq error');
+      }),
+      (error: unknown) => error instanceof ChatError
+        && error.status === 503
+        && error.message.includes('Groq')
+        && !error.message.includes('Private'),
+    );
+    await assert.rejects(
+      generateChatReply([], async () => Response.json(
+        { error: { status: 'RESOURCE_EXHAUSTED', message: 'do not expose provider details' } },
+        { status: 503 },
+      )),
+      (error: unknown) => error instanceof ChatError && error.status === 502 && !error.message.includes('provider details'),
+    );
+    assert.equal(
+      await generateChatReply(messages, async () => new Response('Unauthorized', { status: 401 }), groqFallback),
+      'Phản hồi dự phòng từ Groq',
+    );
     await assert.rejects(generateChatReply([], async () => { throw new DOMException('timeout', 'TimeoutError'); }), (error: unknown) => error instanceof ChatError && error.status === 504);
     config.chat.apiKey = '';
     await assert.rejects(generateChatReply([], good), (error: unknown) => error instanceof ChatError && error.status === 503);

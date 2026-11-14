@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useCartStore } from '../../stores/cartStore';
 import { useProductStore } from '../../stores/productStore';
 import { useAuthStore } from '../../stores/authStore';
+import { fetchProducts } from '../../services/api';
+import type { Product } from '../../types';
 import {
   Search,
   Leaf,
@@ -14,10 +16,10 @@ import {
   LogOut,
   ChevronDown,
   UserRoundPen,
-  MapPin,
-  Settings,
   ChevronRight,
   ShieldCheck,
+  Clock3,
+  X as ClearIcon,
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -28,8 +30,29 @@ const authStore = useAuthStore();
 const nextTierPoints = 500;
 
 const searchInput = ref('');
+const searchResults = ref<Product[]>([]);
+const recentSearches = ref<string[]>([]);
+const isSearchFocused = ref(false);
+const isMobileSearchOpen = ref(false);
+const isSearching = ref(false);
+const searchError = ref('');
 const isMobileMenuOpen = ref(false);
 const isUserDropdownOpen = ref(false);
+let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+let searchRequestId = 0;
+const recentSearchesStorageKey = 'nutrimate.recent-searches';
+
+try {
+  const savedSearches = window.localStorage.getItem(recentSearchesStorageKey);
+  if (savedSearches) {
+    const parsed: unknown = JSON.parse(savedSearches);
+    if (Array.isArray(parsed) && parsed.every((value) => typeof value === 'string')) {
+      recentSearches.value = parsed.slice(0, 5);
+    }
+  }
+} catch (error: unknown) {
+  console.warn('[Navbar] Không thể tải lịch sử tìm kiếm:', error);
+}
 
 const currentPoints = computed(() =>
   Math.max(0, Number(authStore.currentUser?.nutriPoints ?? 0))
@@ -40,10 +63,89 @@ const pointsProgress = computed(() =>
 );
 
 function handleSearchSubmit() {
-  if (searchInput.value.trim()) {
-    productStore.setSearch(searchInput.value.trim());
-    router.push({ name: 'catalog' });
+  const query = searchInput.value.trim();
+  if (!query) return;
+  saveRecentSearch(query);
+  closeSearchSuggestions();
+  productStore.setSearch(query);
+  void router.push({ name: 'catalog' });
+}
+
+function saveRecentSearch(query: string) {
+  recentSearches.value = [
+    query,
+    ...recentSearches.value.filter((item) => item.toLocaleLowerCase() !== query.toLocaleLowerCase()),
+  ].slice(0, 5);
+
+  try {
+    window.localStorage.setItem(recentSearchesStorageKey, JSON.stringify(recentSearches.value));
+  } catch (error: unknown) {
+    console.warn('[Navbar] Không thể lưu lịch sử tìm kiếm:', error);
   }
+}
+
+function handleSearchInput() {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  searchError.value = '';
+  searchResults.value = [];
+  const query = searchInput.value.trim();
+  if (!query) {
+    searchRequestId += 1;
+    isSearching.value = false;
+    return;
+  }
+
+  isSearching.value = true;
+  const requestId = ++searchRequestId;
+  searchDebounceTimer = setTimeout(async () => {
+    try {
+      const result = await fetchProducts({ search: query, limit: 5 });
+      if (requestId === searchRequestId) searchResults.value = result.products;
+    } catch (error: unknown) {
+      if (requestId === searchRequestId) {
+        searchError.value = 'Không thể tải gợi ý sản phẩm.';
+        console.error('[Navbar] Không thể tải gợi ý tìm kiếm:', error);
+      }
+    } finally {
+      if (requestId === searchRequestId) isSearching.value = false;
+    }
+  }, 250);
+}
+
+function selectRecentSearch(query: string) {
+  searchInput.value = query;
+  handleSearchSubmit();
+}
+
+function selectSearchProduct(product: Product) {
+  saveRecentSearch(product.name);
+  searchInput.value = product.name;
+  closeSearchSuggestions();
+  isMobileSearchOpen.value = false;
+  void router.push({ name: 'product-detail', params: { id: product.id } });
+}
+
+function closeSearchSuggestions() {
+  isSearchFocused.value = false;
+}
+
+function handleSearchBlur() {
+  window.setTimeout(() => {
+    isSearchFocused.value = false;
+  }, 120);
+}
+
+function clearSearchInput() {
+  searchRequestId += 1;
+  searchInput.value = '';
+  searchResults.value = [];
+  searchError.value = '';
+  isSearching.value = false;
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+}
+
+function getInitials(name: string) {
+  return name.trim().split(/\s+/).slice(-2).map((part) => part[0] ?? '').join('').toUpperCase();
 }
 
 async function handleCustomerLogout() {
@@ -51,6 +153,10 @@ async function handleCustomerLogout() {
   isUserDropdownOpen.value = false;
   await router.replace({ name: 'home' });
 }
+
+onBeforeUnmount(() => {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+});
 </script>
 
 <template>
@@ -64,26 +170,83 @@ async function handleCustomerLogout() {
                 transition-transform duration-200 hover:scale-[1.03]"
         >
           <img
-            src="../../public/logo_nutrimate.png"
+            src="../../public/logo_nutrimate_transparent.png"
             alt="NutriMate"
-            class="h-14 sm:h-15 w-auto max-w-[220px] object-contain"
+            class="h-10 w-auto max-w-[165px] object-contain sm:h-11 sm:max-w-[180px]"
           />
         </RouterLink>
 
         <!-- SEARCH BAR -->
-        <div class="hidden md:flex flex-1 max-w-xs lg:max-w-sm mx-4">
+        <div class="relative mx-2 hidden max-w-[260px] flex-1 md:block lg:mx-4 lg:max-w-[320px]">
           <form
             @submit.prevent="handleSearchSubmit"
-            class="w-full flex items-center bg-[#EBF7E5] hover:bg-[#E2F0DC] focus-within:bg-white rounded-[8px] px-4 py-2 border border-[#C8D7BE] focus-within:border-[#6B7A3A] focus-within:ring-2 focus-within:ring-[#6B7A3A]/20 transition-all shadow-2xs"
+            class="flex h-10 w-full items-center rounded-xl border border-[#D5DFC8] bg-[#F5F7F1] px-3 transition-all focus-within:border-[#8E966D] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#6B7A3A]/15"
           >
-            <Search class="w-4 h-4 text-[#6B7A3A] mr-2.5 shrink-0" />
+            <Search class="mr-2 h-4 w-4 shrink-0 text-[#6B7A3A]" />
             <input
               type="text"
               v-model="searchInput"
-              placeholder="Bạn muốn tìm gì ..."
-              class="w-full bg-transparent text-sm text-[#242424] placeholder-[#7A866E] outline-none"
+              @input="handleSearchInput"
+              @focus="isSearchFocused = true"
+              @blur="handleSearchBlur"
+              placeholder="Tìm sản phẩm..."
+              class="min-w-0 flex-1 bg-transparent text-xs text-[#242424] outline-none placeholder:text-[#7A866E]"
+              role="combobox"
+              aria-label="Tìm kiếm sản phẩm"
+              aria-autocomplete="list"
+              :aria-expanded="isSearchFocused"
             />
+            <button v-if="searchInput" type="button" class="ml-1 rounded-full p-1 text-[#7A866E] hover:bg-[#EBF1E3]" aria-label="Xóa tìm kiếm" @mousedown.prevent @click="clearSearchInput">
+              <ClearIcon class="h-3.5 w-3.5" />
+            </button>
           </form>
+
+          <Transition name="search-dropdown">
+            <div
+              v-if="isSearchFocused && (searchInput.trim() || recentSearches.length)"
+              class="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-[#E3E8DC] bg-white shadow-[0_16px_40px_rgba(45,59,30,0.16)]"
+              role="listbox"
+            >
+              <div v-if="searchInput.trim()" class="border-b border-[#F0F3EC] px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider text-[#7A866E]">
+                Gợi ý sản phẩm
+              </div>
+              <p v-if="isSearching" class="px-4 py-3 text-xs text-[#7A866E]">Đang tìm sản phẩm...</p>
+              <p v-else-if="searchError" role="alert" class="px-4 py-3 text-xs text-rose-600">{{ searchError }}</p>
+              <button
+                v-for="product in searchResults"
+                :key="product.id"
+                type="button"
+                role="option"
+                class="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-[#F5F7F1]"
+                @mousedown.prevent
+                @click="selectSearchProduct(product)"
+              >
+                <img :src="product.image" :alt="product.name" class="h-10 w-10 shrink-0 rounded-lg bg-[#F0F3EC] object-cover" />
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-xs font-semibold text-[#242424]">{{ product.name }}</span>
+                  <span class="mt-0.5 block text-[10px] text-[#6B7A3A]">{{ new Intl.NumberFormat('vi-VN').format(product.price) }}₫</span>
+                </span>
+              </button>
+              <p v-if="searchInput.trim() && !isSearching && !searchError && searchResults.length === 0" class="px-4 py-3 text-xs text-[#7A866E]">
+                Chưa tìm thấy sản phẩm phù hợp.
+              </p>
+              <div v-if="recentSearches.length" class="border-t border-[#F0F3EC] px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider text-[#7A866E]">
+                Tìm gần đây
+              </div>
+              <button
+                v-for="(query, index) in recentSearches"
+                :key="`${query}-${index}`"
+                type="button"
+                role="option"
+                class="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs text-[#576449] transition-colors hover:bg-[#F5F7F1]"
+                @mousedown.prevent
+                @click="selectRecentSearch(query)"
+              >
+                <Clock3 class="h-3.5 w-3.5 shrink-0 text-[#8E966D]" />
+                <span class="truncate">{{ query }}</span>
+              </button>
+            </div>
+          </Transition>
         </div>
 
         <!-- MAIN NAVIGATION MENU LINKS -->
@@ -122,7 +285,16 @@ async function handleCustomerLogout() {
         </nav>
 
         <!-- RIGHT SIDE UTILITIES -->
-        <div class="flex items-center gap-3.5 shrink-0">
+        <div class="flex shrink-0 items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            @click="isMobileSearchOpen = !isMobileSearchOpen"
+            class="flex h-10 w-10 items-center justify-center rounded-full text-[#3B4E24] transition-colors hover:bg-[#EBF1E3] md:hidden"
+            :aria-label="isMobileSearchOpen ? 'Đóng tìm kiếm' : 'Mở tìm kiếm sản phẩm'"
+          >
+            <ClearIcon v-if="isMobileSearchOpen" class="h-5 w-5" />
+            <Search v-else class="h-5 w-5" />
+          </button>
           <!-- Cart Icon Button with Red Badge (Figma Style & Drawer Trigger) -->
           <button
             type="button"
@@ -145,22 +317,23 @@ async function handleCustomerLogout() {
             <button
               type="button"
               @click="isUserDropdownOpen = !isUserDropdownOpen"
-              class="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#D0D3BE] bg-white hover:bg-[#FEFDF8] text-xs font-bold text-[#242424] shadow-2xs transition-all"
+              class="inline-flex items-center gap-2 rounded-full border border-[#D0D3BE] bg-white px-2 py-1.5 text-xs font-bold text-[#242424] shadow-2xs transition-all hover:bg-[#FEFDF8] sm:px-3"
             >
-              <User class="w-4 h-4 text-[#6B7A3A]" />
-              <span class="max-w-[110px] truncate">
+              <span class="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-[#EBF1E3] text-[10px] font-bold text-[#536124]">
+                <img v-if="authStore.currentUser?.avatar" :src="authStore.currentUser.avatar" alt="" class="h-full w-full object-cover" />
+                <span v-else>{{ authStore.currentUser ? getInitials(authStore.currentUser.name) : '' }}<User v-if="!authStore.currentUser" class="h-4 w-4 text-[#6B7A3A]" /></span>
+              </span>
+              <span class="hidden max-w-[110px] truncate sm:inline">
                 {{ authStore.currentUser ? authStore.currentUser.name : 'Tài khoản' }}
               </span>
-              <ChevronDown class="w-3.5 h-3.5 text-[#7A866E]" />
+              <ChevronDown class="hidden h-3.5 w-3.5 text-[#7A866E] sm:block" />
             </button>
 
             <!-- Dropdown Menu -->
             <div
               v-if="isUserDropdownOpen"
-              class="absolute right-0 mt-3 w-[300px] sm:w-[280px]
-                    bg-white rounded-xl shadow-[0_12px_40px_rgba(35,50,25,0.14)]
-                    border border-[#E8EBDD] overflow-hidden z-50
-                    animate-in fade-in slide-in-from-top-2 duration-200"
+              class="absolute right-0 mt-3 w-[300px] origin-top-right rounded-xl border border-[#E8EBDD] bg-white
+                    z-50 overflow-hidden shadow-[0_12px_40px_rgba(35,50,25,0.14)] animate-in fade-in slide-in-from-top-2 duration-200 sm:w-[280px]"
             >
               <!-- User Information -->
               <div v-if="authStore.currentUser" class="p-5 space-y-2">
@@ -171,7 +344,7 @@ async function handleCustomerLogout() {
                 </div>
 
                 <div class="flex items-center gap-3">
-                  <div class="w-12 h-12 rounded-full bg-[#EDF3E5] flex items-center justify-center shrink-0">
+                  <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#EDF3E5]">
                     <img
                       v-if="authStore.currentUser?.avatar"
                       :src="authStore.currentUser.avatar"
@@ -179,7 +352,7 @@ async function handleCustomerLogout() {
                       class="w-full h-full rounded-full object-cover border border-[#D0D3BE]"
                     />
 
-                    <div v-else class="w-7 h-7 rounded-full bg-[#EDF3E5] flex items-center justify-center">
+                    <div v-else class="flex h-7 w-7 items-center justify-center rounded-full bg-[#EDF3E5]">
                       <User class="w-4 h-4 text-[#6B7A3A]" />
                     </div>
                   </div>
@@ -317,6 +490,46 @@ async function handleCustomerLogout() {
           </button>
         </div>
       </div>
+
+      <Transition name="search-dropdown">
+        <div v-if="isMobileSearchOpen" class="relative border-t border-[#ECEFE7] py-3 md:hidden">
+          <form @submit.prevent="handleSearchSubmit" class="flex h-11 items-center gap-2 rounded-xl border border-[#D5DFC8] bg-[#F5F7F1] px-3 focus-within:border-[#8E966D] focus-within:bg-white">
+            <Search class="h-4 w-4 shrink-0 text-[#6B7A3A]" />
+            <input
+              v-model="searchInput"
+              type="search"
+              placeholder="Tìm sản phẩm..."
+              class="min-w-0 flex-1 bg-transparent text-sm text-[#242424] outline-none placeholder:text-[#7A866E]"
+              @input="handleSearchInput"
+              @focus="isSearchFocused = true"
+              @blur="handleSearchBlur"
+              aria-label="Tìm kiếm sản phẩm"
+            />
+            <button type="submit" class="rounded-lg bg-[#4D6A34] px-3 py-2 text-xs font-bold text-white">Tìm</button>
+          </form>
+          <div
+            v-if="isSearchFocused && (searchInput.trim() || recentSearches.length)"
+            class="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-[#E3E8DC] bg-white shadow-[0_16px_40px_rgba(45,59,30,0.16)]"
+          >
+            <p v-if="isSearching" class="px-4 py-3 text-xs text-[#7A866E]">Đang tìm sản phẩm...</p>
+            <p v-else-if="searchError" role="alert" class="px-4 py-3 text-xs text-rose-600">{{ searchError }}</p>
+            <template v-else-if="searchInput.trim()">
+              <button v-for="product in searchResults" :key="product.id" type="button" class="flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-[#F5F7F1]" @mousedown.prevent @click="selectSearchProduct(product)">
+                <img :src="product.image" :alt="product.name" class="h-10 w-10 shrink-0 rounded-lg bg-[#F0F3EC] object-cover" />
+                <span class="truncate text-xs font-semibold text-[#242424]">{{ product.name }}</span>
+              </button>
+              <p v-if="!searchResults.length && !isSearching" class="px-4 py-3 text-xs text-[#7A866E]">Chưa tìm thấy sản phẩm phù hợp.</p>
+            </template>
+            <template v-if="recentSearches.length">
+              <p class="border-t border-[#F0F3EC] px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider text-[#7A866E]">Tìm gần đây</p>
+              <button v-for="(query, index) in recentSearches" :key="`${query}-${index}`" type="button" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs text-[#576449] hover:bg-[#F5F7F1]" @mousedown.prevent @click="selectRecentSearch(query)">
+                <Clock3 class="h-3.5 w-3.5 shrink-0 text-[#8E966D]" />
+                <span class="truncate">{{ query }}</span>
+              </button>
+            </template>
+          </div>
+        </div>
+      </Transition>
 
       <!-- Mobile Dropdown Navigation -->
       <div

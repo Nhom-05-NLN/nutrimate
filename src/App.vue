@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, defineAsyncComponent } from 'vue';
 import { useRoute } from 'vue-router';
-import DefaultLayout from './layouts/DefaultLayout.vue';
-import AdminLayout from './layouts/AdminLayout.vue';
 import ToastNotification from './components/common/ToastNotification.vue';
 
+const DefaultLayout = defineAsyncComponent(() => import('./layouts/DefaultLayout.vue'));
+const AdminLayout = defineAsyncComponent(() => import('./layouts/AdminLayout.vue'));
 const route = useRoute();
 const isBlankLayout = computed(() => route.meta.layout === 'blank');
 const isAdminRoute = computed(() => route.path.startsWith('/admin'));
@@ -20,7 +20,11 @@ const isAdminRoute = computed(() => route.path.startsWith('/admin'));
     <ToastNotification />
   </div>
   <component v-else :is="isAdminRoute ? AdminLayout : DefaultLayout">
-    <RouterView />
+    <RouterView v-slot="{ Component, route: viewRoute }">
+      <Transition name="route-page" mode="out-in">
+        <component :is="Component" :key="viewRoute.path" />
+      </Transition>
+    </RouterView>
   </component>
   <ToastNotification v-if="isAdminRoute && !isBlankLayout" />
 </template>

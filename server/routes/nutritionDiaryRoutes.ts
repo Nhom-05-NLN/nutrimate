@@ -6,5 +6,6 @@ const router = Router();
 router.use(requireAuth);
 router.get('/', controller.getDay);
 router.post('/meals', controller.createMeal);
+router.delete('/meals/:id', controller.deleteMeal);
 router.post('/water', controller.createWater);
 export default router;

@@ -1,32 +1,52 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue';
 import { Star } from 'lucide-vue-next';
+import { fetchProducts, fetchProductReviews } from '../../services/api';
+import type { Product } from '../../types';
+import type { ProductReview } from '../../services/api';
 
-const reviews = [
-  {
-    initials: 'HD',
-    name: 'Hoàng Đức',
-    role: 'Fitness Enthusiast / Gymer 4 năm',
-    quote: 'Ức gà sấy tiêu đen của NutriMate là cứu cánh những ngày siết cơ! Không dầu mỡ, giòn rụm mà Protein tận 31g mỗi gói. NutriBot còn tính macro khớp từng gam cho lịch tập của mình.',
-  },
-  {
-    initials: 'MN',
-    name: 'Mai Ngọc',
-    role: 'Nhân viên Marketing, Hà Nội',
-    quote: 'Ngồi văn phòng 8 tiếng hay thèm trà sữa với snack chiên. Từ khi đặt hũ granola và hạt dinh dưỡng ở đây, mình giảm được 3kg mỡ thừa trong 2 tháng mà không hề thấy mệt mỏi hay đuối sức.',
-  },
-  {
-    initials: 'TL',
-    name: 'Trần Linh',
-    role: 'Thực hành lối sống Keto & IF',
-    quote: 'Ăn Keto khắt khe nhất là chỉ số Carb ẩn. Mua đồ NutriMate rất an tâm vì thông số rõ ràng, bánh hạt ngọt tự nhiên từ stevia rất thanh, không bị đắng hậu vị. Giao hàng 2 tiếng quá tiện lợi!',
-  },
-];
+interface CustomerReview extends ProductReview {
+  productName: string;
+}
+
+const reviews = ref<CustomerReview[]>([]);
+const failedAvatarIds = ref(new Set<string>());
+const isLoading = ref(true);
+const loadError = ref('');
+
+function markAvatarFailed(reviewId: string) {
+  failedAvatarIds.value = new Set(failedAvatarIds.value).add(reviewId);
+}
+
+onMounted(async () => {
+  try {
+    const result = await fetchProducts({ sort: 'rating_desc', limit: 5 });
+    const productReviews = await Promise.all(
+      result.products.map(async (product: Product) => ({
+        product,
+        reviews: await fetchProductReviews(product.id),
+      })),
+    );
+    reviews.value = productReviews
+      .flatMap(({ product, reviews: productReviewList }) =>
+        productReviewList
+          .filter((review) => review.content.trim())
+          .map((review) => ({ ...review, productName: product.name })),
+      )
+      .slice(0, 3);
+  } catch (error: unknown) {
+    loadError.value = error instanceof Error ? error.message : 'Không thể tải đánh giá khách hàng.';
+    console.error('[TestimonialsSection] Không thể tải đánh giá:', error);
+  } finally {
+    isLoading.value = false;
+  }
+});
 </script>
 
 <template>
-  <section class="w-full bg-[#F7F3E8] py-16 text-center">
+  <section class="w-full bg-[#F7F3E8] py-12 text-center sm:py-14">
     <div class="max-w-[1316px] mx-auto px-4 sm:px-8">
-      <div class="max-w-2xl mx-auto mb-12 space-y-2">
+      <div class="mx-auto mb-8 max-w-2xl space-y-2 sm:mb-10">
         <span class="text-xs font-bold text-[#6B7A3A] uppercase tracking-wider block">
           CỘNG ĐỒNG NUTRIMATE
         </span>
@@ -34,44 +54,133 @@ const reviews = [
           Trải nghiệm thực tế từ người dùng
         </h2>
         <p class="text-xs sm:text-sm text-[#7A866E] leading-relaxed">
-          Đồng hành cùng hơn 35.000 khách hàng trên hành trình thay đổi vóc dáng và duy trì thói quen ăn uống tích cực.
+          Đánh giá được chia sẻ trực tiếp bởi khách hàng đã trải nghiệm sản phẩm NutriMate.
         </p>
       </div>
 
-      <!-- 3 Review Cards Grid (Figma 01) -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-        <div
-          v-for="item in reviews"
-          :key="item.name"
-          class="p-7 rounded-3xl bg-white border border-[#E3E8DC] hover:border-[#6B7A3A] hover:shadow-xl transition-all flex flex-col justify-between space-y-6"
-        >
-          <div class="space-y-4">
-            <!-- Star Rating -->
-            <div class="flex items-center gap-1 text-[#E8A020]">
-              <Star v-for="i in 5" :key="i" class="w-4 h-4 fill-[#E8A020]" />
-            </div>
+      <p v-if="loadError" role="alert" class="rounded-2xl border border-red-200 bg-white p-5 text-sm text-red-700">
+        {{ loadError }}
+      </p>
+      <p v-else-if="isLoading" role="status" class="rounded-2xl border border-[#E3E8DC] bg-white p-5 text-sm text-[#7A866E]">
+        Đang tải đánh giá...
+      </p>
+      <p v-else-if="reviews.length === 0" class="rounded-2xl border border-[#E3E8DC] bg-white p-5 text-sm text-[#7A866E]">
+        Sản phẩm chưa có đánh giá.
+      </p>
 
-            <p class="text-xs sm:text-sm text-[#3E4A2E] leading-relaxed italic">
-              "{{ item.quote }}"
-            </p>
-          </div>
+      <div v-else class="testimonials-marquee" aria-label="Đánh giá của khách hàng">
+        <div class="testimonials-track">
+          <div
+            v-for="copy in 2"
+            :key="copy"
+            class="testimonials-group"
+            :aria-hidden="copy === 2 ? 'true' : undefined"
+          >
+            <article
+              v-for="item in reviews"
+              :key="`${copy}-${item.id}`"
+              class="testimonial-card"
+            >
+              <div class="space-y-4">
+                <div class="flex items-center gap-1 text-[#E8A020]" aria-label="Đánh giá sao">
+                  <Star
+                    v-for="star in 5"
+                    :key="star"
+                    class="h-4 w-4"
+                    :class="star <= item.rating ? 'fill-[#E8A020]' : 'text-[#D7DDCF]'"
+                  />
+                </div>
+                <p class="text-xs leading-relaxed text-[#3E4A2E] italic sm:text-sm">
+                  "{{ item.content }}"
+                </p>
+              </div>
 
-          <!-- User Info -->
-          <div class="flex items-center gap-3 pt-4 border-t border-[#F0F3EC]">
-            <div class="w-10 h-10 rounded-full bg-[#EBF7E5] text-[#6B7A3A] font-bold text-xs flex items-center justify-center shrink-0">
-              {{ item.initials }}
-            </div>
-            <div class="min-w-0">
-              <h4 class="font-heading text-xs font-bold text-[#242424] truncate">
-                {{ item.name }}
-              </h4>
-              <p class="text-[11px] text-[#7A866E] truncate">
-                {{ item.role }}
-              </p>
-            </div>
+              <div class="flex items-center gap-3 border-t border-[#F0F3EC] pt-4">
+                <div class="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#EBF7E5] text-xs font-bold text-[#6B7A3A]">
+                  <span>{{ item.author.slice(0, 2).toUpperCase() }}</span>
+                  <img
+                    v-if="item.avatarUrl && !failedAvatarIds.has(item.id)"
+                    :src="item.avatarUrl"
+                    :alt="`Ảnh đại diện của ${item.author}`"
+                    class="absolute inset-0 h-full w-full object-cover"
+                    loading="lazy"
+                    @error="markAvatarFailed(item.id)"
+                  />
+                </div>
+                <div class="min-w-0">
+                  <h4 class="truncate font-heading text-xs font-bold text-[#242424]">
+                    {{ item.author }}
+                  </h4>
+                  <p class="truncate text-[11px] text-[#7A866E]">
+                    {{ item.productName }}
+                  </p>
+                </div>
+              </div>
+            </article>
           </div>
         </div>
       </div>
     </div>
   </section>
 </template>
+
+<style scoped>
+.testimonials-marquee {
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
+}
+
+.testimonials-track {
+  display: flex;
+  width: max-content;
+  animation: testimonials-scroll 36s linear infinite;
+}
+
+.testimonials-group {
+  display: flex;
+  flex: none;
+  gap: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+.testimonial-card {
+  display: flex;
+  width: min(82vw, 440px);
+  flex: none;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.5rem;
+  border: 1px solid #e3e8dc;
+  border-radius: 1.5rem;
+  background: white;
+  padding: 1.5rem;
+  text-align: left;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.testimonial-card:hover {
+  border-color: #6b7a3a;
+  box-shadow: 0 12px 28px rgb(45 59 30 / 12%);
+}
+
+.testimonials-marquee:hover .testimonials-track,
+.testimonials-marquee:focus-within .testimonials-track {
+  animation-play-state: paused;
+}
+
+@keyframes testimonials-scroll {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .testimonials-track {
+    animation: none;
+  }
+
+  .testimonials-group[aria-hidden='true'] {
+    display: none;
+  }
+}
+</style>

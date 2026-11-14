@@ -3,7 +3,6 @@ import type { ChatSuggestedProduct } from '../types/chat.js';
 import { INITIAL_PRODUCTS } from '../db/seedData.js';
 import { getPool, isDbConnected, queryPostgres } from '../db/index.js';
 
-// In-memory runtime cache when DB is in fallback mode
 let memoryProducts: Product[] = INITIAL_PRODUCTS.map((p) => ({
   ...p,
   basePrice: p.price,
@@ -14,8 +13,6 @@ let memoryProducts: Product[] = INITIAL_PRODUCTS.map((p) => ({
   updatedAt: new Date().toISOString(),
 }));
 
-
-// API aliases preserve the frontend contract while PostgreSQL uses normalized tables.
 const productReadSql = `
   SELECT p.product_id AS id, p.code, p.name, c.category_id::text AS category,
          c.name AS category_name, p.price, p.image_url,
@@ -25,7 +22,7 @@ const productReadSql = `
          COALESCE(reviews.rating, 0)::text AS rating,
          COALESCE(reviews.review_count, 0)::int AS review_count,
          COALESCE((SELECT SUM(oi.quantity) FROM order_items oi
-                   JOIN orders o ON o.id = oi.order_id
+                   JOIN orders o ON o.order_id = oi.order_id
                    WHERE oi.product_id = p.product_id AND o.status = 'delivered'), 0) AS sold_count
   FROM products p
   LEFT JOIN categories c ON c.category_id = p.category_id
@@ -117,6 +114,7 @@ export async function findProducts(
   filter: ProductFilterQuery,
   requirePostgres = false,
   executeQuery = queryPostgres,
+  requireCompleteNutrition = false,
 ): Promise<{ products: Product[]; total: number }> {
   const page = filter.page && filter.page > 0 ? Number(filter.page) : 1;
   const limit = filter.limit && filter.limit > 0 ? Number(filter.limit) : 12;
@@ -127,6 +125,10 @@ export async function findProducts(
       const conditions: string[] = ['status = TRUE'];
       const values: unknown[] = [];
       let paramIdx = 1;
+
+      if (requireCompleteNutrition) {
+        conditions.push('calories IS NOT NULL AND protein IS NOT NULL AND carbs IS NOT NULL AND fat IS NOT NULL AND sugar IS NOT NULL');
+      }
 
       if (filter.categories?.length) {
         conditions.push(`category = ANY($${paramIdx++}::text[])`);
@@ -169,12 +171,10 @@ export async function findProducts(
         paramIdx++;
       }
 
-      // Count query
       const countSql = `SELECT COUNT(*) AS count FROM (${productReadSql}) products WHERE ${conditions.join(' AND ')}`;
       const countResult = await executeQuery<{ count: string }>(countSql, values);
       const total = parseInt(countResult.rows[0]?.count || '0', 10);
 
-      // Sorting
       let orderBy = 'ORDER BY id ASC';
       if (filter.sort === 'price_asc') orderBy = 'ORDER BY price ASC';
       else if (filter.sort === 'price_desc') orderBy = 'ORDER BY price DESC';
@@ -207,8 +207,12 @@ export async function findProducts(
     }
   }
 
-  // Fallback in-memory filter
   let list = [...memoryProducts].filter((p) => p.status !== false);
+
+  if (requireCompleteNutrition) {
+    list = list.filter(product => [product.nutrition.calories, product.nutrition.protein,
+      product.nutrition.carbs, product.nutrition.fat, product.nutrition.sugar].every(Number.isFinite));
+  }
 
   if (filter.categories?.length) {
     list = list.filter((product) => filter.categories!.includes(product.category));
@@ -235,7 +239,6 @@ export async function findProducts(
     list = list.filter((p) => p.nutrition.protein >= filter.minProtein!);
   }
 
-  // In-memory sorting
   if (filter.sort === 'price_asc') list.sort((a, b) => a.price - b.price);
   else if (filter.sort === 'price_desc') list.sort((a, b) => b.price - a.price);
   else if (filter.sort === 'calories_asc') list.sort((a, b) => a.nutrition.calories - b.nutrition.calories);
@@ -248,26 +251,21 @@ export async function findProducts(
   else if (filter.sort === 'newest') list.sort((a, b) => b.id.localeCompare(a.id));
 
   const total = list.length;
-  const paginatedList = list.slice(offset, offset + limit);
-
-  return {
-    products: paginatedList,
-    total,
-  };
+  return { products: list.slice(offset, offset + limit), total };
 }
 
 export async function getTotalSoldProducts(executeQuery = queryPostgres): Promise<number> {
   const result = await executeQuery<{ total_sold: string }>(`
     SELECT COALESCE(SUM(oi.quantity), 0) AS total_sold
     FROM order_items oi
-    JOIN orders o ON o.id = oi.order_id
+    JOIN orders o ON o.order_id = oi.order_id
     WHERE o.status = 'delivered'
   `);
   return Number(result.rows[0]?.total_sold ?? 0);
 }
 
 export async function findChatProducts(filter: ProductFilterQuery, executeQuery = queryPostgres): Promise<ChatSuggestedProduct[]> {
-  const result = await findProducts({ ...filter, limit: 50, page: 1 }, true, executeQuery);
+  const result = await findProducts({ ...filter, limit: 50, page: 1 }, true, executeQuery, true);
   return result.products.filter(product => [product.nutrition.calories, product.nutrition.protein,
     product.nutrition.carbs, product.nutrition.fat, product.nutrition.sugar].every(Number.isFinite)).slice(0, 3);
 }

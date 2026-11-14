@@ -76,6 +76,8 @@ export interface Category {
 }
 
 export interface AdminProductItem {
+  categoryId?: string;
+  usageInstruction?: string;
   id: string;
   sku: string;
   name: string;
@@ -98,6 +100,16 @@ export interface AdminProductItem {
   reviewCount?: number;
   soldCount?: number;
   unit?: string;
+}
+
+export interface AdminCategoryRecord {
+  status: boolean;
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  productCount: number;
+  products: Pick<AdminProductItem,'id' | 'sku' | 'name' | 'price' | 'image' | 'status'>[];
 }
 
 export interface CartItem {

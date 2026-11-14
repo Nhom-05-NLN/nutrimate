@@ -47,41 +47,43 @@ function formatVnd(amount: number): string {
 <template>
   <div class="space-y-10 py-6 max-w-6xl mx-auto">
     <!-- Header Banner: Nutritionist Profile -->
-    <div class="bg-linear-to-br from-emerald-900 via-emerald-800 to-teal-950 text-white rounded-4xl p-6 sm:p-10 border border-emerald-700/50 shadow-xl relative overflow-hidden">
-      <div class="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="relative overflow-hidden rounded-3xl border border-[#CCD7BC] bg-linear-to-br from-[#2D3B1E] via-[#3B4E24] to-[#536124] p-6 text-white shadow-lg sm:p-9">
+      <div class="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#C5E29B]/10 blur-3xl"></div>
 
-      <div class="relative z-10 flex flex-col md:flex-row items-center gap-8">
+      <div class="relative z-10 flex flex-col items-center gap-6 md:flex-row md:gap-8">
         <div class="relative shrink-0">
           <img
-            src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80"
-            alt="ThS. BS. Nguyễn Minh Châu"
-            class="w-32 h-32 sm:w-36 sm:h-36 rounded-3xl object-cover border-4 border-emerald-400/40 shadow-2xl"
+            :src="NUTRITIONIST_ARTICLES[0]?.author.avatar"
+            :alt="NUTRITIONIST_ARTICLES[0]?.author.name || 'Tác giả NutriMate'"
+            class="h-28 w-28 rounded-2xl border-4 border-white/25 object-cover shadow-xl sm:h-32 sm:w-32"
           />
-          <div class="absolute -bottom-2 -right-2 bg-emerald-500 text-slate-950 p-2 rounded-xl shadow-md" title="Bác sĩ xác thực">
-            <UserCheck class="w-4 h-4" />
+          <div class="absolute -bottom-2 -right-2 rounded-xl border border-[#CCD7BC] bg-[#F7F3E8] p-2 text-[#4D6A34] shadow-md" title="Tác giả chuyên mục">
+            <UserCheck class="h-4 w-4" />
           </div>
         </div>
 
-        <div class="space-y-3 text-center md:text-left flex-1">
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-700/60 border border-emerald-500/30 text-emerald-200 text-xs font-semibold">
-            <Sparkles class="w-3.5 h-3.5 text-emerald-400" />
-            <span>Chuyên Mục Cố Vấn Y Khoa NutriMate</span>
+        <div class="flex-1 space-y-3 text-center md:text-left">
+          <div class="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-[#E4EDCF]">
+            <Sparkles class="h-3.5 w-3.5 text-[#C5E29B]" />
+            <span>GÓC KIẾN THỨC NUTRIMATE</span>
           </div>
 
-          <h1 class="text-2xl sm:text-4xl font-extrabold font-heading tracking-tight text-white">
-            Góc Chuyên Gia & Dinh Dưỡng Khoa Học
+          <h1 class="font-heading text-2xl font-black tracking-tight text-white sm:text-4xl">
+            Kiến thức dinh dưỡng dễ áp dụng
           </h1>
 
-          <p class="text-xs sm:text-sm text-emerald-100/90 leading-relaxed max-w-2xl">
-            Chủ biên bởi <strong>ThS. BS. Nguyễn Minh Châu</strong> — Chuyên gia Dinh dưỡng Lâm sàng với hơn 12 năm nghiên cứu và tư vấn dinh dưỡng cho người ăn kiêng, thể thao và kiểm soát đường huyết.
+          <p class="max-w-2xl text-sm leading-relaxed text-white/80">
+            Bài viết được biên soạn bởi <strong class="text-white">{{ NUTRITIONIST_ARTICLES[0]?.author.name }}</strong>
+            <span v-if="NUTRITIONIST_ARTICLES[0]?.author.title"> — {{ NUTRITIONIST_ARTICLES[0].author.title }}</span>.
+            Cùng tìm hiểu cách ăn uống phù hợp với mục tiêu và nhịp sống của bạn.
           </p>
 
-          <div class="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-2 text-xs text-emerald-200">
-            <span class="flex items-center gap-1.5">
-              <CheckCircle2 class="w-4 h-4 text-emerald-400" /> 100% Nghiên cứu y học chứng minh
+          <div class="flex flex-wrap items-center justify-center gap-3 pt-1 text-xs text-[#E4EDCF] md:justify-start">
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5">
+              <BookOpen class="h-3.5 w-3.5 text-[#C5E29B]" /> {{ NUTRITIONIST_ARTICLES.length }} bài viết
             </span>
-            <span class="flex items-center gap-1.5">
-              <CheckCircle2 class="w-4 h-4 text-emerald-400" /> Đã thẩm định chỉ số Macro
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5">
+              <CheckCircle2 class="h-3.5 w-3.5 text-[#C5E29B]" /> Nội dung tham khảo
             </span>
           </div>
         </div>
@@ -89,127 +91,135 @@ function formatVnd(amount: number): string {
     </div>
 
     <!-- Category Filter Tabs -->
-    <div class="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-[#6B7A3A]">Khám phá theo chủ đề</p>
+        <h2 class="mt-1 font-heading text-xl font-black text-[#242424] sm:text-2xl">Bài viết mới nhất</h2>
+      </div>
+      <div class="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar" aria-label="Lọc bài viết theo chủ đề">
       <button
         v-for="cat in categories"
         :key="cat.id"
         type="button"
         @click="selectedCategory = cat.id"
-        class="px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all shrink-0 min-h-[44px]"
+        class="min-h-11 shrink-0 rounded-xl px-4 py-2.5 text-xs font-bold transition-all sm:text-sm"
         :class="
           selectedCategory === cat.id
-            ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/20'
-            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            ? 'bg-[#4D6A34] text-white shadow-md shadow-[#3B4E24]/20'
+            : 'border border-[#E3E8DC] bg-white text-[#576449] hover:border-[#9EAB83] hover:bg-[#F7F9F4]'
         "
       >
         {{ cat.label }}
       </button>
+      </div>
     </div>
 
     <!-- Articles Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div v-if="filteredArticles.length" class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
       <article
         v-for="article in filteredArticles"
         :key="article.id"
-        class="bg-white rounded-3xl border border-slate-200/90 overflow-hidden hover:shadow-xl hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between group"
+        class="group flex flex-col justify-between overflow-hidden rounded-3xl border border-[#E3E8DC] bg-white shadow-2xs transition-all duration-300 hover:-translate-y-1 hover:border-[#9EAB83] hover:shadow-lg"
       >
         <div>
           <!-- Thumbnail -->
-          <div class="aspect-16/10 overflow-hidden relative cursor-pointer" @click="readingArticle = article">
+          <button type="button" class="relative block aspect-16/10 w-full cursor-pointer overflow-hidden bg-[#F0F3EC] text-left" @click="readingArticle = article" :aria-label="`Đọc bài viết: ${article.title}`">
             <img
               :src="article.thumbnail"
               :alt="article.title"
-              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              loading="lazy"
+              class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
-            <span class="absolute top-3 left-3 px-3 py-1 rounded-full bg-slate-900/80 text-white text-[11px] font-bold backdrop-blur-xs">
+            <span class="absolute left-3 top-3 rounded-full border border-white/30 bg-[#26351E]/75 px-3 py-1.5 text-[11px] font-bold text-white backdrop-blur">
               {{ article.categoryLabel }}
             </span>
-          </div>
+          </button>
 
           <!-- Content snippet -->
-          <div class="p-6 space-y-3">
-            <div class="flex items-center gap-3 text-xs text-slate-400">
-              <span class="flex items-center gap-1">
-                <Clock class="w-3.5 h-3.5" /> {{ article.readTime }}
+          <div class="space-y-3 p-5">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[#7A866E]">
+              <span class="inline-flex items-center gap-1">
+                <Clock class="h-3.5 w-3.5" /> {{ article.readTime }}
               </span>
-              <span>•</span>
-              <span class="flex items-center gap-1">
-                <Calendar class="w-3.5 h-3.5" /> {{ article.publishedDate }}
+              <span class="inline-flex items-center gap-1">
+                <Calendar class="h-3.5 w-3.5" /> {{ article.publishedDate }}
               </span>
             </div>
 
-            <h2
-              @click="readingArticle = article"
-              class="font-heading text-lg font-bold text-slate-900 line-clamp-2 hover:text-emerald-700 transition-colors cursor-pointer"
-            >
+            <h3 class="line-clamp-2 font-heading text-base font-bold leading-snug text-[#242424] transition-colors group-hover:text-[#4D6A34] sm:text-lg">
               {{ article.title }}
-            </h2>
+            </h3>
 
-            <p class="text-xs sm:text-sm text-slate-600 line-clamp-3 leading-relaxed">
+            <p class="line-clamp-3 text-xs leading-relaxed text-[#576449] sm:text-sm">
               {{ article.excerpt }}
             </p>
           </div>
         </div>
 
         <!-- Read Action -->
-        <div class="p-6 pt-0">
+        <div class="px-5 pb-5">
           <button
             type="button"
             @click="readingArticle = article"
-            class="w-full py-2.5 rounded-xl border border-emerald-200 text-emerald-800 hover:bg-emerald-50 text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-colors min-h-[44px]"
+            class="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#CCD7BC] bg-[#F7F9F4] py-2.5 text-xs font-bold text-[#3B4E24] transition-colors hover:border-[#6B7A3A] hover:bg-[#EBF1E3] sm:text-sm"
           >
-            <BookOpen class="w-4 h-4" />
+            <BookOpen class="h-4 w-4" />
             <span>Đọc bài viết chi tiết</span>
-            <ArrowRight class="w-4 h-4" />
+            <ArrowRight class="h-4 w-4" />
           </button>
         </div>
       </article>
+    </div>
+    <div v-else class="rounded-3xl border border-[#E3E8DC] bg-white px-6 py-12 text-center">
+      <BookOpen class="mx-auto h-8 w-8 text-[#8E966D]" />
+      <p class="mt-3 font-heading font-bold text-[#2D3B1E]">Chưa có bài viết trong chủ đề này</p>
+      <p class="mt-1 text-sm text-[#7A866E]">Hãy chọn một chủ đề khác để tiếp tục khám phá.</p>
     </div>
 
     <!-- Article Detail Modal -->
     <div
       v-if="readingArticle"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/60 backdrop-blur-xs overflow-y-auto"
+      class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#1D2819]/65 p-4 backdrop-blur-sm sm:p-6"
       @click.self="readingArticle = null"
     >
       <div
-        class="relative w-full max-w-3xl bg-white rounded-4xl shadow-2xl border border-slate-200 overflow-hidden my-8 max-h-[85vh] flex flex-col"
+        class="relative my-8 flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-[#D5DFC8] bg-[#FDFCF8] shadow-2xl"
         role="dialog"
         aria-modal="true"
       >
         <!-- Modal Header -->
-        <div class="p-6 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
-          <div class="flex items-center gap-2 text-xs font-semibold text-emerald-700 uppercase tracking-wider">
-            <BookOpen class="w-4 h-4" />
+        <div class="flex items-center justify-between border-b border-[#E3E8DC] bg-[#F7F9F4] px-5 py-4 sm:px-7">
+          <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#536124]">
+            <BookOpen class="h-4 w-4" />
             <span>{{ readingArticle.categoryLabel }}</span>
           </div>
 
           <button
             type="button"
             @click="readingArticle = null"
-            class="w-9 h-9 rounded-full bg-slate-200/80 hover:bg-slate-300 text-slate-700 flex items-center justify-center transition-colors min-h-[44px] min-w-[44px]"
+            class="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#576449] shadow-sm transition-colors hover:bg-[#EBF1E3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6B7A3A]"
             aria-label="Đóng bài viết"
           >
-            <X class="w-5 h-5" />
+            <X             class="h-5 w-5" />
           </button>
         </div>
 
         <!-- Modal Scrollable Content -->
-        <div class="p-6 sm:p-8 overflow-y-auto space-y-6">
-          <h2 class="font-heading text-2xl sm:text-3xl font-extrabold text-slate-900 leading-snug">
+        <div class="space-y-6 overflow-y-auto p-5 sm:p-8">
+          <h2 class="font-heading text-2xl font-black leading-snug text-[#242424] sm:text-3xl">
             {{ readingArticle.title }}
           </h2>
 
           <!-- Author Box -->
-          <div class="flex items-center gap-3 p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200/60">
+          <div class="flex items-center gap-3 rounded-2xl border border-[#D5DFC8] bg-[#F1F5EB] p-3.5">
             <img
               :src="readingArticle.author.avatar"
               :alt="readingArticle.author.name"
-              class="w-12 h-12 rounded-xl object-cover border border-emerald-300"
+              class="h-12 w-12 rounded-xl border border-[#CCD7BC] object-cover"
             />
             <div>
-              <strong class="text-xs sm:text-sm font-bold text-slate-900 block">{{ readingArticle.author.name }}</strong>
-              <span class="text-[11px] text-slate-500 block">{{ readingArticle.author.title }} • {{ readingArticle.author.hospital }}</span>
+              <strong class="block text-xs font-bold text-[#242424] sm:text-sm">{{ readingArticle.author.name }}</strong>
+              <span class="block text-[11px] text-[#7A866E]">{{ readingArticle.author.title }} • {{ readingArticle.author.hospital }}</span>
             </div>
           </div>
 
@@ -217,49 +227,49 @@ function formatVnd(amount: number): string {
           <img
             :src="readingArticle.thumbnail"
             :alt="readingArticle.title"
-            class="w-full aspect-16/9 object-cover rounded-3xl"
+            class="aspect-16/9 w-full rounded-2xl border border-[#E3E8DC] object-cover"
           />
 
           <!-- Key Takeaways Callout -->
-          <div class="p-5 rounded-3xl bg-amber-50/70 border border-amber-200/70 space-y-2">
-            <strong class="font-heading text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-              <CheckCircle2 class="w-4 h-4 text-amber-600" />
+          <div class="space-y-2 rounded-2xl border border-[#D9DFC4] bg-[#F4F5EA] p-5">
+            <strong class="flex items-center gap-1.5 font-heading text-xs font-bold uppercase tracking-wider text-[#3B4E24]">
+              <CheckCircle2 class="h-4 w-4 text-[#6B7A3A]" />
               Điểm cốt lõi cần nhớ:
             </strong>
-            <ul class="space-y-1.5 text-xs sm:text-sm text-slate-700 pl-2">
+            <ul class="space-y-1.5 pl-2 text-xs text-[#576449] sm:text-sm">
               <li v-for="point in readingArticle.keyTakeaways" :key="point" class="flex items-start gap-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mt-2 shrink-0"></span>
+                <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#8E966D]"></span>
                 <span>{{ point }}</span>
               </li>
             </ul>
           </div>
 
           <!-- Paragraphs -->
-          <div class="space-y-4 text-sm sm:text-base text-slate-700 leading-relaxed">
+          <div class="space-y-4 text-sm leading-relaxed text-[#3E4A2E] sm:text-base">
             <p v-for="(para, idx) in readingArticle.contentParagraphs" :key="idx">
               {{ para }}
             </p>
           </div>
 
           <!-- Recommended Foods in Article -->
-          <div class="pt-6 border-t border-slate-200 space-y-4">
-            <h3 class="font-heading text-sm font-bold uppercase tracking-wider text-slate-900">
+          <div class="space-y-4 border-t border-[#E3E8DC] pt-6">
+            <h3 class="font-heading text-sm font-bold uppercase tracking-wider text-[#2D3B1E]">
               Thực phẩm đề xuất trong bài viết:
             </h3>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div
                 v-for="prod in getRecommendedProducts(readingArticle.recommendedProductIds)"
                 :key="prod.id"
-                class="p-3 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between"
+                class="flex flex-col justify-between rounded-2xl border border-[#E3E8DC] bg-white p-3"
               >
-                <img :src="prod.image" :alt="prod.name" class="w-full aspect-4/3 object-cover rounded-xl mb-2" />
-                <h4 class="font-heading text-xs font-bold text-slate-900 line-clamp-1">{{ prod.name }}</h4>
-                <div class="flex items-center justify-between text-xs mt-2">
-                  <span class="font-bold text-emerald-700">{{ formatVnd(prod.price) }}</span>
+                <img :src="prod.image" :alt="prod.name" class="mb-2 aspect-4/3 w-full rounded-xl object-cover" />
+                <h4 class="line-clamp-1 font-heading text-xs font-bold text-[#242424]">{{ prod.name }}</h4>
+                <div class="mt-2 flex items-center justify-between text-xs">
+                  <span class="font-bold text-[#4D6A34]">{{ formatVnd(prod.price) }}</span>
                   <button
                     type="button"
                     @click="cartStore.addItem(prod, 1)"
-                    class="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white"
+                    class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#4D6A34] text-white transition-colors hover:bg-[#3B4E24]"
                     title="Thêm vào giỏ"
                   >
                     <ShoppingBag class="w-3.5 h-3.5" />
