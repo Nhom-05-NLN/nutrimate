@@ -61,7 +61,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="w-full border-b border-[#D5DFC8] bg-linear-to-b from-[#EDEDE1] to-[#DFE3CE] py-8 lg:flex lg:min-h-[calc(100svh-82px)] lg:items-center lg:py-6">
+  <section class="home-hero-banner w-full border-b border-[#BFCBA4] py-8 lg:flex lg:min-h-[calc(100svh-82px)] lg:items-center lg:py-6">
     <div class="relative mx-auto w-full max-w-[1316px] px-4 sm:px-8">
       <div class="grid grid-cols-1 items-center gap-7 lg:grid-cols-12 lg:gap-10">
         <!-- Cột Trái: Thông điệp & CTA -->
@@ -123,7 +123,7 @@ onBeforeUnmount(() => {
                 :key="currentProduct.id"
                 :src="currentProduct.image"
                 :alt="currentProduct.name"
-                class="hero-photo-drift absolute inset-0 h-full w-full object-cover"
+                class="absolute inset-0 h-full w-full object-cover"
               />
             </Transition>
             <div v-if="currentProduct" class="absolute inset-0 bg-linear-to-t from-[#10190F]/95 via-[#172013]/30 to-transparent"></div>
@@ -223,74 +223,62 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.hero-product-card {
-  isolation: isolate;
-  animation: hero-card-enter 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+.home-hero-banner {
+  background-color: #c8d2ae;
+  background-image:
+    radial-gradient(ellipse at 12% 18%, rgb(255 255 255 / 52%), transparent 42%),
+    radial-gradient(ellipse at 88% 82%, rgb(107 122 58 / 14%), transparent 40%),
+    linear-gradient(to bottom, #dce3ca, #c8d2ae);
 }
 
-.hero-photo-drift {
-  animation: hero-photo-drift 6s ease-in-out infinite alternate;
+.hero-product-card {
+  isolation: isolate;
+  animation: hero-card-enter 350ms ease-out both;
 }
 
 .hero-product-copy {
-  animation: hero-copy-enter 450ms ease-out both;
+  animation: hero-copy-enter 250ms ease-out both;
 }
 
 @keyframes hero-card-enter {
   from {
     opacity: 0;
-    transform: translateY(18px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes hero-photo-drift {
-  from {
-    transform: scale(1.02);
-  }
-  to {
-    transform: scale(1.1);
   }
 }
 
 @keyframes hero-copy-enter {
   from {
     opacity: 0;
-    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
 .hero-slide-enter-active,
 .hero-slide-leave-active {
-  transition: opacity 700ms ease, transform 1800ms ease;
+  transition: opacity 500ms ease;
 }
 
 .hero-slide-enter-from,
 .hero-slide-leave-to {
   opacity: 0;
-  transform: scale(1.04);
 }
 
 .hero-copy-enter-active,
 .hero-copy-leave-active {
-  transition: opacity 220ms ease, transform 220ms ease;
+  transition: opacity 200ms ease;
 }
 
 .hero-copy-enter-from {
   opacity: 0;
-  transform: translateY(8px);
 }
 
 .hero-copy-leave-to {
   opacity: 0;
-  transform: translateY(-8px);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -299,7 +287,6 @@ onBeforeUnmount(() => {
   .hero-copy-enter-active,
   .hero-copy-leave-active,
   .hero-product-card,
-  .hero-photo-drift,
   .hero-product-copy {
     transition: none;
     animation: none;

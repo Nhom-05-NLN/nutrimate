@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useCartStore } from '../../stores/cartStore';
 import { useProductStore } from '../../stores/productStore';
@@ -38,6 +38,7 @@ const isSearching = ref(false);
 const searchError = ref('');
 const isMobileMenuOpen = ref(false);
 const isUserDropdownOpen = ref(false);
+const userMenuRef = ref<HTMLElement | null>(null);
 let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 let searchRequestId = 0;
 const recentSearchesStorageKey = 'nutrimate.recent-searches';
@@ -154,7 +155,22 @@ async function handleCustomerLogout() {
   await router.replace({ name: 'home' });
 }
 
+function handleDocumentPointerDown(event: PointerEvent) {
+  if (
+    isUserDropdownOpen.value &&
+    event.target instanceof Node &&
+    !userMenuRef.value?.contains(event.target)
+  ) {
+    isUserDropdownOpen.value = false;
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', handleDocumentPointerDown);
+});
+
 onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleDocumentPointerDown);
   if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
 });
 </script>
@@ -253,32 +269,32 @@ onBeforeUnmount(() => {
         <nav class="hidden lg:flex items-center gap-8 text-sm font-bold text-[#333333]">
           <RouterLink
             to="/"
-            exact-active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
-            class="py-1 hover:text-[#6B7A3A] transition-colors relative"
+            exact-active-class="nav-link-active"
+            class="nav-link"
           >
             Trang chủ
           </RouterLink>
 
           <RouterLink
             to="/catalog"
-            active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
-            class="py-1 hover:text-[#6B7A3A] transition-colors relative"
+            active-class="nav-link-active"
+            class="nav-link"
           >
             Sản phẩm
           </RouterLink>
 
           <RouterLink
             to="/nutrition"
-            active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
-            class="py-1 hover:text-[#6B7A3A] transition-colors relative"
+            active-class="nav-link-active"
+            class="nav-link"
           >
             Dinh dưỡng
           </RouterLink>
 
           <RouterLink
             to="/orders"
-            active-class="text-[#242424] border-b-[2.5px] border-[#6B7A3A] pb-0.5"
-            class="py-1 hover:text-[#6B7A3A] transition-colors relative"
+            active-class="nav-link-active"
+            class="nav-link"
           >
             Đơn hàng
           </RouterLink>
@@ -299,7 +315,7 @@ onBeforeUnmount(() => {
           <button
             type="button"
             @click="cartStore.openCart()"
-            class="relative w-11 h-11 rounded-full flex items-center justify-center text-[#242424] hover:bg-[#EBF7E5] transition-colors cursor-pointer"
+            class="navbar-icon-button relative flex h-11 w-11 items-center justify-center rounded-full text-[#242424]"
             title="Xem giỏ hàng của bạn"
             aria-label="Giỏ hàng"
           >
@@ -313,11 +329,11 @@ onBeforeUnmount(() => {
           </button>
 
           <!-- User Account Pill Button -->
-          <div class="relative">
+          <div ref="userMenuRef" class="relative">
             <button
               type="button"
               @click="isUserDropdownOpen = !isUserDropdownOpen"
-              class="inline-flex items-center gap-2 rounded-full border border-[#D0D3BE] bg-white px-2 py-1.5 text-xs font-bold text-[#242424] shadow-2xs transition-all hover:bg-[#FEFDF8] sm:px-3"
+              class="navbar-user-button inline-flex items-center gap-2 rounded-full border border-[#D0D3BE] bg-white px-2 py-1.5 text-xs font-bold text-[#242424] shadow-2xs sm:px-3"
             >
               <span class="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-[#EBF1E3] text-[10px] font-bold text-[#536124]">
                 <img v-if="authStore.currentUser?.avatar" :src="authStore.currentUser.avatar" alt="" class="h-full w-full object-cover" />
@@ -388,7 +404,7 @@ onBeforeUnmount(() => {
                   v-if="authStore.currentUser"
                   to="/profile"
                   @click="isUserDropdownOpen = false"
-                  class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#F4F7EF] transition-colors group"
+                  class="user-dropdown-item group flex items-center gap-3 rounded-xl px-3 py-3"
                 >
                   <UserRoundPen class="w-[19px] h-[19px] text-[#71813B]" />
 
@@ -407,7 +423,7 @@ onBeforeUnmount(() => {
                   v-if="authStore.currentUser?.role === 'admin'"
                   to="/admin"
                   @click="isUserDropdownOpen = false"
-                  class="flex items-center gap-3 rounded-xl bg-[#F4F7EF] px-3 py-3 transition-colors group hover:bg-[#EBF7E5]"
+                  class="user-dropdown-item group flex items-center gap-3 rounded-xl bg-[#F4F7EF] px-3 py-3"
                 >
                   <ShieldCheck class="h-[19px] w-[19px] text-[#536124]" />
                   <div class="flex-1 min-w-0">
@@ -417,7 +433,7 @@ onBeforeUnmount(() => {
                   <ChevronRight class="h-4 w-4 text-[#A3AA98] group-hover:text-[#536124]" />
                 </RouterLink>
 
-                <RouterLink v-if="authStore.currentUser" to="/nutrition" @click="isUserDropdownOpen = false" class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#F4F7EF] transition-colors group">
+                <RouterLink v-if="authStore.currentUser" to="/nutrition" @click="isUserDropdownOpen = false" class="user-dropdown-item group flex items-center gap-3 rounded-xl px-3 py-3">
                   <Leaf class="w-[19px] h-[19px] text-[#71813B]" />
 
                   <div class="flex-1 min-w-0">
@@ -431,7 +447,7 @@ onBeforeUnmount(() => {
                   />
                 </RouterLink>
 
-                <RouterLink  to="/orders" @click="isUserDropdownOpen = false" class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#F4F7EF] transition-colors group">
+                <RouterLink  to="/orders" @click="isUserDropdownOpen = false" class="user-dropdown-item group flex items-center gap-3 rounded-xl px-3 py-3">
                   <ShoppingBag class="w-[19px] h-[19px] text-[#71813B]" />
 
                   <div class="flex-1 min-w-0">
@@ -465,10 +481,9 @@ onBeforeUnmount(() => {
                 <button
                   type="button"
                   @click="handleCustomerLogout"
-                  class="w-full flex items-center gap-3 px-3 py-1 rounded-xl
-                        text-rose-600 hover:bg-rose-50 transition-colors"
+                  class="user-logout-button group flex w-full items-center gap-3 rounded-xl px-3 py-2 text-rose-600"
                 >
-                  <LogOut class="w-[19px] h-[19px]" />
+                  <LogOut class="h-[19px] w-[19px]" />
 
                   <span class="text-[13px] font-semibold">
                     Đăng xuất
@@ -520,6 +535,7 @@ onBeforeUnmount(() => {
               </button>
               <p v-if="!searchResults.length && !isSearching" class="px-4 py-3 text-xs text-[#7A866E]">Chưa tìm thấy sản phẩm phù hợp.</p>
             </template>
+
             <template v-if="recentSearches.length">
               <p class="border-t border-[#F0F3EC] px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider text-[#7A866E]">Tìm gần đây</p>
               <button v-for="(query, index) in recentSearches" :key="`${query}-${index}`" type="button" class="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs text-[#576449] hover:bg-[#F5F7F1]" @mousedown.prevent @click="selectRecentSearch(query)">
@@ -577,3 +593,124 @@ onBeforeUnmount(() => {
     </div>
   </header>
 </template>
+
+<style scoped>
+.nav-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 0.65rem;
+  transition: color 160ms ease;
+}
+
+.nav-link::after {
+  position: absolute;
+  right: 0.65rem;
+  bottom: 0.2rem;
+  left: 0.65rem;
+  height: 2px;
+  border-radius: 999px;
+  background-color: #6b7a3a;
+  content: "";
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 160ms ease;
+}
+
+.nav-link:hover,
+.nav-link:focus-visible {
+  color: #4d6a34;
+}
+
+.nav-link:hover::after,
+.nav-link:focus-visible::after,
+.nav-link-active::after {
+  transform: scaleX(1);
+}
+
+.nav-link-active {
+  color: #242424;
+}
+
+.nav-link:focus-visible {
+  outline: 2px solid #8ea675;
+  outline-offset: 2px;
+}
+
+.navbar-icon-button {
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.navbar-icon-button:hover,
+.navbar-icon-button:focus-visible {
+  color: #4d6a34;
+  transform: translateY(-2px);
+}
+
+.navbar-icon-button:hover :deep(svg),
+.navbar-icon-button:focus-visible :deep(svg) {
+  filter: drop-shadow(0 2px 3px rgb(77 106 52 / 24%));
+}
+
+.navbar-user-button {
+  transition: border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.navbar-user-button:hover,
+.navbar-user-button:focus-visible {
+  border-color: #9caf83;
+  color: #3b4e24;
+  box-shadow: 0 3px 10px rgb(45 59 30 / 12%);
+  transform: translateY(-1px);
+}
+
+.navbar-user-button:focus-visible {
+  outline: 2px solid #8ea675;
+  outline-offset: 2px;
+}
+
+.user-dropdown-item {
+  transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.user-dropdown-item:hover,
+.user-dropdown-item:focus-visible {
+  transform: translateX(2px);
+  background-color: #4d6a34;
+  box-shadow: 0 4px 10px rgb(45 59 30 / 16%);
+}
+
+.user-dropdown-item:hover :deep(p),
+.user-dropdown-item:hover :deep(svg),
+.user-dropdown-item:focus-visible :deep(p),
+.user-dropdown-item:focus-visible :deep(svg) {
+  color: #fff;
+}
+
+.user-logout-button {
+  border: 1px solid transparent;
+  transition: background-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+
+.user-logout-button:hover {
+  border-color: #f3d4d0;
+  background-color: #fbf3f1;
+  color: #a33a2b;
+}
+
+.user-logout-button:focus-visible {
+  outline: 2px solid #a33a2b;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-link,
+  .nav-link::after,
+  .navbar-icon-button,
+  .navbar-user-button,
+  .user-dropdown-item,
+  .user-logout-button {
+    transition: none;
+  }
+}
+</style>
