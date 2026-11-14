@@ -6,12 +6,14 @@ import {
   deleteUserAddress,
   editUserAddress,
   fetchCaloriePlan,
+  fetchProducts,
   fetchUserAddresses,
   saveCalorieProfile,
   setDefaultUserAddress,
   ShippingAddress,
   ShippingAddressInput,
 } from '../services/api';
+import { Product } from '../types';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import {
@@ -130,16 +132,101 @@ const availableDietPreferences = ['Low-Carb', 'Giàu Protein', 'Ít đường', 
 const dietPreferences = ref<string[]>([
   ...(authStore.currentUser?.dietPreferences ?? []),
 ]);
+watch(
+  () => authStore.currentUser?.dietPreferences,
+  (preferences) => {
+    dietPreferences.value = [...(preferences ?? [])];
+  },
+  { immediate: true },
+);
 const dietPreferencesSaving = ref(false);
 const currentDietLabel = computed(() => dietPreferences.value.join(' & ') || 'Chưa chọn');
-const suggestedFoodPackage = computed(() => ({
-  title: dietPreferences.value.length
-    ? `Gợi ý theo chế độ ${dietPreferences.value.slice(0, 2).join(' & ')}`
-    : 'Chưa có tiêu chí dinh dưỡng',
-  description: dietPreferences.value.length
-    ? `${dietPreferences.value.join(', ')}${caloriePlan.value ? ` • ${formatNumber(caloriePlan.value.targetCalories)} kcal/ngày` : ''}`
-    : 'Chọn tiêu chí dinh dưỡng để cá nhân hóa gợi ý.',
-}));
+const suggestedProduct = ref<Product | null>(null);
+const recommendationLoading = ref(true);
+const recommendationError = ref('');
+let recommendationRequestId = 0;
+
+function normalizeRecommendationText(value: string): string {
+  return value
+    .toLocaleLowerCase('vi')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd');
+}
+
+function matchesDietPreference(product: Product, preference: string): boolean {
+  const category = normalizeRecommendationText(`${product.category} ${product.categoryName}`);
+  const details = normalizeRecommendationText([
+    product.name,
+    product.description,
+    ...product.badges,
+    ...product.ingredients,
+  ].join(' '));
+  const { carbs, protein, sugar } = product.nutrition;
+
+  switch (preference) {
+    case 'Low-Carb':
+      return category.includes('low-carb') || category.includes('low carb') || carbs <= 10;
+    case 'Giàu Protein':
+      return category.includes('high-protein') || category.includes('giau dam') || protein >= 15;
+    case 'Ít đường':
+      return category.includes('sugar-free') || category.includes('khong duong') || sugar <= 5;
+    case 'Không bột ngọt':
+      return details.includes('khong bot ngot') || details.includes('msg-free');
+    case 'Keto chuẩn':
+      return details.includes('keto') && carbs <= 10;
+    default:
+      return false;
+  }
+}
+
+async function loadSuggestedProduct() {
+  const requestId = ++recommendationRequestId;
+  recommendationLoading.value = true;
+  recommendationError.value = '';
+  try {
+    let page = 1;
+    let totalPages = 1;
+    let match: Product | undefined;
+    do {
+      const result = await fetchProducts({ page, limit: 50, sort: 'sold_desc' });
+      totalPages = result.totalPages;
+      match = result.products.find((product) =>
+        product.stock > 0 &&
+        Number.isFinite(product.nutrition.calories) &&
+        Number.isFinite(product.nutrition.protein) &&
+        Number.isFinite(product.nutrition.carbs) &&
+        Number.isFinite(product.nutrition.sugar) &&
+        dietPreferences.value.every((preference) => matchesDietPreference(product, preference))
+      );
+      page += 1;
+    } while (!match && page <= totalPages);
+
+    if (requestId === recommendationRequestId) {
+      suggestedProduct.value = match ?? null;
+    }
+  } catch (error: unknown) {
+    if (requestId === recommendationRequestId) {
+      recommendationError.value = error instanceof Error
+        ? error.message
+        : 'Không thể tải gợi ý sản phẩm.';
+    }
+  } finally {
+    if (requestId === recommendationRequestId) {
+      recommendationLoading.value = false;
+    }
+  }
+}
+
+watch(dietPreferences, () => {
+  void loadSuggestedProduct();
+}, { deep: true, immediate: true });
+
+const suggestedProductDescription = computed(() => {
+  const product = suggestedProduct.value;
+  if (!product) return '';
+  return `${formatNumber(product.nutrition.calories)} kcal • ${formatNumber(product.nutrition.protein)}g protein / ${product.nutrition.servingSize}`;
+});
 
 function formatNumber(value: number | null | undefined): string {
   return value === null || value === undefined ? '—' : value.toLocaleString('vi-VN');
@@ -737,23 +824,35 @@ async function handleAvatarChange(event: Event) {
             <p v-else class="text-xs sm:text-sm text-[#4E5C3E] leading-relaxed">{{ planLoading ? 'Đang tải lộ trình Calories…' : 'Chưa có lộ trình. Hãy cập nhật số đo và mục tiêu.' }}</p>
           </div>
 
-        <!-- Gói thực phẩm gợi ý -->
+        <!-- Sản phẩm gợi ý từ danh mục đang bán -->
         <div class="p-5 rounded-3xl bg-white border border-[#E3E8DC] shadow-2xs flex items-center justify-between gap-4">
           <div class="flex items-center gap-3.5">
             <img
-              src="https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=140&q=80"
-              alt="combo"
+              v-if="suggestedProduct"
+              :src="suggestedProduct.image"
+              :alt="suggestedProduct.name"
               class="w-16 h-16 rounded-2xl object-cover"
             />
             <div>
-              <span class="text-xs font-bold text-[#7A866E] uppercase block">Gói thực phẩm gợi ý</span>
-              <h4 class="font-heading text-sm font-bold text-[#242424]">{{ suggestedFoodPackage.title }}</h4>
-              <span class="text-xs text-[#4D6A34] font-semibold">{{ suggestedFoodPackage.description }}</span>
+              <span class="text-xs font-bold text-[#7A866E] uppercase block">Sản phẩm gợi ý</span>
+              <h4 class="font-heading text-sm font-bold text-[#242424]">
+                {{ recommendationLoading ? 'Đang tìm sản phẩm phù hợp…' : suggestedProduct?.name ?? 'Chưa có sản phẩm phù hợp' }}
+              </h4>
+              <span v-if="suggestedProduct" class="text-xs text-[#4D6A34] font-semibold">
+                {{ suggestedProductDescription }}
+              </span>
+              <span v-else-if="recommendationError" class="text-xs text-rose-700">
+                {{ recommendationError }}
+              </span>
+              <span v-else-if="!recommendationLoading" class="text-xs text-[#7A866E]">
+                {{ dietPreferences.length ? 'Chưa tìm thấy sản phẩm còn hàng khớp tất cả ưu tiên dinh dưỡng đã chọn.' : 'Hiện chưa có sản phẩm còn hàng.' }}
+              </span>
             </div>
           </div>
           <RouterLink
-            to="/catalog"
+            :to="suggestedProduct ? { name: 'product-detail', params: { id: suggestedProduct.id } } : '/catalog'"
             class="w-11 h-11 rounded-2xl bg-[#EBF7E5] hover:bg-[#4D6A34] text-[#4D6A34] hover:text-white flex items-center justify-center transition-colors shrink-0"
+            :aria-label="suggestedProduct ? 'Xem sản phẩm gợi ý' : 'Xem danh mục sản phẩm'"
           >
             <ArrowRight class="w-5 h-5" />
           </RouterLink>
@@ -963,11 +1062,11 @@ async function handleAvatarChange(event: Event) {
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label for="address-receiver-name" class="mb-1.5 block text-xs font-bold text-[#576449]">Tên người nhận</label>
-                <input id="address-receiver-name" v-model="addressForm.receiverName" required maxlength="100" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
+                <input id="address-receiver-name" v-model="addressForm.receiverName" required maxlength="100" placeholder="Ví dụ: Nguyễn Văn An" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
               </div>
               <div>
                 <label for="address-receiver-phone" class="mb-1.5 block text-xs font-bold text-[#576449]">Số điện thoại</label>
-                <input id="address-receiver-phone" v-model="addressForm.receiverPhone" required maxlength="20" type="tel" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
+                <input id="address-receiver-phone" v-model="addressForm.receiverPhone" required maxlength="20" type="tel" placeholder="Ví dụ: 0912 345 678" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
               </div>
               <div>
                 <label for="address-house-number" class="mb-1.5 block text-xs font-bold text-[#576449]">Số nhà / căn hộ</label>
@@ -979,15 +1078,15 @@ async function handleAvatarChange(event: Event) {
               </div>
               <div>
                 <label for="address-hamlet" class="mb-1.5 block text-xs font-bold text-[#576449]">Ấp / thôn / khu phố <span class="font-normal">(nếu có)</span></label>
-                <input id="address-hamlet" v-model="addressForm.hamlet" maxlength="150" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
+                <input id="address-hamlet" v-model="addressForm.hamlet" maxlength="150" placeholder="Ví dụ: Khu phố 1" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
               </div>
               <div>
                 <label for="address-ward" class="mb-1.5 block text-xs font-bold text-[#576449]">Phường / xã</label>
-                <input id="address-ward" v-model="addressForm.ward" required maxlength="150" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
+                <input id="address-ward" v-model="addressForm.ward" required maxlength="150" placeholder="Ví dụ: Phường Bến Nghé" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
               </div>
               <div class="sm:col-span-2">
                 <label for="address-province" class="mb-1.5 block text-xs font-bold text-[#576449]">Tỉnh / thành phố</label>
-                <input id="address-province" v-model="addressForm.province" required maxlength="150" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
+                <input id="address-province" v-model="addressForm.province" required maxlength="150" placeholder="Ví dụ: TP. Hồ Chí Minh" class="w-full rounded-xl border border-[#DEE5D4] bg-white px-4 py-3 text-sm outline-none focus:border-[#4D6A34]" />
               </div>
             </div>
             <div class="flex flex-wrap justify-end gap-2">

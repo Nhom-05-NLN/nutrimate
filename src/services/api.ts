@@ -120,6 +120,13 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
     });
 
     if (!res.ok) {
+      if (
+        typeof window !== 'undefined' &&
+        res.status === 401 &&
+        !['/auth/customer/login', '/auth/admin/login', '/auth/register', '/auth/logout'].includes(endpoint)
+      ) {
+        window.dispatchEvent(new Event('nutrimate:session-expired'));
+      }
       let errorMsg = `Lỗi mạng HTTP ${res.status}`;
       try {
         const errorData = (await res.json()) as { message?: string };
