@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import * as voucherService from '../services/voucherService.js';
-import { CreateVoucherPayload } from '../types/index.js';
+import { CreateVoucherPayload, UpdateVoucherPayload } from '../types/index.js';
 
 export async function getVouchers(_req: Request, res: Response): Promise<void> {
   try {
@@ -58,6 +58,26 @@ export async function createVoucher(req: Request, res: Response): Promise<void> 
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Lỗi tạo voucher';
+    res.status(400).json({ success: false, message: msg });
+  }
+}
+
+export async function updateVoucher(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      res.status(400).json({ success: false, message: 'Thiếu mã định danh voucher' });
+      return;
+    }
+    const payload: UpdateVoucherPayload = req.body;
+    const updated = await voucherService.updateVoucher(id, payload);
+    res.json({
+      success: true,
+      data: updated,
+      message: `Đã cập nhật thành công voucher ${updated.code}`,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Lỗi cập nhật voucher';
     res.status(400).json({ success: false, message: msg });
   }
 }

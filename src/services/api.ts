@@ -6,6 +6,7 @@ import {
   ChatSuggestedProduct,
   CreateOrderPayload,
   CreateVoucherPayload,
+  UpdateVoucherPayload,
   KnowledgeBaseEntry,
   KnowledgeBaseEntryPayload,
   KnowledgeImportResult,
@@ -706,6 +707,17 @@ export async function createVoucherApi(payload: CreateVoucherPayload): Promise<V
   });
   if (!res.data) {
     throw new Error(res.message || 'Không thể tạo voucher');
+  }
+  return res.data;
+}
+
+export async function updateVoucherApi(id: string, payload: UpdateVoucherPayload): Promise<Voucher> {
+  const res = await fetchJson<ApiResponse<Voucher>>(`/vouchers/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  if (!res.data) {
+    throw new Error(res.message || 'Không thể cập nhật voucher');
   }
   return res.data;
 }

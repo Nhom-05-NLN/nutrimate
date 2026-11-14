@@ -1,4 +1,4 @@
-import { Voucher, VoucherDiscountType, VoucherTargetType } from '../types/index.js';
+import { Voucher, VoucherDiscountType, VoucherTargetType, UpdateVoucherPayload } from '../types/index.js';
 import { INITIAL_VOUCHERS } from '../db/seedData.js';
 import { isDbConnected, queryPostgres } from '../db/index.js';
 
@@ -160,6 +160,84 @@ export async function createVoucher(voucher: Voucher): Promise<Voucher> {
 
   memoryVouchers.unshift(voucher);
   return voucher;
+}
+
+export async function updateVoucher(id: string, payload: UpdateVoucherPayload): Promise<Voucher | null> {
+  const current = await getVoucherById(id);
+  if (!current) return null;
+
+  if (isDbConnected()) {
+    try {
+      const sql = `
+        UPDATE vouchers
+        SET title = COALESCE($1, title),
+            description = CASE WHEN $2::text IS NOT NULL THEN $2 ELSE description END,
+            discount_type = COALESCE($3, discount_type),
+            discount_value = COALESCE($4, discount_value),
+            min_order_amount = COALESCE($5, min_order_amount),
+            max_discount_amount = CASE
+              WHEN $6::numeric = -1 THEN NULL
+              WHEN $6::numeric IS NOT NULL THEN $6::numeric
+              ELSE max_discount_amount
+            END,
+            target_type = COALESCE($7, target_type),
+            usage_limit = COALESCE($8, usage_limit),
+            end_date = COALESCE($9, end_date),
+            is_active = COALESCE($10, is_active),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $11 OR voucher_id::text = $11
+        RETURNING voucher_id, id, code, title, description, discount_type,
+                  discount_value, min_order_amount, max_discount_amount,
+                  target_type, usage_limit, used_count, start_date, end_date,
+                  is_active, created_at
+      `;
+      const values = [
+        payload.title ?? null,
+        payload.description !== undefined ? payload.description : null,
+        payload.discountType ?? null,
+        payload.discountValue ?? null,
+        payload.minOrderAmount ?? null,
+        payload.maxDiscountAmount === null ? -1 : (payload.maxDiscountAmount ?? null),
+        payload.targetType ?? null,
+        payload.usageLimit ?? null,
+        payload.endDate ?? null,
+        payload.isActive ?? null,
+        id,
+      ];
+      const res = await queryPostgres<VoucherRow>(sql, values);
+      if (res.rows[0]) {
+        const updated = mapRowToVoucher(res.rows[0]);
+        const idx = memoryVouchers.findIndex((v) => v.id === id);
+        if (idx !== -1) {
+          memoryVouchers[idx] = updated;
+        }
+        return updated;
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Voucher update error';
+      console.warn('[VoucherRepository Update Fallback]:', msg);
+    }
+  }
+
+  // Fallback in-memory
+  const updated: Voucher = {
+    ...current,
+    title: payload.title ?? current.title,
+    description: payload.description !== undefined ? payload.description : current.description,
+    discountType: payload.discountType ?? current.discountType,
+    discountValue: payload.discountValue ?? current.discountValue,
+    minOrderAmount: payload.minOrderAmount ?? current.minOrderAmount,
+    maxDiscountAmount: payload.maxDiscountAmount === null ? undefined : (payload.maxDiscountAmount ?? current.maxDiscountAmount),
+    targetType: payload.targetType ?? current.targetType,
+    usageLimit: payload.usageLimit ?? current.usageLimit,
+    endDate: payload.endDate ?? current.endDate,
+    isActive: payload.isActive ?? current.isActive,
+  };
+  const idx = memoryVouchers.findIndex((v) => v.id === id);
+  if (idx !== -1) {
+    memoryVouchers[idx] = updated;
+  }
+  return updated;
 }
 
 export async function toggleVoucherActive(id: string): Promise<Voucher | null> {
