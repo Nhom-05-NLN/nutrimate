@@ -16,7 +16,7 @@ let memoryProducts: Product[] = INITIAL_PRODUCTS.map((p) => ({
 const productReadSql = `
   SELECT p.product_id AS id, p.code, p.name, c.category_id::text AS category,
          c.name AS category_name, p.price, p.image_url,
-         p.description, p.ingredients, p.usage_instruction, p.status,
+         p.unit, p.package_size, p.description, p.ingredients, p.usage_instruction, p.status,
          p.created_at, p.updated_at, nf.serving_size, nf.calories, nf.protein,
          nf.carbs, nf.fat, nf.sugar, nf.fiber, nf.sodium, p.stock_quantity,
          COALESCE(reviews.rating, 0)::text AS rating,
@@ -44,7 +44,8 @@ function parseIngredients(value: string[] | string | null): string[] {
 }
 
 interface ProductRow {
-  variants?: Product['variants'];
+  unit: string;
+  package_size: string;
   id: string;
   code: string;
   name: string;
@@ -76,7 +77,8 @@ function mapRowToProduct(row: ProductRow): Product {
   const priceNum = parseFloat(row.price);
   return {
     id: String(row.id),
-    variants: row.variants,
+    unit: row.unit,
+    package_size: row.package_size,
     code: row.code,
     name: row.name,
     category: row.category || 'all',
@@ -272,15 +274,7 @@ export async function findChatProducts(filter: ProductFilterQuery, executeQuery 
 
 export async function findProductById(id: string, executeQuery = queryPostgres): Promise<Product | null> {
   const result = await executeQuery<ProductRow>(`
-    SELECT products.*, COALESCE((
-      SELECT json_agg(json_build_object(
-        'id', v.variant_id::text, 'productId', v.product_id::text,
-        'name', v.variant_name, 'weight', v.weight, 'price', v.price,
-        'status', COALESCE(v.status, FALSE)
-      ) ORDER BY v.variant_id)
-      FROM product_variants v WHERE v.product_id = products.id
-    ), '[]'::json) AS variants
-    FROM (${productReadSql}) products
+    SELECT products.* FROM (${productReadSql}) products
     WHERE (id::text = $1 OR code = $1) AND status = TRUE
     LIMIT 1
   `, [id]);
@@ -302,12 +296,12 @@ export async function createProduct(newProd: Product): Promise<Product> {
     if (!category.rows[0]) throw new Error('Product category does not exist.');
     const inserted = await client.query<{ product_id: number }>(`
       INSERT INTO products (code, name, category_id, price, stock_quantity,
-        ingredients, description, image_url, status, usage_instruction)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        ingredients, description, image_url, status, usage_instruction, unit, package_size)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
       RETURNING product_id
     `, [newProd.code, newProd.name, category.rows[0].category_id, newProd.price,
       newProd.stock, JSON.stringify(newProd.ingredients), newProd.description,
-      newProd.image, newProd.status ?? true, newProd.usageInstruction ?? '']);
+      newProd.image, newProd.status ?? true, newProd.usageInstruction ?? '', newProd.unit ?? '', newProd.package_size ?? '']);
     const insertedProduct = inserted.rows[0];
     if (!insertedProduct) throw new Error('Product insert returned no ID.');
     const id = insertedProduct.product_id;

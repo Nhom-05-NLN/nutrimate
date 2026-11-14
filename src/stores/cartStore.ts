@@ -4,8 +4,22 @@ import { CartItem, Product } from '../types';
 import { useToastStore } from './toastStore';
 import { useAuthStore } from './authStore';
 
-export function getCartItemKey(productId: string, portion = 'Mặc định'): string {
-  return `${productId}___${portion || 'Mặc định'}`;
+export function getCartItemKey(productId: string): string {
+  return productId;
+}
+
+function normalizeCart(items: CartItem[]): CartItem[] {
+  const merged = new Map<string, CartItem>();
+  for (const item of items) {
+    const existing = merged.get(item.product.id);
+    if (existing) existing.quantity += item.quantity;
+    else merged.set(item.product.id, { product: item.product, quantity: item.quantity });
+  }
+  return [...merged.values()];
+}
+
+function normalizeSelected(keys: string[]) {
+  return [...new Set(keys.map(key => key.split('___')[0]!))];
 }
 
 function getCartStorageKey(userId?: string | null): string {
@@ -39,14 +53,14 @@ function loadFromStorage<T>(key: string, fallback: T): T {
 
 export const useCartStore = defineStore('cart', () => {
   const authStore = useAuthStore();
-  const items = ref<CartItem[]>(loadFromStorage<CartItem[]>(getCartStorageKey(authStore.currentUser?.id), []));
+  const items = ref<CartItem[]>(normalizeCart(loadFromStorage<CartItem[]>(getCartStorageKey(authStore.currentUser?.id), [])));
 
-  // Key format: productId___portion
+  // Cart identity is the product ID.
   const initialSelectedKeys = loadFromStorage<string[]>(
     getSelectedStorageKey(authStore.currentUser?.id),
-    items.value.map((i) => getCartItemKey(i.product.id, i.selectedPortion))
+    items.value.map((i) => getCartItemKey(i.product.id))
   );
-  const selectedKeys = ref<string[]>(initialSelectedKeys);
+  const selectedKeys = ref<string[]>(normalizeSelected(initialSelectedKeys));
 
   const isCartOpen = ref<boolean>(false);
   const isCheckoutOpen = ref<boolean>(false);
@@ -57,11 +71,11 @@ export const useCartStore = defineStore('cart', () => {
     () => authStore.currentUser?.id,
     (newUserId) => {
       const userItems = loadFromStorage<CartItem[]>(getCartStorageKey(newUserId), []);
-      items.value = userItems;
-      selectedKeys.value = loadFromStorage<string[]>(
+      items.value = normalizeCart(userItems);
+      selectedKeys.value = normalizeSelected(loadFromStorage<string[]>(
         getSelectedStorageKey(newUserId),
-        userItems.map((i) => getCartItemKey(i.product.id, i.selectedPortion))
-      );
+        userItems.map((i) => getCartItemKey(i.product.id))
+      ));
     }
   );
 
@@ -110,7 +124,7 @@ export const useCartStore = defineStore('cart', () => {
   // Computed - Món được chọn để Checkout
   const selectedItems = computed(() => {
     return items.value.filter((item) => {
-      const key = getCartItemKey(item.product.id, item.selectedPortion);
+      const key = getCartItemKey(item.product.id);
       return selectedKeys.value.includes(key);
     });
   });
@@ -134,18 +148,18 @@ export const useCartStore = defineStore('cart', () => {
   const isAllSelected = computed(() => {
     if (items.value.length === 0) return false;
     return items.value.every((item) =>
-      selectedKeys.value.includes(getCartItemKey(item.product.id, item.selectedPortion))
+      selectedKeys.value.includes(getCartItemKey(item.product.id))
     );
   });
 
   // Actions
-  function isItemSelected(productId: string, portion = 'Mặc định'): boolean {
-    const key = getCartItemKey(productId, portion);
+  function isItemSelected(productId: string): boolean {
+    const key = getCartItemKey(productId);
     return selectedKeys.value.includes(key);
   }
 
-  function toggleSelectItem(productId: string, portion = 'Mặc định') {
-    const key = getCartItemKey(productId, portion);
+  function toggleSelectItem(productId: string) {
+    const key = getCartItemKey(productId);
     const index = selectedKeys.value.indexOf(key);
     if (index > -1) {
       selectedKeys.value = selectedKeys.value.filter((k) => k !== key);
@@ -158,12 +172,12 @@ export const useCartStore = defineStore('cart', () => {
     if (isAllSelected.value) {
       selectedKeys.value = [];
     } else {
-      selectedKeys.value = items.value.map((i) => getCartItemKey(i.product.id, i.selectedPortion));
+      selectedKeys.value = items.value.map((i) => getCartItemKey(i.product.id));
     }
   }
 
   function selectAll() {
-    selectedKeys.value = items.value.map((i) => getCartItemKey(i.product.id, i.selectedPortion));
+    selectedKeys.value = items.value.map((i) => getCartItemKey(i.product.id));
   }
 
   function unselectAll() {
@@ -173,29 +187,21 @@ export const useCartStore = defineStore('cart', () => {
   function addItem(
     product: Product,
     quantity = 1,
-    portion = 'Mặc định',
-    silentOrVariantId: boolean | string = false,
-    variantId?: string,
+    silent = false,
   ) {
-    const silent = typeof silentOrVariantId === 'boolean' ? silentOrVariantId : false;
-    const finalVariantId = typeof silentOrVariantId === 'string' ? silentOrVariantId : variantId;
-    const normalizedPortion = portion || 'Mặc định';
-    const key = getCartItemKey(product.id, normalizedPortion);
+    const key = getCartItemKey(product.id);
 
     const existing = items.value.find(
-      (i) => getCartItemKey(i.product.id, i.selectedPortion) === key && (!finalVariantId || i.variantId === finalVariantId)
+      (i) => getCartItemKey(i.product.id) === key
     );
 
     if (existing) {
       existing.quantity += quantity;
       if (product.isAiRecommended) existing.product.isAiRecommended = true;
-      if (finalVariantId && !existing.variantId) existing.variantId = finalVariantId;
     } else {
       items.value.push({
         product,
         quantity,
-        selectedPortion: normalizedPortion,
-        variantId: finalVariantId,
       });
     }
 
@@ -208,56 +214,24 @@ export const useCartStore = defineStore('cart', () => {
       toast.show(
         'Đã thêm vào giỏ hàng thành công!',
         'success',
-        `${product.name} (${normalizedPortion}) x ${quantity}`,
+        `${product.name} x ${quantity}`,
         'Xem giỏ hàng',
         '/cart'
       );
     }
   }
 
-  function removeItem(productId: string, portion?: string) {
-    let removedItem: CartItem | undefined;
-
-    if (portion) {
-      const targetKey = getCartItemKey(productId, portion);
-      removedItem = items.value.find(
-        (i) => getCartItemKey(i.product.id, i.selectedPortion) === targetKey
-      );
-      items.value = items.value.filter(
-        (i) => getCartItemKey(i.product.id, i.selectedPortion) !== targetKey
-      );
-      selectedKeys.value = selectedKeys.value.filter((k) => k !== targetKey);
-    } else {
-      removedItem = items.value.find((i) => i.product.id === productId);
-      items.value = items.value.filter((i) => i.product.id !== productId);
-      selectedKeys.value = selectedKeys.value.filter(
-        (k) => !k.startsWith(`${productId}___`)
-      );
-    }
-
-    if (removedItem) {
-      toast.show('Đã xóa sản phẩm khỏi giỏ hàng', 'info', removedItem.product.name);
-    }
+  function removeItem(productId: string) {
+    const removed = items.value.find(item => item.product.id === productId);
+    items.value = items.value.filter(item => item.product.id !== productId);
+    selectedKeys.value = selectedKeys.value.filter(key => key !== getCartItemKey(productId));
+    if (removed) toast.show('Đã xóa sản phẩm khỏi giỏ hàng', 'info', removed.product.name);
   }
 
-  function updateQuantity(productId: string, quantity: number, portion?: string) {
-    const targetKey = portion ? getCartItemKey(productId, portion) : null;
-
-    if (quantity <= 0) {
-      removeItem(productId, portion);
-      return;
-    }
-
-    const item = items.value.find((i) => {
-      if (targetKey) {
-        return getCartItemKey(i.product.id, i.selectedPortion) === targetKey;
-      }
-      return i.product.id === productId;
-    });
-
-    if (item) {
-      item.quantity = quantity;
-    }
+  function updateQuantity(productId: string, quantity: number) {
+    if (quantity <= 0) return removeItem(productId);
+    const item = items.value.find(item => item.product.id === productId);
+    if (item) item.quantity = quantity;
   }
 
   function clearCart() {

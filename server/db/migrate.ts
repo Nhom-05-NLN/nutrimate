@@ -65,7 +65,7 @@ export async function runMigration(): Promise<void> {
     console.log('✅ [Migration Success] Khởi tạo toàn bộ CSDL NutriMate thành công!');
     console.log('📋 Danh sách bảng đã sẵn sàng:');
     console.log('   - users, customers, admins, addresses, health_profiles');
-    console.log('   - categories, products, nutrition_facts, product_variants, inventory, product_reviews');
+    console.log('   - categories, products, nutrition_facts, inventory, product_reviews');
     console.log('   - carts, cart_items (M3 - Cart Management)');
     console.log('   - orders, order_items, payments (M3 - Orders & Payment)');
     console.log('   - chatbot_knowledge (M4)');

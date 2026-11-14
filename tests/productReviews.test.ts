@@ -14,7 +14,7 @@ test('review list maps genuine database values and uses account names', async ()
     return { rows: [{ review_id: 7, author: 'Account name', rating: 4, comment: 'Review', created_at: '2026-01-01T00:00:00Z' }] };
   }) as unknown as typeof queryPostgres;
   assert.deepEqual(await listProductReviews('2', query), [{
-    id: '7', author: 'Account name', rating: 4, content: 'Review', createdAt: '2026-01-01T00:00:00.000Z',
+    id: '7', author: 'Account name', avatarUrl: undefined, rating: 4, content: 'Review', createdAt: '2026-01-01T00:00:00.000Z',
   }]);
 });
 
@@ -29,6 +29,10 @@ test('empty reviews stay empty and database failures are propagated', async () =
 test('review creation parameterizes the product, account, score and content', async () => {
   const query = (async (sql: string, values: unknown[]) => {
     assert.match(sql, /INSERT INTO product_reviews \(product_id, user_id, rating, comment\)/);
+    assert.match(sql, /AND EXISTS/);
+    assert.match(sql, /oi.product_id = p.product_id/);
+    assert.match(sql, /o.user_id = u.id/);
+    assert.match(sql, /o.status = 'delivered'/);
     assert.deepEqual(values, ['2', '3', 5, "Review ' text"]);
     return { rows: [{ review_id: 8 }] };
   }) as unknown as typeof queryPostgres;

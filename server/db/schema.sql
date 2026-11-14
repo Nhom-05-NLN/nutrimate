@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS health_profiles (
 COMMENT ON TABLE health_profiles IS 'Lưu hồ sơ sức khỏe, chỉ số cơ thể và mục tiêu calo của khách hàng.';
 
 -- ================================================================
--- 2. CỤM SẢN PHẨM & DINH DƯỠNG (Category, Product, NutritionFact, ProductVariant, Inventory, ProductReview)
+-- 2. CỤM SẢN PHẨM & DINH DƯỠNG (Category, Product, NutritionFact, Inventory, ProductReview)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS categories (
     category_id SERIAL PRIMARY KEY,
@@ -132,6 +132,8 @@ CREATE TABLE IF NOT EXISTS products (
     code VARCHAR(50) UNIQUE NOT NULL,
     name VARCHAR(200) NOT NULL,
     price NUMERIC(12, 2) NOT NULL,
+    unit VARCHAR(50) NOT NULL DEFAULT '',
+    package_size VARCHAR(100) NOT NULL DEFAULT '',
     stock_quantity INT DEFAULT 0,
     ingredients TEXT NOT NULL DEFAULT '',
     description TEXT,
@@ -157,21 +159,9 @@ CREATE TABLE IF NOT EXISTS nutrition_facts (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS product_variants (
-    variant_id SERIAL PRIMARY KEY,
-    product_id INT NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
-    variant_name VARCHAR(200) NOT NULL,
-    weight NUMERIC(12, 2) DEFAULT 0,
-    price NUMERIC(12, 2) NOT NULL CHECK (price >= 0),
-    status BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS inventory (
     inventory_id SERIAL PRIMARY KEY,
     product_id INT REFERENCES products(product_id) ON DELETE CASCADE,
-    variant_id INT REFERENCES product_variants(variant_id) ON DELETE CASCADE,
     quantity INT NOT NULL DEFAULT 0 CHECK (quantity >= 0),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -205,7 +195,6 @@ CREATE TABLE IF NOT EXISTS cart_items (
     id INT,
     cart_id INT NOT NULL REFERENCES carts(cart_id) ON DELETE CASCADE,
     product_id INT NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
-    variant_id INT REFERENCES product_variants(variant_id) ON DELETE SET NULL,
     quantity INT NOT NULL DEFAULT 1 CHECK (quantity > 0),
     unit_price NUMERIC(12, 2) NOT NULL CHECK (unit_price >= 0),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -252,9 +241,7 @@ CREATE TABLE IF NOT EXISTS order_items (
     id INT,
     order_id INT NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
     product_id INT REFERENCES products(product_id) ON DELETE SET NULL,
-    variant_id INT REFERENCES product_variants(variant_id) ON DELETE SET NULL,
     product_name VARCHAR(200),
-    variant_name VARCHAR(100),
     product_image TEXT,
     unit_price NUMERIC(12, 2) NOT NULL CHECK (unit_price >= 0),
     quantity INT NOT NULL CHECK (quantity > 0),
@@ -501,3 +488,25 @@ CREATE TRIGGER trg_sync_order_payment
 AFTER INSERT OR UPDATE OF payment_method, payment_status, total_amount ON orders
 FOR EACH ROW
 EXECUTE FUNCTION fn_sync_order_payment();
+
+-- Fixed packaging migration for existing databases.
+
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS unit VARCHAR(50) NOT NULL DEFAULT '';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS package_size VARCHAR(100) NOT NULL DEFAULT '';
+
+-- Preserve cart, inventory and order rows while removing obsolete references.
+DO $$
+BEGIN
+  IF to_regclass('public.product_variants') IS NOT NULL THEN
+    UPDATE inventory i SET product_id = v.product_id
+    FROM product_variants v
+    WHERE i.variant_id = v.variant_id AND i.product_id IS NULL;
+  END IF;
+END $$;
+
+ALTER TABLE cart_items DROP COLUMN IF EXISTS variant_id;
+ALTER TABLE inventory DROP COLUMN IF EXISTS variant_id;
+ALTER TABLE order_items DROP COLUMN IF EXISTS variant_id;
+ALTER TABLE order_items DROP COLUMN IF EXISTS variant_name;
+DROP TABLE IF EXISTS product_variants;
