@@ -93,6 +93,13 @@ export class DuplicateEmailError extends Error {
   }
 }
 
+export class DuplicatePhoneError extends Error {
+  constructor() {
+    super("Số điện thoại này đã được đăng ký.");
+    this.name = "DuplicatePhoneError";
+  }
+}
+
 export async function findUserForLogin(
   identifier: string,
   expectedRole: "customer" | "admin",
@@ -551,6 +558,20 @@ export async function createUser(user: NewUserRecord): Promise<UserRecord> {
     await client.query("BEGIN");
     transactionStarted = true;
 
+    const normalizedPhone = user.phone.replace(/[^0-9]/g, "");
+    if (normalizedPhone) {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [normalizedPhone]);
+      const existingPhone = await client.query(
+        `SELECT 1 FROM users
+         WHERE regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') = $1
+         LIMIT 1`,
+        [normalizedPhone],
+      );
+      if (existingPhone.rowCount) {
+        throw new DuplicatePhoneError();
+      }
+    }
+
     const result = await client.query<CreatedUserRow>(
       `INSERT INTO users (full_name, email, phone, password_hash)
        VALUES ($1, $2, $3, $4)
@@ -593,6 +614,9 @@ export async function createUser(user: NewUserRecord): Promise<UserRecord> {
       }
     }
 
+    if (err instanceof DuplicatePhoneError) {
+      throw err;
+    }
     if (
       typeof err === "object" &&
       err !== null &&
