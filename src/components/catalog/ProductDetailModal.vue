@@ -13,39 +13,24 @@ import {
   CheckCircle2,
   Plus,
   Minus,
-  Check,
 } from 'lucide-vue-next';
 
 const productStore = useProductStore();
 const cartStore = useCartStore();
 
 const quantity = ref(1);
-const selectedPortion = ref<string>('Khẩu phần chuẩn');
 
 watch(
   () => productStore.selectedProduct,
   (prod) => {
     if (prod) {
       quantity.value = 1;
-      if (prod.portions && prod.portions.length > 0) {
-        selectedPortion.value = prod.portions[0].label;
-      } else {
-        selectedPortion.value = prod.nutrition.servingSize || 'Khẩu phần chuẩn';
-      }
     }
   },
   { immediate: true }
 );
 
-const currentPrice = computed(() => {
-  const prod = productStore.selectedProduct;
-  if (!prod) return 0;
-  if (prod.portions && prod.portions.length > 0) {
-    const found = prod.portions.find((p) => p.label === selectedPortion.value);
-    if (found) return found.price;
-  }
-  return prod.price;
-});
+const currentPrice = computed(() => productStore.selectedProduct?.price ?? 0);
 
 function normalizeTextList(value: unknown): string[] {
   if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
@@ -78,8 +63,7 @@ function handleAddToCart() {
         ...productStore.selectedProduct,
         price: currentPrice.value,
       },
-      quantity.value,
-      selectedPortion.value
+      quantity.value
     );
     closeModal();
   }
@@ -174,30 +158,9 @@ onUnmounted(() => {
             {{ productStore.selectedProduct.description }}
           </p>
 
-          <!-- Portion Selector (CN_17 / CN_18) -->
-          <div v-if="productStore.selectedProduct.portions && productStore.selectedProduct.portions.length > 0" class="space-y-2">
-            <span class="text-xs font-bold text-[#242424] block uppercase">Chọn phân loại khẩu phần:</span>
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              <button
-                v-for="p in productStore.selectedProduct.portions"
-                :key="p.label"
-                type="button"
-                @click="selectedPortion = p.label"
-                class="p-2.5 rounded-xl border text-left transition-all relative cursor-pointer"
-                :class="
-                  selectedPortion === p.label
-                    ? 'border-2 border-[#4D6A34] bg-[#EBF7E5] text-[#242424] font-bold shadow-2xs'
-                    : 'border-[#E3E8DC] bg-white text-[#576449] hover:border-[#CCD7BC]'
-                "
-              >
-                <div v-if="selectedPortion === p.label" class="absolute top-1.5 right-1.5 text-[#4D6A34]">
-                  <Check class="w-3.5 h-3.5 stroke-[3]" />
-                </div>
-                <div class="text-xs font-bold leading-tight">{{ p.label }}</div>
-                <div class="text-[11px] font-semibold text-[#4D6A34] mt-0.5">{{ formatVnd(p.price) }}</div>
-              </button>
-            </div>
-          </div>
+          <p v-if="productStore.selectedProduct.unit || productStore.selectedProduct.package_size" class="text-sm text-[#576449]">
+            Quy cách: {{ [productStore.selectedProduct.unit, productStore.selectedProduct.package_size].filter(Boolean).join(' ') }}
+          </p>
 
           <!-- Best For Callout -->
           <div class="p-3.5 rounded-2xl bg-[#F6F8F3] border border-[#DEE5D4] text-xs text-[#3B4E24] flex items-start gap-2.5">

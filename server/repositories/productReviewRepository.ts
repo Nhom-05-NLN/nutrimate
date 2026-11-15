@@ -31,7 +31,12 @@ export async function insertProductReview(productId: string, userId: string, rat
     INSERT INTO product_reviews (product_id, user_id, rating, comment)
     SELECT p.product_id, u.id, $3, $4
     FROM products p JOIN users u ON u.id::text = $2
-    WHERE (p.product_id::text = $1 OR p.code = $1) AND p.status = TRUE
+    WHERE (p.product_id::text = $1 OR p.code = $1)
+      AND EXISTS (
+        SELECT 1 FROM order_items oi JOIN orders o ON o.id = oi.order_id
+        WHERE oi.product_id = p.product_id AND (o.user_id = u.id OR o.customer_id = u.id)
+          AND o.status = 'delivered'
+      )
     RETURNING review_id
   `, [productId, userId, rating, content]);
   return result.rows[0] ? String(result.rows[0].review_id) : null;

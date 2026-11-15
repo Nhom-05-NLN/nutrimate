@@ -177,13 +177,13 @@ const suggestedUpsells = [
           <div class="divide-y divide-[#F0F3EC]">
             <CartItemRow
               v-for="item in cartStore.items"
-              :key="getCartItemKey(item.product.id, item.selectedPortion)"
+              :key="getCartItemKey(item.product.id)"
               :item="item"
               :selectable="true"
-              :selected="cartStore.isItemSelected(item.product.id, item.selectedPortion)"
-              @toggle-select="cartStore.toggleSelectItem(item.product.id, item.selectedPortion)"
-              @update-quantity="(qty) => cartStore.updateQuantity(item.product.id, qty, item.selectedPortion)"
-              @remove="cartStore.removeItem(item.product.id, item.selectedPortion)"
+              :selected="cartStore.isItemSelected(item.product.id)"
+              @toggle-select="cartStore.toggleSelectItem(item.product.id)"
+              @update-quantity="(qty) => cartStore.updateQuantity(item.product.id, qty)"
+              @remove="cartStore.removeItem(item.product.id)"
             />
           </div>
         </div>

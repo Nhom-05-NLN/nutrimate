@@ -18,7 +18,7 @@ const emit = defineEmits<{
 const toastStore = useToastStore();
 
 const rating = ref(5);
-const author = ref('');
+
 const content = ref('');
 
 watch(() => props.modelValue, (open) => {
@@ -33,12 +33,11 @@ function closeModal() {
 function handleSubmit() {
   if (props.submitting) return;
   if (!content.value.trim()) {
-    toastStore.show('Vui lòng nhập đầy đủ họ tên và nội dung đánh giá');
+    toastStore.show('Vui lòng nhập nội dung đánh giá');
     return;
   }
 
   emit('submit', {
-    author: author.value.trim(),
     rating: rating.value,
     content: content.value.trim(),
   });
@@ -91,18 +90,6 @@ function handleSubmit() {
               />
             </button>
           </div>
-        </div>
-
-        <!-- Họ tên -->
-        <div class="space-y-1">
-          <label class="text-xs font-bold text-[#242424] block">Họ tên</label>
-          <input
-            :value="authorName"
-            readonly
-            type="text"
-            placeholder="Nhập họ và tên của bạn"
-            class="w-full px-4 py-2.5 rounded-xl border border-[#CCD7BC] text-sm focus:outline-none focus:border-[#4D6A34] focus:ring-1 focus:ring-[#4D6A34]"
-          />
         </div>
 
         <!-- Nhận xét -->

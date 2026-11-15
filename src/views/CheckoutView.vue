@@ -315,7 +315,6 @@ async function handleFinishOrder() {
         quantity: i.quantity,
         calories: i.product.nutrition.calories,
         protein: i.product.nutrition.protein,
-        portion: i.selectedPortion,
       })),
       shippingMethod: shippingMethod.value,
       paymentMethod: paymentMethod.value,
@@ -600,7 +599,7 @@ function handlePaymentModalClose() {
           <div class="space-y-3.5 max-h-72 overflow-y-auto pr-1">
             <div
               v-for="item in checkoutItems"
-              :key="getCartItemKey(item.product.id, item.selectedPortion)"
+              :key="getCartItemKey(item.product.id)"
               class="flex items-center justify-between gap-3 text-xs sm:text-sm p-2 rounded-xl hover:bg-[#FAF9F5] transition-colors"
             >
               <div class="flex items-center gap-3 min-w-0 flex-1">
@@ -612,7 +611,7 @@ function handlePaymentModalClose() {
                 <div class="min-w-0 flex-1">
                   <h4 class="font-bold text-[#242424] truncate">{{ item.product.name }}</h4>
                   <div class="text-xs text-[#7A866E]">
-                    {{ item.selectedPortion || 'Mặc định' }} • SL: <span class="font-bold text-[#242424]">{{ item.quantity }}</span>
+                    {{ [item.product.unit, item.product.package_size].filter(Boolean).join(' ') || '—' }} • SL: <span class="font-bold text-[#242424]">{{ item.quantity }}</span>
                   </div>
                 </div>
               </div>

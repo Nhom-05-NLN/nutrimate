@@ -20,25 +20,9 @@ export interface NutritionFacts {
   magnesium?: number;
 }
 
-export interface ProductPortionOption {
-  label: string;
-  weight: string;
-  price: number;
-  savingBadge?: string;
-  inStock: boolean;
-}
-
-export interface ProductVariant {
-  id: string;
-  productId: string;
-  name: string;
-  weight: number | null;
-  price: number;
-  status: boolean;
-}
-
 export interface Product {
-  variants?: ProductVariant[];
+  unit?: string;
+  package_size?: string;
   id: string;
   code: string;
   name: string;
@@ -51,7 +35,6 @@ export interface Product {
   description: string;
   ingredients: string[];
   nutrition: NutritionFacts;
-  portions?: ProductPortionOption[];
   stock: number;
   rating: number;
   reviewCount: number;
@@ -76,6 +59,7 @@ export interface Category {
 }
 
 export interface AdminProductItem {
+  package_size?: string;
   categoryId?: string;
   usageInstruction?: string;
   id: string;
@@ -113,10 +97,8 @@ export interface AdminCategoryRecord {
 }
 
 export interface CartItem {
-  variantId?: string;
   product: Product;
   quantity: number;
-  selectedPortion?: string;
 }
 
 export type VoucherDiscountType = 'fixed' | 'percent';

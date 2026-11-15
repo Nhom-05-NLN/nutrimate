@@ -97,7 +97,7 @@ function handleKeydown(event: KeyboardEvent) {
       </h4>
 
       <p class="text-xs text-[#7A866E]">
-        Phần: <span class="font-semibold text-[#242424]">{{ item.selectedPortion || 'Mặc định' }}</span>
+        Quy cách: <span class="font-semibold text-[#242424]">{{ [item.product.unit, item.product.package_size].filter(Boolean).join(' ') || '—' }}</span>
       </p>
 
       <div class="flex items-center gap-2 text-[11px] text-[#576449]">
@@ -186,7 +186,7 @@ function handleKeydown(event: KeyboardEvent) {
         </h3>
 
         <p class="text-xs text-[#7A866E]">
-          Phân loại: <strong class="text-[#242424]">{{ item.selectedPortion || 'Mặc định' }}</strong>
+          Quy cách: <strong class="text-[#242424]">{{ [item.product.unit, item.product.package_size].filter(Boolean).join(' ') || '—' }}</strong>
         </p>
 
         <div class="flex flex-wrap items-center gap-2 pt-1">

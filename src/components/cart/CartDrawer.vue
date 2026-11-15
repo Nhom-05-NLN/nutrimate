@@ -119,11 +119,11 @@ function handleProceedCheckout() {
         <!-- Render bằng CartItemRow compact mode -->
         <CartItemRow
           v-for="item in cartStore.items"
-          :key="getCartItemKey(item.product.id, item.selectedPortion)"
+          :key="getCartItemKey(item.product.id)"
           :item="item"
           :compact="true"
-          @update-quantity="(qty) => cartStore.updateQuantity(item.product.id, qty, item.selectedPortion)"
-          @remove="cartStore.removeItem(item.product.id, item.selectedPortion)"
+          @update-quantity="(qty) => cartStore.updateQuantity(item.product.id, qty)"
+          @remove="cartStore.removeItem(item.product.id)"
         />
       </div>
 

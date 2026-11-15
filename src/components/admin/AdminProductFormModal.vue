@@ -19,6 +19,8 @@ const emit = defineEmits<{
     name: string;
     category: string;
     price: number;
+    unit: string;
+    package_size: string;
     stock?: number;
     calo: number;
     protein: number;
@@ -31,6 +33,8 @@ const emit = defineEmits<{
 }>();
 
 const form = ref({
+  unit: '',
+  package_size: '',
   sku: '',
   name: '',
   category: '',
@@ -69,6 +73,8 @@ watch(
       formErrors.value = { sku: '', name: '', price: '', stock: '', calo: '', protein: '' };
       if (props.mode === 'edit' && props.initialData) {
         form.value = {
+          unit: props.initialData.unit || '',
+          package_size: props.initialData.package_size || '',
           sku: props.initialData.sku,
           name: props.initialData.name,
           category: props.initialData.categoryId || '',
@@ -84,6 +90,8 @@ watch(
         };
       } else {
         form.value = {
+          unit: '',
+          package_size: '',
           sku: `NM-PRD-${Math.floor(10 + Math.random() * 90)}`,
           name: '',
           category: props.categories[0]?.id || '',
@@ -196,6 +204,8 @@ function handleSubmit() {
     name: form.value.name.trim(),
     category: form.value.category,
     price: form.value.price,
+    unit: form.value.unit.trim(),
+    package_size: form.value.package_size.trim(),
     ...(props.mode === 'create' ? { stock: form.value.stock } : {}),
     calo: form.value.calo,
     protein: form.value.protein,
@@ -339,6 +349,19 @@ function handleClose() {
         </div>
 
 
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="product-unit" class="block font-bold text-[#2D3B1E] mb-1.5">Đơn vị bán</label>
+            <input id="product-unit" v-model="form.unit" type="text" maxlength="50" placeholder="Ví dụ: hũ, túi, chai, ổ"
+              class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124]" />
+          </div>
+          <div>
+            <label for="product-package-size" class="block font-bold text-[#2D3B1E] mb-1.5">Quy cách đóng gói</label>
+            <input id="product-package-size" v-model="form.package_size" type="text" maxlength="100" placeholder="Ví dụ: 250 g, 330 ml, 6 thanh"
+              class="w-full px-3.5 py-2.5 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124]" />
+          </div>
+        </div>
 
         <!-- Thông số Macro -->
         <div class="p-4 rounded-2xl bg-[#FAF9F5] border border-[#DEE5D4] space-y-3">

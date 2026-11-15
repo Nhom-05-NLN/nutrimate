@@ -122,8 +122,8 @@ export async function seedDatabase(): Promise<void> {
       categoryMap.set(cat.dietType, catId);
     }
 
-    // 4. Seed Products, NutritionFacts, ProductVariants & Inventories
-    console.log('[Seed] 4. Khởi tạo món ăn, Nutrition Facts, Phân loại Portion & Tồn kho...');
+    // 4. Seed Products, NutritionFacts & Inventories
+    console.log('[Seed] 4. Khởi tạo món ăn, Nutrition Facts & Tồn kho...');
     const productDbMap = new Map<string, number>();
 
     for (const prod of INITIAL_PRODUCTS) {
@@ -279,28 +279,10 @@ export async function seedDatabase(): Promise<void> {
         ]
       );
 
-      // 4.2 Bảng ProductVariant (Portions)
-      const var1 = await client.query<{ variant_id: number }>(
-        `
-        INSERT INTO product_variants (product_id, variant_name, weight, price, status)
-        VALUES ($1, 'Khẩu phần chuẩn (Tiêu chuẩn)', 200, $2, TRUE)
-        RETURNING variant_id;
-        `,
-        [dbProductId, prod.price]
+      await client.query(
+        'INSERT INTO inventory (product_id, quantity, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP)',
+        [dbProductId, prod.stock]
       );
-
-      // 4.3 Bảng Inventory cho từng variant
-      const vId = var1.rows[0]?.variant_id;
-      if (vId) {
-        await client.query(
-          `
-          INSERT INTO inventory (product_id, variant_id, quantity, updated_at)
-          VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-          ON CONFLICT DO NOTHING;
-          `,
-          [dbProductId, vId, prod.stock]
-        );
-      }
     }
 
     // 5. Seed Giỏ hàng & Mục giỏ hàng (Cart & CartItem - M3)

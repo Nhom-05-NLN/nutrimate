@@ -13,6 +13,11 @@ test('product input normalizes identifiers and validates numeric/category/status
   assert.equal(validateProduct(input).sku, 'SKU-01');
   assert.equal(validateProduct(input).name, 'Product');
   assert.equal(validateProduct(input).stock, 0);
+  assert.equal(validateProduct({ ...input, unit: ' jar ', package_size: ' 250 g ' }).unit, 'jar');
+  assert.equal(validateProduct({ ...input, package_size: ' 250 g ' }).package_size, '250 g');
+  for (const change of [{ unit: 1 }, { unit: 'x'.repeat(51) }, { package_size: false }, { package_size: 'x'.repeat(101) }]) {
+    assert.throws(() => validateProduct({ ...input, ...change }), ProductInputError);
+  }
   assert.equal(validateProduct({ ...input, stock: 25 }).stock, 25);
   for (const change of [{ category: 'Low-Carb' }, { price: NaN }, { price: -1 },
     { calo: '' }, { protein: -1 }, { status: 'other' }, { sku: '' }, { name: 'a' },

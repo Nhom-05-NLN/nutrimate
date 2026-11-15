@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Order } from '../../types';
+import type { OrderItem } from '../../types';
 import { useChatStore } from '../../stores/chatStore';
 import {
   Truck,
@@ -21,6 +22,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  (e: 'review', item: OrderItem): void;
   (e: 'viewDetail', order: Order): void;
   (e: 'trackOrder', order: Order): void;
   (e: 'reorder', order: Order): void;
@@ -29,6 +31,21 @@ const emit = defineEmits<{
 }>();
 
 const chatStore = useChatStore();
+const showReviewProducts = ref(false);
+const reviewProducts = computed(() => props.order.items.filter(item => item.productId));
+
+function handleReviewClick() {
+  if (reviewProducts.value.length === 1) {
+    emit('review', reviewProducts.value[0]!);
+    return;
+  }
+  showReviewProducts.value = !showReviewProducts.value;
+}
+
+function selectReviewProduct(item: OrderItem) {
+  showReviewProducts.value = false;
+  emit('review', item);
+}
 
 const isPendingQrPayment = computed(() => {
   return (
@@ -178,7 +195,8 @@ function getStatusBadge(order: Order) {
       class="p-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
       :class="order.paymentMethod === 'momo' ? 'bg-pink-50/80 border border-pink-200 text-pink-950' : 'bg-[#EBF7E5]/70 border border-[#CCD7BC] text-[#242424]'"
     >
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+
         <Clock class="w-4 h-4 shrink-0" :class="order.paymentMethod === 'momo' ? 'text-[#D82D8B]' : 'text-[#4D6A34]'" />
         <span>
           Đơn hàng đang chờ thanh toán qua <strong>{{ order.paymentMethod === 'momo' ? 'Ví MoMo' : 'VietQR' }}</strong>.
@@ -219,7 +237,20 @@ function getStatusBadge(order: Order) {
       </button>
 
       <!-- Action Buttons -->
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <div v-if="order.status === 'delivered' && reviewProducts.length" class="relative">
+          <button type="button" @click="handleReviewClick" :aria-expanded="showReviewProducts"
+            class="px-3.5 py-2 rounded-xl bg-[#4D6A34] hover:bg-[#3B4E24] text-white text-xs font-bold transition-colors cursor-pointer min-h-[36px]">
+            Đánh giá sản phẩm
+          </button>
+          <div v-if="showReviewProducts" class="absolute right-0 bottom-full mb-2 w-64 max-w-[calc(100vw-4rem)] max-h-60 overflow-y-auto rounded-xl border border-[#E3E8DC] bg-white p-2 shadow-lg z-20">
+            <p class="px-2 py-2 text-xs font-bold text-[#7A866E]">Chọn sản phẩm để đánh giá</p>
+            <button v-for="(item, index) in reviewProducts" :key="index" type="button" @click="selectReviewProduct(item)"
+              class="block w-full rounded-lg px-2 py-2 text-left text-sm text-[#242424] hover:bg-[#EBF7E5] cursor-pointer">
+              {{ item.productName }}
+            </button>
+          </div>
+        </div>
         <button
           v-if="order.status === 'pending' && !isPendingQrPayment"
           type="button"

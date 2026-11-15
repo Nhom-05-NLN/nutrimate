@@ -61,7 +61,7 @@ function formatVnd(amount: number): string {
 }
 
 function handleAdd(prod: Product) {
-  cartStore.addItem(prod, 1, prod.portions?.[0]?.label || prod.nutrition.servingSize || 'Mặc định');
+  cartStore.addItem(prod, 1);
 }
 
 function goToDetail(id: string) {
