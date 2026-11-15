@@ -271,6 +271,9 @@ onMounted(() => {
     <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h1 class="font-heading text-2xl font-black text-[#2D3B1E] sm:text-3xl">Quản lý dữ liệu tri thức NutriBot</h1>
+        <p class="mt-1 text-xs text-[#7A866E]">
+          Quản lý nội dung hỏi đáp giúp NutriBot tư vấn dinh dưỡng chính xác hơn.
+        </p>
       </div>
       <div>
         <input
@@ -449,7 +452,7 @@ onMounted(() => {
       </section>
 
       <aside class="h-fit rounded-3xl border border-[#E3E8DC] bg-white p-5 shadow-sm">
-        <div class="mb-4 flex items-center justify-between gap-3">
+        <div class="mb-4 flex items-center gap-3">
           <Bot class="h-4 w-4 text-[#4D6A34]" />
           <h2 class="text-lg font-bold text-[#2D3B1E]">
             {{ isEditing ? 'Cập nhật tri thức' : 'Thêm tri thức mới' }}
