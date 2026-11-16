@@ -191,7 +191,7 @@ function handleKeydown(event: KeyboardEvent) {
 
         <div class="flex flex-wrap items-center gap-2 pt-1">
           <span class="px-2.5 py-1 rounded-full bg-[#FAF9F5] border border-[#CCD7BC] text-xs font-bold text-[#4D6A34]">
-            ⚡ {{ item.product.nutrition.calories }} kcal / {{ item.product.nutrition.servingSize }}
+            ⚡ {{ item.product.nutrition.calories }} kcal / {{ [item.product.unit, item.product.package_size].filter(Boolean).join(' ') }}
           </span>
           <span class="px-2.5 py-1 rounded-full bg-[#EBF7E5] text-xs font-bold text-[#3B4E24]">
             {{ item.product.nutrition.protein }}g Đạm

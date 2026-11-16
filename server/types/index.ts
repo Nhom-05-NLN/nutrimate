@@ -1,7 +1,6 @@
 export type DietCategory = 'all' | 'low-carb' | 'high-protein' | 'sugar-free';
 
 export interface NutritionFacts {
-  servingSize: string;
   calories: number;
   protein: number;
   carbs: number;
@@ -13,6 +12,7 @@ export interface NutritionFacts {
 
 export type NutritionFact = NutritionFacts;
 export interface Product {
+  galleryImages?: string[];
   unit?: string;
   package_size?: string;
   id: string;

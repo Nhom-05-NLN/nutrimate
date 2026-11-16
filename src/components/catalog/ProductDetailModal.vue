@@ -178,7 +178,7 @@ onUnmounted(() => {
                 Nutrition Facts
               </h3>
               <p class="text-[11px] text-[#7A866E] font-medium">
-                Khẩu phần tiêu chuẩn: <strong>{{ productStore.selectedProduct.nutrition.servingSize }}</strong>
+                Quy cách: <strong>{{ [productStore.selectedProduct.unit, productStore.selectedProduct.package_size].filter(Boolean).join(' ') }}</strong>
               </p>
             </div>
 

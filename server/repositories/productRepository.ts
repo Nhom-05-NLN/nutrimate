@@ -16,8 +16,10 @@ let memoryProducts: Product[] = INITIAL_PRODUCTS.map((p) => ({
 const productReadSql = `
   SELECT p.product_id AS id, p.code, p.name, c.category_id::text AS category,
          c.name AS category_name, p.price, p.image_url,
+         COALESCE((SELECT json_agg(i.image_url ORDER BY i.sort_order, i.image_id)
+           FROM product_images i WHERE i.product_id=p.product_id), '[]'::json) AS gallery_images,
          p.unit, p.package_size, p.description, p.ingredients, p.usage_instruction, p.status,
-         p.created_at, p.updated_at, nf.serving_size, nf.calories, nf.protein,
+         p.created_at, p.updated_at, nf.calories, nf.protein,
          nf.carbs, nf.fat, nf.sugar, nf.fiber, nf.sodium, p.stock_quantity,
          COALESCE(reviews.rating, 0)::text AS rating,
          COALESCE(reviews.review_count, 0)::int AS review_count,
@@ -44,6 +46,7 @@ function parseIngredients(value: string[] | string | null): string[] {
 }
 
 interface ProductRow {
+  gallery_images?: string[];
   unit: string;
   package_size: string;
   id: string;
@@ -59,7 +62,6 @@ interface ProductRow {
   status?: boolean;
   created_at?: string;
   updated_at?: string;
-  serving_size: string | null;
   calories: string;
   protein: string;
   carbs: string;
@@ -86,13 +88,13 @@ function mapRowToProduct(row: ProductRow): Product {
     price: priceNum,
     basePrice: priceNum,
     image: row.image_url || '',
+    galleryImages: row.gallery_images ?? [],
     imageURL: row.image_url || '',
     description: row.description || '',
     ingredients: parseIngredients(row.ingredients),
     usageInstruction: row.usage_instruction || '',
     status: row.status ?? true,
     nutrition: {
-      servingSize: row.serving_size || '1 khẩu phần',
       calories: parseFloat(row.calories),
       protein: parseFloat(row.protein),
       carbs: parseFloat(row.carbs),
@@ -283,6 +285,8 @@ export async function findProductById(id: string, executeQuery = queryPostgres):
 }
 
 export async function createProduct(newProd: Product): Promise<Product> {
+  const images = [...new Set(newProd.galleryImages ?? (newProd.image ? [newProd.image] : []))];
+  const mainImage = images[0] ?? '';
   if (!isDbConnected()) {
     memoryProducts.unshift(newProd);
     return newProd;
@@ -301,18 +305,21 @@ export async function createProduct(newProd: Product): Promise<Product> {
       RETURNING product_id
     `, [newProd.code, newProd.name, category.rows[0].category_id, newProd.price,
       newProd.stock, JSON.stringify(newProd.ingredients), newProd.description,
-      newProd.image, newProd.status ?? true, newProd.usageInstruction ?? '', newProd.unit ?? '', newProd.package_size ?? '']);
+      mainImage, newProd.status ?? true, newProd.usageInstruction ?? '', newProd.unit ?? '', newProd.package_size ?? '']);
     const insertedProduct = inserted.rows[0];
     if (!insertedProduct) throw new Error('Product insert returned no ID.');
     const id = insertedProduct.product_id;
+    for (const [index, url] of images.entries()) {
+      await client.query('INSERT INTO product_images (product_id,image_url,sort_order) VALUES ($1,$2,$3)', [id,url,index]);
+    }
     const n = newProd.nutrition;
     await client.query(`
-      INSERT INTO nutrition_facts (product_id, serving_size, calories, protein, carbs, fat, sugar, fiber, sodium)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-    `, [id, n.servingSize, n.calories, n.protein, n.carbs, n.fat, n.sugar, n.fiber ?? 0, n.sodium ?? 0]);
+      INSERT INTO nutrition_facts (product_id, calories, protein, carbs, fat, sugar, fiber, sodium)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    `, [id, n.calories, n.protein, n.carbs, n.fat, n.sugar, n.fiber ?? 0, n.sodium ?? 0]);
     await client.query('COMMIT');
     const { originalPrice: _originalPrice, isFeatured: _isFeatured, ...product } = newProd;
-    return { ...product, badges: [], bestFor: '', id: String(id), rating: 0, reviewCount: 0, soldCount: 0 };
+    return { ...product, image: mainImage, galleryImages: images, badges: [], bestFor: '', id: String(id), rating: 0, reviewCount: 0, soldCount: 0 };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

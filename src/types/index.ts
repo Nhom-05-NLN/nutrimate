@@ -1,7 +1,6 @@
 export type DietCategory = 'all' | 'low-carb' | 'high-protein' | 'sugar-free' | 'snacks-nuts';
 
 export interface NutritionFacts {
-  servingSize: string;
   servingsPerContainer?: number;
   calories: number;
   protein: number;
@@ -59,6 +58,7 @@ export interface Category {
 }
 
 export interface AdminProductItem {
+  galleryImages?: string[];
   package_size?: string;
   categoryId?: string;
   usageInstruction?: string;
@@ -78,7 +78,6 @@ export interface AdminProductItem {
   description?: string;
   ingredients?: string[];
   badges?: string[];
-  servingSize?: string;
   stock?: number;
   rating?: number;
   reviewCount?: number;

@@ -1568,7 +1568,7 @@ async function addWater(amount: number) {
               {{ product.nutrition.protein }}g Protein ·
               {{ product.nutrition.carbs }}g Carbs ·
               {{ product.nutrition.fat }}g Fat /
-              {{ product.nutrition.servingSize }}
+              {{ [product.unit, product.package_size].filter(Boolean).join(' ') }}
             </p>
             <p class="font-bold">
               {{ product.price.toLocaleString("vi-VN") }} đ

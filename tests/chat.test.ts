@@ -251,7 +251,7 @@ test('product suggestions use real product context even when nutrition knowledge
     image: '/images/chickpea.png',
     description: 'Đậu gà rang',
     ingredients: ['Đậu gà'],
-    nutrition: { servingSize: '30 g', calories: 120, protein: 8, carbs: 18, fat: 2, sugar: 1 },
+    nutrition: { calories: 120, protein: 8, carbs: 18, fat: 2, sugar: 1 },
     stock: 5,
     rating: 0,
     reviewCount: 0,

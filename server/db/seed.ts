@@ -1,15 +1,6 @@
 import { getPool } from './index.js';
 import { INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_ORDERS, INITIAL_CHAT_KNOWLEDGE, INITIAL_VOUCHERS } from './seedData.js';
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[đĐ]/g, 'd')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)+/g, '');
-}
 
 export async function seedDatabase(): Promise<void> {
   const pool = getPool();
@@ -128,135 +119,27 @@ export async function seedDatabase(): Promise<void> {
 
     for (const prod of INITIAL_PRODUCTS) {
       const catId = categoryMap.get(prod.category) || null;
-      const slug = slugify(prod.name) + '-' + prod.code.toLowerCase();
-
-      // Kiểm tra sản phẩm theo name hoặc code
-      const existProd = await client.query<{ product_id: number }>(
-        `SELECT product_id FROM products WHERE name = $1 OR code = $2 LIMIT 1`,
-        [prod.name, prod.code]
-      );
 
       let dbProductId: number;
 
-      if (existProd.rows.length > 0 && existProd.rows[0]) {
-        dbProductId = existProd.rows[0].product_id;
-        await client.query(
-          `
-          UPDATE products
-          SET id = product_id,
-              category_id = $1,
-              code = $2,
-              slug = $3,
-              category = $4,
-              category_name = $5,
-              base_price = $6,
-              price = $6,
-              original_price = $7,
-              stock_quantity = $8,
-              serving_size = $9,
-              calories = $10,
-              protein = $11,
-              carbs = $12,
-              fat = $13,
-              sugar = $14,
-              fiber = $15,
-              sodium = $16,
-              rating = $17,
-              review_count = $18,
-              image_url = $19,
-              description = $20,
-              ingredients = $21,
-              badges = $22,
-              is_featured = $23,
-              best_for = $24
-          WHERE product_id = $25
-          `,
-          [
-            catId,
-            prod.code,
-            slug,
-            prod.category,
-            prod.categoryName,
-            prod.price,
-            prod.originalPrice || null,
-            prod.stock,
-            prod.nutrition.servingSize,
-            prod.nutrition.calories,
-            prod.nutrition.protein,
-            prod.nutrition.carbs,
-            prod.nutrition.fat,
-            prod.nutrition.sugar,
-            prod.nutrition.fiber || 0,
-            prod.nutrition.sodium || 0,
-            prod.rating,
-            prod.reviewCount,
-            prod.image,
-            prod.description,
-            prod.ingredients.join(', '),
-            prod.badges,
-            prod.isFeatured ?? false,
-            prod.bestFor || null,
-            dbProductId,
-          ]
-        );
-      } else {
-        const prodInsert = await client.query<{ product_id: number }>(
-          `
-          INSERT INTO products (
-            category_id, code, name, slug, category, category_name,
-            base_price, price, original_price, stock_quantity, serving_size,
-            calories, protein, carbs, fat, sugar, fiber, sodium,
-            rating, review_count, image_url, description, ingredients,
-            badges, is_featured, best_for
-          )
-          VALUES (
-            $1, $2, $3, $4, $5, $6,
-            $7, $7, $8, $9, $10,
-            $11, $12, $13, $14, $15, $16, $17,
-            $18, $19, $20, $21, $22,
-            $23, $24, $25
-          )
-          RETURNING product_id;
-          `,
-          [
-            catId,
-            prod.code,
-            prod.name,
-            slug,
-            prod.category,
-            prod.categoryName,
-            prod.price,
-            prod.originalPrice || null,
-            prod.stock,
-            prod.nutrition.servingSize,
-            prod.nutrition.calories,
-            prod.nutrition.protein,
-            prod.nutrition.carbs,
-            prod.nutrition.fat,
-            prod.nutrition.sugar,
-            prod.nutrition.fiber || 0,
-            prod.nutrition.sodium || 0,
-            prod.rating,
-            prod.reviewCount,
-            prod.image,
-            prod.description,
-            prod.ingredients.join(', '),
-            prod.badges,
-            prod.isFeatured ?? false,
-            prod.bestFor || null,
-          ]
-        );
-        dbProductId = prodInsert.rows[0]?.product_id ?? 0;
-        await client.query(`UPDATE products SET id = product_id WHERE product_id = $1`, [dbProductId]);
-      }
+      const savedProduct = await client.query<{ product_id: number }>(
+        `INSERT INTO products (category_id,code,name,price,stock_quantity,image_url,description,ingredients)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+          ON CONFLICT (code) DO UPDATE SET category_id=EXCLUDED.category_id,name=EXCLUDED.name,
+          price=EXCLUDED.price,stock_quantity=EXCLUDED.stock_quantity,image_url=EXCLUDED.image_url,
+          description=EXCLUDED.description,ingredients=EXCLUDED.ingredients
+          RETURNING product_id`,
+        [catId,prod.code,prod.name,prod.price,prod.stock,prod.image,prod.description,prod.ingredients.join(', ')]
+      );
+      dbProductId = savedProduct.rows[0]!.product_id;
 
       productDbMap.set(prod.code, dbProductId);
 
       // 4.1 Bảng NutritionFact
       await client.query(
         `
-        INSERT INTO nutrition_facts (product_id, serving_size, calories, protein, carbs, fat, sugar, fiber, sodium)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        INSERT INTO nutrition_facts (product_id, calories, protein, carbs, fat, sugar, fiber, sodium)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (product_id) DO UPDATE
         SET calories = EXCLUDED.calories,
             protein = EXCLUDED.protein,
@@ -268,7 +151,6 @@ export async function seedDatabase(): Promise<void> {
         `,
         [
           dbProductId,
-          prod.nutrition.servingSize,
           prod.nutrition.calories,
           prod.nutrition.protein,
           prod.nutrition.carbs,

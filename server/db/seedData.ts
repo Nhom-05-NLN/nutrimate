@@ -43,7 +43,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Bánh mì làm từ bột hạnh nhân hữu cơ và hạt lanh, tinh chất xơ thực vật. Siêu ít tinh bột, thơm bùi tự nhiên, thích hợp cho bữa sáng Eat Clean & Keto.',
     ingredients: ['Bột hạnh nhân nguyên chất', 'Hạt lanh vàng', 'Bột vỏ mã đề (psyllium husk)', 'Lòng trắng trứng', 'Muối hồng Himalaya'],
     nutrition: {
-      servingSize: '1 lát (50g)',
       calories: 95,
       protein: 7.2,
       carbs: 2.8,
@@ -71,7 +70,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Ức gà phi lê tươi ngon 100% không da, nấu chậm công nghệ sous-vide giữ trọn độ mọng nước mềm thơm. Chứa tới 31g đạm tinh khiết, 0 đường bổ sung.',
     ingredients: ['Ức gà ta nuôi tự nhiên 95%', 'Tiêu đen Phú Quốc đập dập', 'Muối khoáng', 'Dầu ô liu extra virgin', 'Hương thảo tươi'],
     nutrition: {
-      servingSize: '1 gói (150g)',
       calories: 165,
       protein: 31.5,
       carbs: 1.2,
@@ -98,7 +96,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Trà lên men tự nhiên Scoby cao cấp kết hợp chiết xuất táo xanh và quế tự nhiên. Lên men hoàn toàn 21 ngày, không thêm đường mía, giàu probiotic đường ruột.',
     ingredients: ['Trà xanh hữu cơ Shan Tuyết', 'Con giống nấm Scoby', 'Chiết xuất táo xanh tự nhiên', 'Vỏ quế Yên Bái', 'Lợi khuẩn Bacillus Coagulans'],
     nutrition: {
-      servingSize: '1 chai (250ml)',
       calories: 18,
       protein: 0.2,
       carbs: 3.5,
@@ -125,7 +122,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Bún sợi từ củ nưa Konjac Nhật Bản, chỉ 9 kcal mỗi 100g, chứa chất xơ Glucomannan tạo cảm giác no lâu, thay thế hoàn hảo cho bún gạo và mì truyền thống.',
     ingredients: ['Bột nưa Konjac tinh khiết 97%', 'Nước tinh khiết', 'Canxi hydroxit (chất tạo đông tự nhiên)'],
     nutrition: {
-      servingSize: '1 túi (200g)',
       calories: 18,
       protein: 0.4,
       carbs: 1.0,
@@ -153,7 +149,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Thanh năng lượng giàu đạm từ whey isolate thực vật, hạt óc chó, hạnh nhân và bơ đậu phộng nguyên chất. Tiện lợi nạp trước hoặc sau buổi tập thể thao.',
     ingredients: ['Whey Protein Isolate thực vật', 'Bơ đậu phộng rang mộc', 'Hạt chia đen', 'Hạnh nhân lát', 'Bột ca cao nguyên chất', 'Mật hoa dừa'],
     nutrition: {
-      servingSize: '1 thanh (50g)',
       calories: 185,
       protein: 16.5,
       carbs: 8.2,
@@ -181,7 +176,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Thanh chocolate đen Bến Tre thượng hạng, 85% cacao nguyên bản phối lá cỏ ngọt tự nhiên Stevia. Vị đắng sâu thanh tao, không làm tăng vọt chỉ số đường huyết GI.',
     ingredients: ['Hạt cacao Bến Tre lên men', 'Bơ cacao tự nhiên', 'Bột lá cỏ ngọt Stevia organic', 'Hạt vani tự nhiên'],
     nutrition: {
-      servingSize: '1 phần (30g)',
       calories: 145,
       protein: 3.2,
       carbs: 5.8,
@@ -209,7 +203,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Chỉ gồm 100% đậu phộng hạt loại 1 rang chín vàng xay mịn nhuyễn. Hoàn toàn không dầu cọ hydro hóa, không đường, không muối, giàu chất béo tốt và đạm thực vật.',
     ingredients: ['100% Đậu phộng Đắk Lắk chọn lọc rang chín thơm'],
     nutrition: {
-      servingSize: '2 thìa (32g)',
       calories: 190,
       protein: 8.5,
       carbs: 6.0,
@@ -237,7 +230,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Granola thế hệ mới 0% yến mạch, 100% từ 6 loại hạt dinh dưỡng thượng hạng (Macca, Hạt điều, Hạnh nhân, Bí xanh, Hướng dương, Hạt chia). Vị giòn rụm với bơ ghee.',
     ingredients: ['Hạt mắc ca Tây Nguyên', 'Hạnh nhân Mỹ', 'Hạt óc chó Chile', 'Hạt bí xanh', 'Hạt hướng dương', 'Bơ Ghee', 'Quế'],
     nutrition: {
-      servingSize: '1 khẩu phần (45g)',
       calories: 220,
       protein: 6.8,
       carbs: 4.5,
@@ -265,7 +257,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Mứt dâu Đà Lạt nấu chậm cùng hạt chia đen tạo độ sệt tự nhiên không cần gelatin hay pectin nhân tạo. Vị chua ngọt tự nhiên từ quả mọng, 0% đường tinh luyện.',
     ingredients: ['Dâu tây tươi Đà Lạt 80%', 'Hạt chia organic 12%', 'Nước cốt chanh tươi', 'Chiết xuất quả la hán'],
     nutrition: {
-      servingSize: '1 thìa (20g)',
       calories: 22,
       protein: 0.6,
       carbs: 4.2,

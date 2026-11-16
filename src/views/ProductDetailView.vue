@@ -72,20 +72,9 @@ async function loadReviews(productId: string) {
 
 
 // Danh sách hình ảnh động
-const gallery = computed<string[]>(() => {
-  if (product.value?.galleryImages && product.value.galleryImages.length > 0) {
-    return product.value.galleryImages;
-  }
-  if (product.value?.image) {
-    return [
-      product.value.image,
-      'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80',
-    ];
-  }
-  return ['https://images.unsplash.com/photo-1517673132405-a56a62b18caf?auto=format&fit=crop&w=800&q=80'];
-});
+const gallery = computed<string[]>(() => product.value?.galleryImages?.length
+  ? product.value.galleryImages
+  : product.value?.image ? [product.value.image] : []);
 
 // Danh sách quy cách sản phẩm
 const canPurchase = computed(() => availableStock.value > 0);
@@ -281,10 +270,12 @@ watch(
           <!-- Ảnh Chính -->
           <div class="relative aspect-square w-full rounded-3xl overflow-hidden border border-[#E3E8DC] bg-white shadow-xs group">
             <img
-              :src="gallery[activeImageIndex] || product.image"
+              v-if="gallery.length"
+              :src="gallery[activeImageIndex] || gallery[0]"
               :alt="product.name"
               class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
+            <div v-else class="w-full h-full flex items-center justify-center text-sm text-[#7A866E]">Chưa có hình ảnh sản phẩm</div>
           </div>
 
           <!-- Thumbnails ảnh -->

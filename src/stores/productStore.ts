@@ -16,7 +16,6 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
     description: 'Granola nướng mật ong tự nhiên, giàu hạnh nhân, macca, óc chó và yến mạch nguyên cám.',
     ingredients: ['Yến mạch Úc 45%', 'Hạnh nhân 15%', 'Óc chó 10%', 'Hạt điều 10%', 'Mật ong hoa nhãn'],
     nutrition: {
-      servingSize: '500g',
       calories: 380,
       protein: 14,
       carbs: 28,
@@ -42,7 +41,6 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
     description: 'Ức gà phi lê nướng giòn không dầu, tẩm ướp thảo mộc hương thơm tự nhiên, 0g đường.',
     ingredients: ['Ức gà phi lê 98%', 'Thảo mộc tự nhiên', 'Muối hồng'],
     nutrition: {
-      servingSize: '200g',
       calories: 145,
       protein: 32,
       carbs: 0,
@@ -68,7 +66,6 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
     description: 'Thanh dinh dưỡng giàu whey isolate và hạt giòn, nạp 20g protein tiện lợi.',
     ingredients: ['Whey Isolate', 'Hạnh nhân', 'Socola đen nguyên chất'],
     nutrition: {
-      servingSize: '60g',
       calories: 210,
       protein: 20,
       carbs: 16,
@@ -94,7 +91,6 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
     description: 'Bánh mì đen lúa mạch nguyên cám lên men tự nhiên, chỉ số đường huyết GI thấp.',
     ingredients: ['Bột lúa mạch đen', 'Men tự nhiên', 'Nước tinh khiết', 'Muối'],
     nutrition: {
-      servingSize: '450g',
       calories: 180,
       protein: 8,
       carbs: 26,
@@ -120,7 +116,6 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
     description: 'Hạt điều Bình Phước rang củi truyền thống nguyên vị bùi béo tự nhiên.',
     ingredients: ['Hạt điều hữu cơ 100%'],
     nutrition: {
-      servingSize: '500g',
       calories: 310,
       protein: 11,
       carbs: 18,
@@ -146,7 +141,6 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
     description: 'Đậu phộng sẻ thuần chủng rang mộc nghiền mịn không thêm đường hay dầu cọ.',
     ingredients: ['Đậu phộng sẻ 100%'],
     nutrition: {
-      servingSize: '350g',
       calories: 190,
       protein: 8,
       carbs: 6,
@@ -172,7 +166,6 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
     description: 'Lá rong biển nướng giòn rụm kẹp hạt bí, hạnh nhân và mè trắng giàu khoáng chất.',
     ingredients: ['Rong biển Hàn Quốc', 'Hạnh nhân', 'Hạt bí xanh', 'Mè trắng'],
     nutrition: {
-      servingSize: '150g',
       calories: 120,
       protein: 6,
       carbs: 8,
@@ -198,7 +191,6 @@ export const FIGMA_SEED_PRODUCTS: Product[] = [
     description: 'Sợi mì củ nưa Konjac gần như 0 calo, giàu chất xơ glucomannan no lâu.',
     ingredients: ['Bột củ nưa Konjac', 'Nước vôi tôi tự nhiên'],
     nutrition: {
-      servingSize: '200g',
       calories: 10,
       protein: 0,
       carbs: 2.3,
