@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import { getPool, queryPostgres } from '../db/index.js';
 
 export interface ProductInput {
+  galleryImages: string[];
   unit: string;
   package_size: string;
   stock: number;
@@ -27,9 +28,11 @@ export async function listAdminProducts(executeQuery = queryPostgres) {
       p.price::float8 AS price, p.unit, p.package_size, COALESCE(p.stock_quantity,0) AS stock,
       COALESCE(n.calories,0) AS calo, COALESCE(n.protein,0) AS protein,
       COALESCE(n.carbs,0) AS carbs, COALESCE(n.fat,0) AS fat, COALESCE(n.sugar,0) AS sugar,
-      n.serving_size AS "servingSize", p.usage_instruction AS "usageInstruction",
+      p.usage_instruction AS "usageInstruction",
       CASE WHEN p.status THEN 'Đang bán' ELSE 'Tạm ngừng' END AS status,
-      COALESCE(p.image_url,'') AS image, COALESCE(p.description,'') AS description, p.ingredients,
+      COALESCE(p.image_url,'') AS image, COALESCE((SELECT json_agg(i.image_url ORDER BY i.sort_order, i.image_id)
+        FROM product_images i WHERE i.product_id=p.product_id), '[]'::json) AS "galleryImages",
+      COALESCE(p.description,'') AS description, p.ingredients,
       COALESCE(r.rating,0)::float8 AS rating, COALESCE(r.count,0)::int AS "reviewCount",
       COALESCE(s.sold,0)::int AS "soldCount"
     FROM products p LEFT JOIN categories c ON c.category_id=p.category_id
@@ -72,10 +75,16 @@ export function validateProduct(body: Record<string, unknown>): ProductInput {
     }
   }
   if (typeof body.image !== 'string' || body.image.length > 2000) throw new ProductInputError('Ảnh sản phẩm không hợp lệ.');
-  return { unit: unit.trim(), package_size: packageSize.trim(), stock, sku: body.sku.trim().toUpperCase(), name: body.name.trim(), category: body.category,
+  const images = body.galleryImages === undefined ? (body.image.trim() ? [body.image.trim()] : []) : body.galleryImages;
+  if (!Array.isArray(images) || images.length > 20 || images.some(image => {
+    if (typeof image !== 'string' || !image.trim() || image.trim().length > 2000) return true;
+    try { return !['https:', 'http:'].includes(new URL(image.trim()).protocol); } catch { return true; }
+  })) throw new ProductInputError('Chọn tối đa 20 ảnh với đường dẫn HTTP hoặc HTTPS hợp lệ.');
+  const galleryImages = [...new Set((images as string[]).map(image => image.trim()))];
+  return { galleryImages, unit: unit.trim(), package_size: packageSize.trim(), stock, sku: body.sku.trim().toUpperCase(), name: body.name.trim(), category: body.category,
     price: body.price as number, calo: body.calo as number, protein: body.protein as number,
     carbs: body.carbs as number, fat: body.fat as number, sugar: body.sugar as number,
-    status: body.status as ProductInput['status'], image: body.image.trim() };
+    status: body.status as ProductInput['status'], image: galleryImages[0] ?? '' };
 }
 
 export async function writeProduct(client: PoolClient, data: ProductInput, id?: string) {
@@ -94,8 +103,12 @@ export async function writeProduct(client: PoolClient, data: ProductInput, id?: 
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'') RETURNING product_id`, [...values,data.stock]);
   const productId = saved.rows[0]?.product_id;
   if (!productId) throw new ProductInputError('Không tìm thấy sản phẩm.',404);
-  await client.query(`INSERT INTO nutrition_facts (product_id,serving_size,calories,protein,carbs,fat,sugar)
-    VALUES ($1,'100g',$2,$3,$4,$5,$6) ON CONFLICT (product_id) DO UPDATE SET
+  await client.query('DELETE FROM product_images WHERE product_id=$1', [productId]);
+  for (const [index, url] of data.galleryImages.entries()) {
+    await client.query('INSERT INTO product_images (product_id,image_url,sort_order) VALUES ($1,$2,$3)', [productId,url,index]);
+  }
+  await client.query(`INSERT INTO nutrition_facts (product_id,calories,protein,carbs,fat,sugar)
+    VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (product_id) DO UPDATE SET
     calories=EXCLUDED.calories,protein=EXCLUDED.protein,carbs=EXCLUDED.carbs,fat=EXCLUDED.fat,sugar=EXCLUDED.sugar`,
     [productId,data.calo,data.protein,data.carbs,data.fat,data.sugar]);
   return String(productId);

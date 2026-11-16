@@ -225,7 +225,7 @@ watch(dietPreferences, () => {
 const suggestedProductDescription = computed(() => {
   const product = suggestedProduct.value;
   if (!product) return '';
-  return `${formatNumber(product.nutrition.calories)} kcal • ${formatNumber(product.nutrition.protein)}g protein / ${product.nutrition.servingSize}`;
+  return `${formatNumber(product.nutrition.calories)} kcal • ${formatNumber(product.nutrition.protein)}g protein / ${[product.unit, product.package_size].filter(Boolean).join(' ')}`;
 });
 
 function formatNumber(value: number | null | undefined): string {

@@ -166,7 +166,7 @@ function handleEdit() {
                   <span class="text-[#7A866E]">•</span>
                   <span class="text-[#576449] font-medium">{{ reviewCountValue }} lượt đánh giá</span>
                   <span class="text-[#7A866E]">•</span>
-                  <span class="text-xs text-[#7A866E]">Khẩu phần: <strong>{{ product.servingSize || '100g' }}</strong></span>
+                  <span class="text-xs text-[#7A866E]">Quy cách: <strong>{{ [product.unit, product.package_size].filter(Boolean).join(' ') || '—' }}</strong></span>
                   <span class="text-[#7A866E]">•</span>
                   <span class="text-emerald-700 font-bold flex items-center gap-1">
                     <ShieldCheck class="w-3.5 h-3.5" /> Chính hãng 100%
@@ -313,7 +313,7 @@ function handleEdit() {
                     <h5 class="font-heading text-sm font-black text-[#242424] uppercase tracking-wider">
                       Bảng Giá Trị Dinh Dưỡng Chi Tiết
                     </h5>
-                    <span class="text-[11px] text-[#7A866E]">Khẩu phần tiêu chuẩn: {{ product.servingSize || '100g' }}</span>
+                    <span class="text-[11px] text-[#7A866E]">Quy cách: {{ [product.unit, product.package_size].filter(Boolean).join(' ') || '—' }}</span>
                   </div>
                   <span class="text-[11px] font-bold text-[#7A866E]">% GIÁ TRỊ HÀNG NGÀY (% DV)*</span>
                 </div>

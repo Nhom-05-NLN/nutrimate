@@ -350,7 +350,7 @@ const suggestedUpsells = [
                 image: sug.image,
                 description: sug.desc,
                 ingredients: ['Tự nhiên'],
-                nutrition: { servingSize: '1 phần', calories: 120, protein: 10, carbs: 5, fat: 2, sugar: 1 },
+                nutrition: { calories: 120, protein: 10, carbs: 5, fat: 2, sugar: 1 },
                 stock: 99,
                 rating: 4.8,
                 reviewCount: 30,

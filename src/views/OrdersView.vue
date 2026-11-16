@@ -262,7 +262,6 @@ function handleReorder(order: Order) {
       description: item.productName,
       ingredients: ['Tự nhiên'],
       nutrition: {
-        servingSize: '1 phần',
         calories: item.calories,
         protein: item.protein,
         carbs: 10,
