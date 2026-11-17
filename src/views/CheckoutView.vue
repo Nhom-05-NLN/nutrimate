@@ -286,6 +286,11 @@ async function applyVoucherInput() {
 }
 
 async function handleFinishOrder() {
+  if (!authStore.currentUser) {
+    toastStore.show('Vui lòng đăng nhập để đặt hàng', 'warning');
+    router.push({ name: 'login', query: { redirect: '/checkout' } });
+    return;
+  }
   if (checkoutItems.value.length === 0) {
     toastStore.show('Giỏ hàng trống! Vui lòng chọn món trước khi đặt hàng', 'warning');
     router.push('/catalog');

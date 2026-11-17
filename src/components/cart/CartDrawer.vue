@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
 import { useCartStore, getCartItemKey } from '../../stores/cartStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useToastStore } from '../../stores/toastStore';
 import CartItemRow from './CartItemRow.vue';
 import {
   X,
@@ -13,6 +15,8 @@ import {
 
 const router = useRouter();
 const cartStore = useCartStore();
+const authStore = useAuthStore();
+const toastStore = useToastStore();
 
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -25,6 +29,11 @@ function handleGoToCart() {
 
 function handleProceedCheckout() {
   cartStore.closeCart();
+  if (!authStore.currentUser) {
+    toastStore.show('Vui lòng đăng nhập để thanh toán', 'warning');
+    router.push({ name: 'login', query: { redirect: '/checkout' } });
+    return;
+  }
   router.push('/checkout');
 }
 </script>
