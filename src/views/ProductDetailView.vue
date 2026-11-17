@@ -3,7 +3,6 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useProductStore, FIGMA_SEED_PRODUCTS } from '../stores/productStore';
 import { useCartStore } from '../stores/cartStore';
-import { useToastStore } from '../stores/toastStore';
 import { fetchProductById, fetchProductReviews, type ProductReview } from '../services/api';
 import { Product } from '../types';
 import {
@@ -24,7 +23,6 @@ const route = useRoute();
 const router = useRouter();
 const productStore = useProductStore();
 const cartStore = useCartStore();
-const toastStore = useToastStore();
 
 const loadedProduct = ref<Product | null>(null);
 const product = computed(() => loadedProduct.value);
@@ -171,7 +169,6 @@ function handleAddToCart() {
     route.query.source === 'ai' ? { ...productToAdd, isAiRecommended: true } : productToAdd,
     Number(quantity.value),
   );
-  toastStore.show('Đã thêm vào giỏ hàng', 'success', `${product.value.name}`);
 }
 
 function handleBuyNow() {
