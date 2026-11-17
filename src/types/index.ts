@@ -20,6 +20,7 @@ export interface NutritionFacts {
 }
 
 export interface Product {
+  usageInstruction?: string;
   unit?: string;
   package_size?: string;
   id: string;
