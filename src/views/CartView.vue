@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCartStore, getCartItemKey } from '../stores/cartStore';
+import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import CartItemRow from '../components/cart/CartItemRow.vue';
 import {
@@ -20,6 +21,7 @@ import {
 
 const router = useRouter();
 const cartStore = useCartStore();
+const authStore = useAuthStore();
 const toastStore = useToastStore();
 
 function formatVnd(amount: number): string {
@@ -34,6 +36,11 @@ const freeshipProgress = computed(() => Math.min(100, Math.round((subtotal.value
 const grandTotal = computed(() => Math.max(0, subtotal.value + shippingFee.value));
 
 function goToCheckout() {
+  if (!authStore.currentUser) {
+    toastStore.show('Vui lòng đăng nhập để thanh toán', 'warning');
+    router.push({ name: 'login', query: { redirect: '/checkout' } });
+    return;
+  }
   if (cartStore.selectedCount === 0) {
     toastStore.show('Vui lòng chọn ít nhất 1 sản phẩm để thanh toán', 'warning');
     return;

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useProductStore, FIGMA_SEED_PRODUCTS } from '../stores/productStore';
+import { useAuthStore } from '../stores/authStore';
 import { useCartStore } from '../stores/cartStore';
 import { useToastStore } from '../stores/toastStore';
 import { fetchProductById, fetchProductReviews, type ProductReview } from '../services/api';
@@ -23,6 +24,7 @@ import {
 const route = useRoute();
 const router = useRouter();
 const productStore = useProductStore();
+const authStore = useAuthStore();
 const cartStore = useCartStore();
 const toastStore = useToastStore();
 
@@ -171,10 +173,14 @@ function handleAddToCart() {
     route.query.source === 'ai' ? { ...productToAdd, isAiRecommended: true } : productToAdd,
     Number(quantity.value),
   );
-  toastStore.show('Đã thêm vào giỏ hàng', 'success', `${product.value.name}`);
 }
 
 function handleBuyNow() {
+  if (!authStore.currentUser) {
+    toastStore.show('Vui lòng đăng nhập để mua hàng', 'warning');
+    router.push({ name: 'login', query: { redirect: `/product/${String(route.params.id)}` } });
+    return;
+  }
   if (handleAddToCart() === false) return;
   router.push('/cart');
 }
