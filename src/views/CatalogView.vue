@@ -4,7 +4,7 @@ import { useProductStore } from '../stores/productStore';
 import ProductCard from '../components/catalog/ProductCard.vue';
 import AdvancedFilterModal, { type AdvancedFilters } from '../components/catalog/AdvancedFilterModal.vue';
 import EmptyIllustration from '../components/common/EmptyIllustration.vue';
-import { Search, SlidersHorizontal, X } from 'lucide-vue-next';
+import { Search, SlidersHorizontal, X, ChevronDown } from 'lucide-vue-next';
 
 const productStore = useProductStore();
 
@@ -238,6 +238,23 @@ const startItem = computed(() => {
 const endItem = computed(() => {
   return Math.min(productStore.currentPage * productStore.pageSize, productStore.totalProducts);
 });
+
+const paginationItems = computed(() => {
+  const total = productStore.totalPages;
+  const current = productStore.currentPage;
+  const pages = [...new Set([1, current - 1, current, current + 1, total])]
+    .filter(page => page >= 1 && page <= total)
+    .sort((a, b) => a - b);
+  const items: (number | '…')[] = [];
+  let previous = 0;
+  for (const page of pages) {
+    if (previous && page - previous === 2) items.push(previous + 1);
+    else if (previous && page - previous > 2) items.push('…');
+    items.push(page);
+    previous = page;
+  }
+  return items;
+});
 </script>
 
 <template>
@@ -280,15 +297,17 @@ const endItem = computed(() => {
 
 
         <!-- Dropdown sắp xếp -->
-        <div class="flex items-center gap-2 text-xs text-[#576449]">
+        <div class="relative text-xs text-[#576449]">
           <select :value="sortBy"
                   @change="handleSortChange"
-                  class="px-4 py-2.5 rounded-[8px] bg-white border border-[#E3E8DC] text-xs font-semibold text-[#2D3B1E] focus:border-[#4D6A34] outline-none shadow-2xs cursor-pointer">
+                  aria-label="Sắp xếp sản phẩm"
+                  class="appearance-none pl-4 pr-10 py-2.5 rounded-[8px] bg-white border border-[#E3E8DC] text-xs font-semibold text-[#2D3B1E] focus:border-[#4D6A34] outline-none shadow-2xs cursor-pointer">
             <option value="popular">Phổ biến nhất</option>
             <option value="price-asc">Giá thấp đến cao</option>
             <option value="price-desc">Giá cao đến thấp</option>
             <option value="rating-desc">Đánh giá cao nhất</option>
           </select>
+          <ChevronDown aria-hidden="true" class="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#7A866E]" />
         </div>
       </div>
     </div>
@@ -422,16 +441,20 @@ const endItem = computed(() => {
           </button>
 
           <!-- Page Number Buttons -->
+          <template v-for="(page, index) in paginationItems" :key="`${page}-${index}`">
+          <span v-if="page === '…'" class="w-5 text-center text-[#7A866E]" aria-hidden="true">…</span>
           <button
-            v-for="page in productStore.totalPages"
-            :key="page"
+            v-else
             type="button"
             @click="productStore.setPage(page)"
+            :aria-label="`Trang ${page}`"
+            :aria-current="page === productStore.currentPage ? 'page' : undefined"
             class="w-9 h-9 rounded-xl font-bold text-xs flex items-center justify-center transition-all cursor-pointer"
             :class="page === productStore.currentPage ? 'bg-[#4D6A34] text-white shadow-xs' : 'border border-[#CCD7BC] hover:bg-[#FAF9F5] text-[#2D3B1E]'"
           >
             {{ page }}
           </button>
+          </template>
 
           <!-- Next Button -->
           <button
