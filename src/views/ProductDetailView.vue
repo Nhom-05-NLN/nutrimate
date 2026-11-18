@@ -102,10 +102,9 @@ const displayRating = computed(() => Number((product.value?.rating ?? 0).toFixed
 
 const displayReviewCount = computed(() => product.value?.reviewCount ?? 0);
 
-function formatNutritionGrams(value: number | undefined, isMilligrams = false): string {
+function formatNutritionValue(value: number | undefined, unit = 'g'): string {
   if (value === undefined || value === null || !Number.isFinite(value)) return '-';
-  const grams = isMilligrams ? value / 1000 : value;
-  return grams.toLocaleString('vi-VN', { maximumFractionDigits: 3 }) + ' g';
+  return [value.toLocaleString('vi-VN', { maximumFractionDigits: 3 }), unit].filter(Boolean).join(' ');
 }
 
 function formatVnd(amount: number): string {
@@ -177,7 +176,7 @@ function handleAddToCart() {
 
 function handleBuyNow() {
   if (!authStore.currentUser) {
-    toastStore.show('Vui lòng đăng nhập để mua hàng', 'warning');
+    toastStore.show('Vui lòng đăng nhập để mua hàng');
     router.push({ name: 'login', query: { redirect: `/product/${String(route.params.id)}` } });
     return;
   }
@@ -443,7 +442,7 @@ watch(
             </span>
           </div>
 
-          <!-- 2 Nút Mua hàng to -->
+          <!-- Nút Mua hàng -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <button
               type="button"
@@ -529,29 +528,17 @@ watch(
                   {{ product.name }}
                 </h3>
                 <p class="leading-relaxed">
-                  {{ product.description || 'Sản phẩm dinh dưỡng sạch được kiểm định nghiêm ngặt từ nguồn nguyên liệu tự nhiên cao cấp, phù hợp cho lối sống lành mạnh và chế độ ăn cân bằng.' }}
+                  {{ product.description || 'Chưa có mô tả chi tiết cho sản phẩm này.' }}
                 </p>
               </div>
 
-              <!-- 3 Cách thưởng thức dinh dưỡng mỗi ngày -->
               <div class="space-y-3">
                 <h4 class="font-heading text-base font-bold text-[#242424]">
                   Gợi ý sử dụng lành mạnh mỗi ngày:
                 </h4>
-                <ul class="space-y-2.5 text-xs sm:text-sm text-[#4E5C3E]">
-                  <li class="flex items-start gap-2.5">
-                    <span class="w-6 h-6 rounded-full bg-[#EBF7E5] text-[#4D6A34] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">1</span>
-                    <span><strong>Dùng trực tiếp:</strong> Thích hợp làm món ăn vặt giàu năng lượng sạch trong giờ làm việc hoặc trước khi tập luyện 30 phút.</span>
-                  </li>
-                  <li class="flex items-start gap-2.5">
-                    <span class="w-6 h-6 rounded-full bg-[#EBF7E5] text-[#4D6A34] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">2</span>
-                    <span><strong>Kết hợp sữa chua hoặc sữa hạt:</strong> Dùng kèm sữa chua Hy Lạp hoặc sữa hạnh nhân không đường để tạo bữa sáng nhanh gọn, giàu đạm.</span>
-                  </li>
-                  <li class="flex items-start gap-2.5">
-                    <span class="w-6 h-6 rounded-full bg-[#EBF7E5] text-[#4D6A34] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">3</span>
-                    <span><strong>Bảo quản:</strong> Để nơi khô ráo, thoáng mát, đậy kín nắp sau khi sử dụng để giữ nguyên độ tươi ngon và giòn rụm.</span>
-                  </li>
-                </ul>
+                <p class="whitespace-pre-line text-xs sm:text-sm leading-relaxed text-[#4E5C3E]">
+                  {{ product.usageInstruction?.trim() || 'Chưa có hướng dẫn sử dụng cho sản phẩm này.' }}
+                </p>
               </div>
 
               <!-- Thành phần nguyên liệu chi tiết -->
@@ -566,7 +553,7 @@ watch(
                     {{ ing }}
                   </span>
                 </div>
-                <p v-else class="text-[#576449]">Nguyên liệu thuần tự nhiên, đã qua kiểm định an toàn vệ sinh thực phẩm.</p>
+                <p v-else class="text-[#576449]">Chưa có thông tin thành phần nguyên liệu cho sản phẩm này.</p>
               </div>
             </div>
 
@@ -633,62 +620,49 @@ watch(
             </div>
           </div>
 
-          <!-- Cột Phải: Bảng THÔNG TIN DINH DƯỠNG Chuẩn Khoa Học -->
+          <!-- Bảng thông tin dinh dưỡng -->
           <div class="lg:col-span-5 bg-white p-7 rounded-3xl border border-[#E3E8DC] shadow-sm space-y-5">
             <div class="border-b-4 border-[#242424] pb-2.5">
               <h3 class="font-heading text-xl font-black text-[#242424] uppercase tracking-wider">
                 Thông Tin Dinh Dưỡng
               </h3>
-              <p class="text-xs text-[#7A866E]">Chuẩn kiểm định Viện Dinh Dưỡng</p>
             </div>
 
             <!-- Calo lớn -->
             <div class="flex items-center justify-between py-3 border-b-2 border-[#242424]">
               <div>
                 <span class="text-sm font-bold text-[#242424] block uppercase">Năng Lượng / Calo</span>
-                <span class="text-xs text-[#7A866E]">{{ [product.unit, product.package_size].filter(Boolean).join(' ') }}</span>
+                <span v-if="product.unit || product.package_size" class="text-xs text-[#7A866E]">{{ [product.unit, product.package_size].filter(Boolean).join(' ') }}</span>
               </div>
               <span class="font-heading text-4xl font-black text-[#242424]">
-                {{ product.nutrition?.calories || 0 }} <span class="text-base font-normal">kcal</span>
+                {{ formatNutritionValue(product.nutrition?.calories, '') }} <span class="text-base font-normal">kcal</span>
               </span>
             </div>
 
             <div class="space-y-2 text-sm text-[#242424]">
               <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
                 <span class="font-bold">Tổng chất béo (Total Fat)</span>
-                <span class="shrink-0 font-bold">{{ formatNutritionGrams(product.nutrition?.fat) }}</span>
-              </div>
-              <div class="flex justify-between gap-4 pl-4 text-[#7A866E] text-xs">
-                <span>Chất béo bão hòa</span>
-                <span class="shrink-0">{{ formatNutritionGrams(product.nutrition?.saturatedFat) }}</span>
-              </div>
-              <div class="flex justify-between gap-4 pl-4 text-[#7A866E] text-xs">
-                <span>Chất béo chuyển hóa</span>
-                <span class="shrink-0">{{ formatNutritionGrams(product.nutrition?.transFat) }}</span>
-              </div>
-              <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
-                <span class="font-bold">Cholesterol</span>
-                <span class="shrink-0 font-bold">{{ formatNutritionGrams(product.nutrition?.cholesterol, true) }}</span>
+                <span class="shrink-0 font-bold">{{ formatNutritionValue(product.nutrition?.fat) }}</span>
               </div>
               <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
                 <span class="font-bold">Natri (Sodium)</span>
-                <span class="shrink-0 font-bold">{{ formatNutritionGrams(product.nutrition?.sodium, true) }}</span>
+                <span class="shrink-0 font-bold">{{ formatNutritionValue(product.nutrition?.sodium, 'mg') }}</span>
               </div>
               <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
                 <span class="font-bold">Tổng Carbohydrate</span>
-                <span class="shrink-0 font-bold">{{ formatNutritionGrams(product.nutrition?.carbs) }}</span>
+                <span class="shrink-0 font-bold">{{ formatNutritionValue(product.nutrition?.carbs) }}</span>
               </div>
               <div class="flex justify-between gap-4 pl-4 text-[#7A866E] text-xs">
                 <span>Chất xơ tiêu hóa</span>
-                <span class="shrink-0">{{ formatNutritionGrams(product.nutrition?.fiber) }}</span>
+                <span class="shrink-0">{{ formatNutritionValue(product.nutrition?.fiber) }}</span>
               </div>
               <div class="flex justify-between gap-4 pl-4 text-[#7A866E] text-xs">
                 <span>Đường tổng</span>
-                <span class="shrink-0">{{ formatNutritionGrams(product.nutrition?.sugar) }}</span>
+                <span class="shrink-0">{{ formatNutritionValue(product.nutrition?.sugar) }}</span>
               </div>
               <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
                 <span class="font-bold">Chất đạm</span>
-                <span class="shrink-0 font-bold">{{ formatNutritionGrams(product.nutrition?.protein) }}</span>
+                <span class="shrink-0 font-bold">{{ formatNutritionValue(product.nutrition?.protein) }}</span>
               </div>
             </div>
           </div>
