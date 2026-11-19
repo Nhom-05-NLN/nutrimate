@@ -10,8 +10,6 @@ import {
   CheckCircle2,
   EyeOff,
   RotateCcw,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-vue-next';
 import { useToastStore } from '../../stores/toastStore';
 import type { AdminCategoryRecord as AdminCategoryItem } from '../../types';
@@ -20,6 +18,8 @@ import AdminCategoryCreateModal from '../../components/admin/AdminCategoryCreate
 import AdminCategoryEditModal from '../../components/admin/AdminCategoryEditModal.vue';
 import AdminCategoryDeleteModal from '../../components/admin/AdminCategoryDeleteModal.vue';
 import AdminCategoryDetailModal, { type AdminCategoryItemWithCount } from '../../components/admin/AdminCategoryDetailModal.vue';
+import AdminPagination from '../../components/admin/AdminPagination.vue';
+import { ADMIN_PAGE_SIZE, clampAdminPage, paginateItems } from '../../utils/adminPagination';
 
 const toastStore = useToastStore();
 const categories = ref<AdminCategoryItem[]>([]);
@@ -62,40 +62,15 @@ const filteredCategories = computed<AdminCategoryItemWithCount[]>(() => {
   });
 });
 
-// PHÂN TRANG (PAGINATION)
 const currentPage = ref(1);
-const itemsPerPage = ref(5); // 5 danh mục mỗi trang
+const paginatedCategories = computed(() => paginateItems(filteredCategories.value, currentPage.value, ADMIN_PAGE_SIZE));
 
-// Reset về trang 1 khi lọc hoặc tìm kiếm
 watch(searchQuery, () => {
   currentPage.value = 1;
 });
-
-const totalPages = computed(() => {
-  return Math.ceil(filteredCategories.value.length / itemsPerPage.value) || 1;
+watch(filteredCategories, (list) => {
+  currentPage.value = clampAdminPage(currentPage.value, list.length, ADMIN_PAGE_SIZE);
 });
-
-watch(totalPages, (pages) => { currentPage.value = Math.min(currentPage.value, pages); });
-
-const paginatedCategories = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage.value;
-  return filteredCategories.value.slice(start, start + itemsPerPage.value);
-});
-
-const startItemIndex = computed(() => {
-  if (filteredCategories.value.length === 0) return 0;
-  return (currentPage.value - 1) * itemsPerPage.value + 1;
-});
-
-const endItemIndex = computed(() => {
-  return Math.min(currentPage.value * itemsPerPage.value, filteredCategories.value.length);
-});
-
-function goToPage(page: number) {
-  if (page >= 1 && page <= totalPages.value) {
-    currentPage.value = page;
-  }
-}
 
 function resetFilters() {
   searchQuery.value = '';
@@ -378,53 +353,12 @@ function openDetailModal(category: AdminCategoryItemWithCount) {
         </table>
       </div>
 
-      <!-- Pagination Toolbar (Thanh phân trang) -->
-      <div
-        v-if="!loading && !loadError && filteredCategories.length > 0"
-        class="p-4 border-t border-[#ECEFE7] bg-[#FAF9F5] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs"
-      >
-        <span class="text-[#7A866E] font-medium">
-          Hiển thị <strong>{{ startItemIndex }} - {{ endItemIndex }}</strong> trong tổng số <strong>{{ filteredCategories.length }}</strong> danh mục
-        </span>
-
-        <div class="flex items-center gap-1.5">
-          <!-- Nút Trang trước -->
-          <button
-            type="button"
-            :disabled="currentPage <= 1"
-            @click="goToPage(currentPage - 1)"
-            class="w-8 h-8 rounded-xl border border-[#CCD7BC] bg-white flex items-center justify-center text-[#536124] hover:bg-[#EBF1E6] disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors cursor-pointer"
-            title="Trang trước"
-          >
-            <ChevronLeft class="w-4 h-4" />
-          </button>
-
-          <!-- Nút số trang -->
-          <div class="flex items-center gap-1">
-            <button
-              v-for="page in totalPages"
-              :key="page"
-              type="button"
-              @click="goToPage(page)"
-              class="w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center"
-              :class="page === currentPage ? 'bg-[#536124] text-white shadow-xs' : 'bg-white border border-[#CCD7BC] text-[#2D3B1E] hover:bg-[#FAF9F5]'"
-            >
-              {{ page }}
-            </button>
-          </div>
-
-          <!-- Nút Trang sau -->
-          <button
-            type="button"
-            :disabled="currentPage >= totalPages"
-            @click="goToPage(currentPage + 1)"
-            class="w-8 h-8 rounded-xl border border-[#CCD7BC] bg-white flex items-center justify-center text-[#536124] hover:bg-[#EBF1E6] disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors cursor-pointer"
-            title="Trang tiếp theo"
-          >
-            <ChevronRight class="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      <AdminPagination
+        v-model:current-page="currentPage"
+        :total-items="filteredCategories.length"
+        item-label="danh mục"
+        :disabled="loading || !!loadError"
+      />
     </div>
 
     <!-- 1. MODAL THÊM DANH MỤC MỚI -->

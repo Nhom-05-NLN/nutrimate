@@ -3,8 +3,6 @@ import { computed, onMounted, ref, watch } from 'vue';
 import {
   Activity,
   AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
   Download,
   Eye,
   HeartPulse,
@@ -25,6 +23,8 @@ import {
   deleteAdminCustomer,
   fetchAdminCustomers,
 } from '../../services/api';
+import AdminPagination from '../../components/admin/AdminPagination.vue';
+import { ADMIN_PAGE_SIZE, clampAdminPage } from '../../utils/adminPagination';
 
 const searchQuery = ref('');
 const activeSegment = ref<NonNullable<AdminCustomerQuery['segment']>>('all');
@@ -41,30 +41,8 @@ const isDeleting = ref(false);
 const deleteError = ref('');
 const selectedCustomer = ref<AdminCustomer | null>(null);
 const failedAvatarIds = ref(new Set<string>());
-const totalPages = computed(() => Math.max(pageData.value?.totalPages ?? 0, 1));
-const paginationItems = computed<(number | string)[]>(() => {
-  const pages = [...new Set([
-    1,
-    page.value - 1,
-    page.value,
-    page.value + 1,
-    totalPages.value,
-  ])]
-    .filter((item) => item >= 1 && item <= totalPages.value)
-    .sort((a, b) => a - b);
-
-  const items: (number | string)[] = [];
-  pages.forEach((item, index) => {
-    if (index > 0 && item - pages[index - 1] > 1) items.push('…');
-    items.push(item);
-  });
-  return items;
-});
 const firstVisibleRow = computed(() =>
   pageData.value?.customers.length ? (page.value - 1) * pageData.value.limit + 1 : 0,
-);
-const lastVisibleRow = computed(() =>
-  pageData.value ? firstVisibleRow.value + pageData.value.customers.length - 1 : 0,
 );
 const summaryCards = computed(() => [
   {
@@ -99,25 +77,33 @@ function currentFilters(): AdminCustomerQuery {
     bmiProfile: bmiProfileFilter.value,
     orders: orderFilter.value,
     page: page.value,
-    limit: 8,
+    limit: ADMIN_PAGE_SIZE,
   };
 }
 
 let requestId = 0;
+let skipPageWatch = false;
+
 async function loadCustomers() {
   const currentRequestId = ++requestId;
   isLoading.value = true;
   errorMessage.value = '';
   try {
     const result = await fetchAdminCustomers(currentFilters());
-    if (currentRequestId === requestId) {
-      pageData.value = result;
-      failedAvatarIds.value = new Set<string>();
-      if (selectedCustomer.value) {
-        selectedCustomer.value = result.customers.find(
-          (customer) => customer.id === selectedCustomer.value?.id,
-        ) ?? selectedCustomer.value;
-      }
+    if (currentRequestId !== requestId) return;
+    const clampedPage = clampAdminPage(page.value, result.total, result.limit);
+    if (clampedPage !== page.value) {
+      skipPageWatch = true;
+      page.value = clampedPage;
+      await loadCustomers();
+      return;
+    }
+    pageData.value = result;
+    failedAvatarIds.value = new Set<string>();
+    if (selectedCustomer.value) {
+      selectedCustomer.value = result.customers.find(
+        (customer) => customer.id === selectedCustomer.value?.id,
+      ) ?? selectedCustomer.value;
     }
   } catch (error: unknown) {
     if (currentRequestId === requestId) {
@@ -131,7 +117,10 @@ async function loadCustomers() {
 }
 
 watch([searchQuery, activeSegment, nutritionGoalFilter, bmiProfileFilter, orderFilter], (_value, _oldValue, onCleanup) => {
-  page.value = 1;
+  if (page.value !== 1) {
+    skipPageWatch = true;
+    page.value = 1;
+  }
   const currentRequestId = ++requestId;
   isLoading.value = true;
   errorMessage.value = '';
@@ -142,14 +131,12 @@ watch([searchQuery, activeSegment, nutritionGoalFilter, bmiProfileFilter, orderF
 });
 
 watch(page, () => {
+  if (skipPageWatch) {
+    skipPageWatch = false;
+    return;
+  }
   void loadCustomers();
 });
-
-function goToPage(nextPage: number | string) {
-  if (typeof nextPage === 'number' && nextPage >= 1 && nextPage <= totalPages.value) {
-    page.value = nextPage;
-  }
-}
 
 onMounted(() => {
   void loadCustomers();
@@ -223,9 +210,10 @@ async function confirmRemoveCustomer() {
     await deleteAdminCustomer(customer.id);
     pendingDeleteCustomer.value = null;
     const remaining = Math.max((pageData.value?.total ?? 1) - 1, 0);
-    page.value = Math.min(page.value, Math.max(Math.ceil(remaining / (pageData.value?.limit ?? 20)), 1));
+    const nextPage = clampAdminPage(page.value, remaining, pageData.value?.limit ?? ADMIN_PAGE_SIZE);
     pageData.value = null;
-    await loadCustomers();
+    if (nextPage === page.value) await loadCustomers();
+    else page.value = nextPage;
   } catch (error: unknown) {
     deleteError.value = error instanceof Error ? error.message : 'Không thể xóa khách hàng.';
   } finally {
@@ -555,53 +543,13 @@ async function exportCsv() {
         </div>
       </div>
 
-      <div class="flex flex-col gap-3 border-t border-[#F0F3EC] pt-4 text-sm text-[#7A866E] sm:flex-row sm:items-center sm:justify-between">
-        <span>
-          {{ pageData?.total ? `Hiển thị ${firstVisibleRow}–${lastVisibleRow} trong tổng số ${pageData.total.toLocaleString('vi-VN')} khách hàng` : 'Chưa có khách hàng' }}
-        </span>
-        <div class="flex items-center gap-1.5">
-          <button
-            type="button"
-            :disabled="page <= 1 || isLoading"
-            @click="goToPage(page - 1)"
-            aria-label="Trang trước"
-            class="flex h-8 w-8 items-center justify-center rounded-xl border border-[#CCD7BC] bg-white text-[#536124] transition-colors hover:bg-[#EBF1E6] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
-          >
-            <ChevronLeft class="h-4 w-4" />
-          </button>
-          <div class="flex items-center gap-1">
-            <template v-for="(item, index) in paginationItems" :key="`${item}-${index}`">
-              <span
-                v-if="item === '…'"
-                class="flex h-8 w-8 items-center justify-center text-[#7A866E]"
-                aria-hidden="true"
-              >…</span>
-              <button
-                v-else
-                type="button"
-                @click="goToPage(item)"
-                :aria-label="`Trang ${item}`"
-                :aria-current="item === page ? 'page' : undefined"
-                class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-xs font-bold transition-all"
-                :class="item === page
-                  ? 'bg-[#536124] text-white shadow-xs'
-                  : 'border border-[#CCD7BC] bg-white text-[#2D3B1E] hover:bg-[#FAF9F5]'"
-              >
-                {{ item }}
-              </button>
-            </template>
-          </div>
-          <button
-            type="button"
-            :disabled="page >= totalPages || isLoading"
-            @click="goToPage(page + 1)"
-            aria-label="Trang tiếp theo"
-            class="flex h-8 w-8 items-center justify-center rounded-xl border border-[#CCD7BC] bg-white text-[#536124] transition-colors hover:bg-[#EBF1E6] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
-          >
-            <ChevronRight class="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+      <AdminPagination
+        v-model:current-page="page"
+        :total-items="pageData?.total ?? 0"
+        item-label="khách hàng"
+        :page-size="pageData?.limit ?? ADMIN_PAGE_SIZE"
+        :disabled="isLoading"
+      />
     </section>
 
     <div

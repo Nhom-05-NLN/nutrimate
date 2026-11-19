@@ -1,6 +1,8 @@
 ﻿<script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { Bot, CheckCircle2, ChevronLeft, ChevronRight, FilePlus2, FileText, Pencil, RotateCcw, Save, Search, Trash2, X } from 'lucide-vue-next';
+import { Bot, CheckCircle2, FilePlus2, FileText, Pencil, RotateCcw, Save, Search, Trash2, X } from 'lucide-vue-next';
+import AdminPagination from '../../components/admin/AdminPagination.vue';
+import { ADMIN_PAGE_SIZE, clampAdminPage, paginateItems } from '../../utils/adminPagination';
 import {
   createKnowledgeEntry,
   deleteKnowledgeEntry,
@@ -19,7 +21,6 @@ interface KnowledgeForm {
 
 const MAX_IMPORT_FILE_SIZE = 1024 * 1024;
 const MAX_IMPORT_ENTRIES = 500;
-const PAGE_SIZE = 10;
 const toastStore = useToastStore();
 const records = ref<KnowledgeBaseEntry[]>([]);
 const searchQuery = ref('');
@@ -63,20 +64,14 @@ const filteredRecords = computed(() => {
     return matchesQuery && matchesCategory && matchesScope;
   });
 });
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredRecords.value.length / PAGE_SIZE)));
-const paginatedRecords = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE;
-  return filteredRecords.value.slice(start, start + PAGE_SIZE);
-});
-const firstVisibleRecord = computed(() => filteredRecords.value.length ? (currentPage.value - 1) * PAGE_SIZE + 1 : 0);
-const lastVisibleRecord = computed(() => Math.min(currentPage.value * PAGE_SIZE, filteredRecords.value.length));
+const paginatedRecords = computed(() => paginateItems(filteredRecords.value, currentPage.value, ADMIN_PAGE_SIZE));
 
 watch([searchQuery, selectedCategory, categoryScope], () => {
   currentPage.value = 1;
 });
 
-watch(totalPages, (pageCount) => {
-  if (currentPage.value > pageCount) currentPage.value = pageCount;
+watch(filteredRecords, (list) => {
+  currentPage.value = clampAdminPage(currentPage.value, list.length, ADMIN_PAGE_SIZE);
 });
 
 function resetFilters() {
@@ -420,34 +415,13 @@ onMounted(() => {
             </p>
           </article>
 
-          <div class="flex flex-col gap-3 border-t border-[#F0F3EC] pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p class="text-xs text-[#7A866E]">
-              Hiển thị {{ firstVisibleRecord }}–{{ lastVisibleRecord }} trong {{ filteredRecords.length }} tri thức
-            </p>
-            <div class="flex items-center gap-2 self-end sm:self-auto">
-              <button
-                type="button"
-                :disabled="currentPage === 1"
-                aria-label="Trang trước"
-                @click="currentPage -= 1"
-                class="inline-flex items-center gap-1 rounded-xl border border-[#DEE5D4] px-3 py-2 text-xs font-bold text-[#576449] transition hover:bg-[#FAF9F5] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <ChevronLeft class="h-4 w-4" />
-                Trước
-              </button>
-              <span class="min-w-20 text-center text-xs font-bold text-[#2D3B1E]">{{ currentPage }} / {{ totalPages }}</span>
-              <button
-                type="button"
-                :disabled="currentPage === totalPages"
-                aria-label="Trang sau"
-                @click="currentPage += 1"
-                class="inline-flex items-center gap-1 rounded-xl border border-[#DEE5D4] px-3 py-2 text-xs font-bold text-[#576449] transition hover:bg-[#FAF9F5] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Sau
-                <ChevronRight class="h-4 w-4" />
-              </button>
-            </div>
-          </div>
+          <AdminPagination
+            v-model:current-page="currentPage"
+            :total-items="filteredRecords.length"
+            item-label="tri thức"
+            :page-size="ADMIN_PAGE_SIZE"
+            :disabled="isLoading"
+          />
         </div>
       </section>
 

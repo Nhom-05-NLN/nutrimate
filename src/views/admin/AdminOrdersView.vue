@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { fetchOrders, patchOrderStatus, patchOrderPaymentStatus } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
 import { useToastStore } from '../../stores/toastStore';
 import { Order, OrderStatus } from '../../types';
 import AdminOrderTable from '../../components/admin/orders/AdminOrderTable.vue';
+import AdminPagination from '../../components/admin/AdminPagination.vue';
+import { ADMIN_PAGE_SIZE, clampAdminPage, paginateItems } from '../../utils/adminPagination';
 import {
   ShoppingCart,
   Package,
@@ -85,6 +87,16 @@ const filteredOrders = computed(() => {
   }
 
   return list;
+});
+
+const currentPage = ref(1);
+const paginatedOrders = computed(() => paginateItems(filteredOrders.value, currentPage.value, ADMIN_PAGE_SIZE));
+
+watch([searchQuery, activeTab], () => {
+  currentPage.value = 1;
+});
+watch(filteredOrders, (list) => {
+  currentPage.value = clampAdminPage(currentPage.value, list.length, ADMIN_PAGE_SIZE);
 });
 
 // Cập nhật trạng thái đơn hàng (CN_24)
@@ -287,9 +299,16 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
 
       <!-- Admin Order Table Component (CN_24) -->
       <AdminOrderTable
-        :orders="filteredOrders"
+        :orders="paginatedOrders"
         :is-loading="isLoading"
         @update-status="handleUpdateStatus"
+      />
+
+      <AdminPagination
+        v-model:current-page="currentPage"
+        :total-items="filteredOrders.length"
+        item-label="đơn hàng"
+        :disabled="isLoading"
       />
     </div>
   </div>
