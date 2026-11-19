@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
-import { ADMIN_PAGE_SIZE } from '../../utils/adminPagination';
+import { ADMIN_PAGE_SIZE, clampAdminPage } from '../../utils/adminPagination';
 
 const props = withDefaults(defineProps<{
   currentPage: number;
@@ -18,11 +18,12 @@ const emit = defineEmits<{
   (e: 'update:currentPage', page: number): void;
 }>();
 
+const safePage = computed(() => clampAdminPage(props.currentPage, props.totalItems, props.pageSize));
 const totalPages = computed(() => Math.max(1, Math.ceil(props.totalItems / props.pageSize)));
-const startItemIndex = computed(() => (props.totalItems ? (props.currentPage - 1) * props.pageSize + 1 : 0));
-const endItemIndex = computed(() => Math.min(props.currentPage * props.pageSize, props.totalItems));
+const startItemIndex = computed(() => (props.totalItems ? (safePage.value - 1) * props.pageSize + 1 : 0));
+const endItemIndex = computed(() => Math.min(safePage.value * props.pageSize, props.totalItems));
 const paginationItems = computed(() => {
-  const pages = [...new Set([1, props.currentPage - 1, props.currentPage, props.currentPage + 1, totalPages.value])]
+  const pages = [...new Set([1, safePage.value - 1, safePage.value, safePage.value + 1, totalPages.value])]
     .filter((page) => page >= 1 && page <= totalPages.value)
     .sort((a, b) => a - b);
   const items: (number | '…')[] = [];
@@ -48,16 +49,16 @@ function goToPage(page: number) {
     aria-label="Phân trang"
     class="w-full box-border px-4 py-4 sm:px-5 border-t border-[#ECEFE7] bg-[#FAF9F5] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs"
   >
-    <span class="min-w-0 text-[#7A866E] font-medium">
+    <span class="min-w-0 text-[#7A866E] font-medium" aria-live="polite">
       Hiển thị <strong>{{ startItemIndex }} - {{ endItemIndex }}</strong>
       trong tổng số <strong>{{ totalItems.toLocaleString('vi-VN') }}</strong> {{ itemLabel }}
     </span>
 
-    <div class="flex shrink-0 items-center gap-1.5 self-end sm:self-auto">
+    <div class="flex w-full sm:w-auto shrink-0 items-center justify-between sm:justify-end gap-1.5">
       <button
         type="button"
-        :disabled="disabled || currentPage <= 1"
-        @click="goToPage(currentPage - 1)"
+        :disabled="disabled || safePage <= 1"
+        @click="goToPage(safePage - 1)"
         class="min-w-11 min-h-11 w-11 h-11 rounded-xl border border-[#CCD7BC] bg-white flex items-center justify-center text-[#536124] hover:bg-[#EBF1E6] disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#536124]"
         title="Trang trước"
         aria-label="Trang trước"
@@ -74,9 +75,9 @@ function goToPage(page: number) {
             :disabled="disabled"
             @click="goToPage(page)"
             :aria-label="`Trang ${page}`"
-            :aria-current="page === currentPage ? 'page' : undefined"
+            :aria-current="page === safePage ? 'page' : undefined"
             class="min-w-11 min-h-11 w-11 h-11 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#536124]"
-            :class="page === currentPage ? 'bg-[#536124] text-white shadow-xs' : 'bg-white border border-[#CCD7BC] text-[#2D3B1E] hover:bg-[#FAF9F5]'"
+            :class="page === safePage ? 'bg-[#536124] text-white shadow-xs' : 'bg-white border border-[#CCD7BC] text-[#2D3B1E] hover:bg-[#FAF9F5]'"
           >
             {{ page }}
           </button>
@@ -84,13 +85,13 @@ function goToPage(page: number) {
       </div>
 
       <span class="sm:hidden min-w-20 text-center font-bold text-[#2D3B1E]" aria-live="polite">
-        Trang {{ currentPage }} / {{ totalPages }}
+        Trang {{ safePage }} / {{ totalPages }}
       </span>
 
       <button
         type="button"
-        :disabled="disabled || currentPage >= totalPages"
-        @click="goToPage(currentPage + 1)"
+        :disabled="disabled || safePage >= totalPages"
+        @click="goToPage(safePage + 1)"
         class="min-w-11 min-h-11 w-11 h-11 rounded-xl border border-[#CCD7BC] bg-white flex items-center justify-center text-[#536124] hover:bg-[#EBF1E6] disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#536124]"
         title="Trang tiếp theo"
         aria-label="Trang tiếp theo"

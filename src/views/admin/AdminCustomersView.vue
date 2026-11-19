@@ -82,20 +82,28 @@ function currentFilters(): AdminCustomerQuery {
 }
 
 let requestId = 0;
+let skipPageWatch = false;
+
 async function loadCustomers() {
   const currentRequestId = ++requestId;
   isLoading.value = true;
   errorMessage.value = '';
   try {
     const result = await fetchAdminCustomers(currentFilters());
-    if (currentRequestId === requestId) {
-      pageData.value = result;
-      failedAvatarIds.value = new Set<string>();
-      if (selectedCustomer.value) {
-        selectedCustomer.value = result.customers.find(
-          (customer) => customer.id === selectedCustomer.value?.id,
-        ) ?? selectedCustomer.value;
-      }
+    if (currentRequestId !== requestId) return;
+    const clampedPage = clampAdminPage(page.value, result.total, result.limit);
+    if (clampedPage !== page.value) {
+      skipPageWatch = true;
+      page.value = clampedPage;
+      await loadCustomers();
+      return;
+    }
+    pageData.value = result;
+    failedAvatarIds.value = new Set<string>();
+    if (selectedCustomer.value) {
+      selectedCustomer.value = result.customers.find(
+        (customer) => customer.id === selectedCustomer.value?.id,
+      ) ?? selectedCustomer.value;
     }
   } catch (error: unknown) {
     if (currentRequestId === requestId) {
@@ -109,7 +117,10 @@ async function loadCustomers() {
 }
 
 watch([searchQuery, activeSegment, nutritionGoalFilter, bmiProfileFilter, orderFilter], (_value, _oldValue, onCleanup) => {
-  page.value = 1;
+  if (page.value !== 1) {
+    skipPageWatch = true;
+    page.value = 1;
+  }
   const currentRequestId = ++requestId;
   isLoading.value = true;
   errorMessage.value = '';
@@ -120,6 +131,10 @@ watch([searchQuery, activeSegment, nutritionGoalFilter, bmiProfileFilter, orderF
 });
 
 watch(page, () => {
+  if (skipPageWatch) {
+    skipPageWatch = false;
+    return;
+  }
   void loadCustomers();
 });
 
@@ -195,9 +210,10 @@ async function confirmRemoveCustomer() {
     await deleteAdminCustomer(customer.id);
     pendingDeleteCustomer.value = null;
     const remaining = Math.max((pageData.value?.total ?? 1) - 1, 0);
-    page.value = clampAdminPage(page.value, remaining, pageData.value?.limit ?? ADMIN_PAGE_SIZE);
+    const nextPage = clampAdminPage(page.value, remaining, pageData.value?.limit ?? ADMIN_PAGE_SIZE);
     pageData.value = null;
-    await loadCustomers();
+    if (nextPage === page.value) await loadCustomers();
+    else page.value = nextPage;
   } catch (error: unknown) {
     deleteError.value = error instanceof Error ? error.message : 'Không thể xóa khách hàng.';
   } finally {
