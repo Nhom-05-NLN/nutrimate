@@ -5,6 +5,8 @@ import { useAuthStore } from '../../stores/authStore';
 import { useToastStore } from '../../stores/toastStore';
 import { Order, OrderStatus } from '../../types';
 import AdminOrderTable from '../../components/admin/orders/AdminOrderTable.vue';
+import AdminPagination from '../../components/admin/AdminPagination.vue';
+import { ADMIN_PAGE_SIZE, clampAdminPage, paginateItems } from '../../utils/adminPagination';
 import {
   ShoppingCart,
   Package,
@@ -13,8 +15,6 @@ import {
   Search,
   RefreshCw,
   AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
@@ -90,38 +90,14 @@ const filteredOrders = computed(() => {
 });
 
 const currentPage = ref(1);
-const itemsPerPage = 8;
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredOrders.value.length / itemsPerPage)));
-const paginationItems = computed(() => {
-  const pages = [...new Set([1, currentPage.value - 1, currentPage.value, currentPage.value + 1, totalPages.value])]
-    .filter((page) => page >= 1 && page <= totalPages.value)
-    .sort((a, b) => a - b);
-  const items: (number | '…')[] = [];
-  let previous = 0;
-  for (const page of pages) {
-    if (previous && page - previous === 2) items.push(previous + 1);
-    else if (previous && page - previous > 2) items.push('…');
-    items.push(page);
-    previous = page;
-  }
-  return items;
-});
-const paginatedOrders = computed(() =>
-  filteredOrders.value.slice((currentPage.value - 1) * itemsPerPage, currentPage.value * itemsPerPage)
-);
-const startItemIndex = computed(() => (filteredOrders.value.length ? (currentPage.value - 1) * itemsPerPage + 1 : 0));
-const endItemIndex = computed(() => Math.min(currentPage.value * itemsPerPage, filteredOrders.value.length));
+const paginatedOrders = computed(() => paginateItems(filteredOrders.value, currentPage.value, ADMIN_PAGE_SIZE));
 
 watch([searchQuery, activeTab], () => {
   currentPage.value = 1;
 });
-watch(totalPages, (pages) => {
-  currentPage.value = Math.min(currentPage.value, pages);
+watch(filteredOrders, (list) => {
+  currentPage.value = clampAdminPage(currentPage.value, list.length, ADMIN_PAGE_SIZE);
 });
-
-function goToPage(page: number) {
-  if (page >= 1 && page <= totalPages.value) currentPage.value = page;
-}
 
 // Cập nhật trạng thái đơn hàng (CN_24)
 async function handleUpdateStatus(payload: { orderId: string; status: OrderStatus }) {
@@ -328,53 +304,12 @@ async function handleUpdateStatus(payload: { orderId: string; status: OrderStatu
         @update-status="handleUpdateStatus"
       />
 
-      <div
-        v-if="!isLoading && filteredOrders.length > 0"
-        class="pt-4 border-t border-[#ECEFE7] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs"
-      >
-        <span class="text-[#7A866E] font-medium">
-          Hiển thị <strong>{{ startItemIndex }} - {{ endItemIndex }}</strong> trong tổng số <strong>{{ filteredOrders.length }}</strong> đơn hàng
-        </span>
-
-        <div class="flex items-center gap-1.5">
-          <button
-            type="button"
-            :disabled="currentPage <= 1"
-            @click="goToPage(currentPage - 1)"
-            class="w-8 h-8 rounded-xl border border-[#CCD7BC] bg-white flex items-center justify-center text-[#536124] hover:bg-[#EBF1E6] disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors cursor-pointer"
-            title="Trang trước"
-          >
-            <ChevronLeft class="w-4 h-4" />
-          </button>
-
-          <div class="flex items-center gap-1">
-            <template v-for="(page, index) in paginationItems" :key="`${page}-${index}`">
-              <span v-if="page === '…'" class="w-8 h-8 flex items-center justify-center text-[#7A866E]" aria-hidden="true">…</span>
-              <button
-                v-else
-                type="button"
-                @click="goToPage(page)"
-                :aria-label="`Trang ${page}`"
-                :aria-current="page === currentPage ? 'page' : undefined"
-                class="w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center"
-                :class="page === currentPage ? 'bg-[#536124] text-white shadow-xs' : 'bg-white border border-[#CCD7BC] text-[#2D3B1E] hover:bg-[#FAF9F5]'"
-              >
-                {{ page }}
-              </button>
-            </template>
-          </div>
-
-          <button
-            type="button"
-            :disabled="currentPage >= totalPages"
-            @click="goToPage(currentPage + 1)"
-            class="w-8 h-8 rounded-xl border border-[#CCD7BC] bg-white flex items-center justify-center text-[#536124] hover:bg-[#EBF1E6] disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors cursor-pointer"
-            title="Trang tiếp theo"
-          >
-            <ChevronRight class="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      <AdminPagination
+        v-model:current-page="currentPage"
+        :total-items="filteredOrders.length"
+        item-label="đơn hàng"
+        :disabled="isLoading"
+      />
     </div>
   </div>
 </template>

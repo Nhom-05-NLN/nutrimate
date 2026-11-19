@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import AdminPagination from '../../components/admin/AdminPagination.vue';
+import { ADMIN_PAGE_SIZE, clampAdminPage, paginateItems } from '../../utils/adminPagination';
 import { useVoucherStore } from '../../stores/voucherStore';
 import { useToastStore } from '../../stores/toastStore';
 import { Voucher, CreateVoucherPayload, UpdateVoucherPayload } from '../../types';
@@ -138,6 +140,17 @@ const filteredVouchers = computed(() => {
     }
     return true;
   });
+});
+
+const currentPage = ref(1);
+const paginatedVouchers = computed(() => paginateItems(filteredVouchers.value, currentPage.value, ADMIN_PAGE_SIZE));
+
+watch([searchQuery, statusFilter], () => {
+  currentPage.value = 1;
+});
+
+watch(filteredVouchers, (list) => {
+  currentPage.value = clampAdminPage(currentPage.value, list.length, ADMIN_PAGE_SIZE);
 });
 
 async function handleToggleStatus(voucher: Voucher) {
@@ -447,7 +460,7 @@ async function handleCreateVoucher() {
             </tr>
           </thead>
 
-          <tbody v-if="filteredVouchers.length === 0" class="text-center">
+          <tbody v-if="paginatedVouchers.length === 0" class="text-center">
             <tr>
               <td colspan="7" class="py-12 text-[#7A866E]">
                 <div class="flex flex-col items-center justify-center space-y-2">
@@ -460,7 +473,7 @@ async function handleCreateVoucher() {
 
           <tbody v-else class="divide-y divide-[#F0F3EC]">
             <tr
-              v-for="v in filteredVouchers"
+              v-for="v in paginatedVouchers"
               :key="v.id"
               class="hover:bg-[#FAF9F5] transition-colors"
             >
@@ -605,6 +618,14 @@ async function handleCreateVoucher() {
           </tbody>
         </table>
       </div>
+
+      <AdminPagination
+        v-model:current-page="currentPage"
+        :total-items="filteredVouchers.length"
+        item-label="mã giảm giá"
+        :page-size="ADMIN_PAGE_SIZE"
+        :disabled="isLoading"
+      />
     </div>
 
     <!-- Modal Tạo Mới Voucher -->

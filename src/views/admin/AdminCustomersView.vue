@@ -3,8 +3,6 @@ import { computed, onMounted, ref, watch } from 'vue';
 import {
   Activity,
   AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
   Download,
   Eye,
   HeartPulse,
@@ -25,6 +23,8 @@ import {
   deleteAdminCustomer,
   fetchAdminCustomers,
 } from '../../services/api';
+import AdminPagination from '../../components/admin/AdminPagination.vue';
+import { ADMIN_PAGE_SIZE, clampAdminPage } from '../../utils/adminPagination';
 
 const searchQuery = ref('');
 const activeSegment = ref<NonNullable<AdminCustomerQuery['segment']>>('all');
@@ -41,12 +41,8 @@ const isDeleting = ref(false);
 const deleteError = ref('');
 const selectedCustomer = ref<AdminCustomer | null>(null);
 const failedAvatarIds = ref(new Set<string>());
-const totalPages = computed(() => Math.max(pageData.value?.totalPages ?? 0, 1));
 const firstVisibleRow = computed(() =>
   pageData.value?.customers.length ? (page.value - 1) * pageData.value.limit + 1 : 0,
-);
-const lastVisibleRow = computed(() =>
-  pageData.value ? firstVisibleRow.value + pageData.value.customers.length - 1 : 0,
 );
 const summaryCards = computed(() => [
   {
@@ -81,6 +77,7 @@ function currentFilters(): AdminCustomerQuery {
     bmiProfile: bmiProfileFilter.value,
     orders: orderFilter.value,
     page: page.value,
+    limit: ADMIN_PAGE_SIZE,
   };
 }
 
@@ -198,7 +195,7 @@ async function confirmRemoveCustomer() {
     await deleteAdminCustomer(customer.id);
     pendingDeleteCustomer.value = null;
     const remaining = Math.max((pageData.value?.total ?? 1) - 1, 0);
-    page.value = Math.min(page.value, Math.max(Math.ceil(remaining / (pageData.value?.limit ?? 20)), 1));
+    page.value = clampAdminPage(page.value, remaining, pageData.value?.limit ?? ADMIN_PAGE_SIZE);
     pageData.value = null;
     await loadCustomers();
   } catch (error: unknown) {
@@ -527,32 +524,13 @@ async function exportCsv() {
         </div>
       </div>
 
-      <div class="flex flex-col gap-3 border-t border-[#F0F3EC] pt-4 text-sm text-[#7A866E] sm:flex-row sm:items-center sm:justify-between">
-        <span>
-          {{ pageData?.total ? `Hiển thị ${firstVisibleRow}–${lastVisibleRow} trong tổng số ${pageData.total.toLocaleString('vi-VN')} khách hàng` : 'Chưa có khách hàng' }}
-        </span>
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            :disabled="page <= 1 || isLoading"
-            @click="page -= 1"
-            aria-label="Trang trước"
-            class="rounded-lg border border-[#DEE5D4] p-2 hover:bg-[#FAF9F5] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <ChevronLeft class="h-4 w-4" />
-          </button>
-          <span class="min-w-20 text-center font-semibold text-[#576449]">Trang {{ page }} / {{ totalPages }}</span>
-          <button
-            type="button"
-            :disabled="page >= totalPages || isLoading"
-            @click="page += 1"
-            aria-label="Trang tiếp theo"
-            class="rounded-lg border border-[#DEE5D4] p-2 hover:bg-[#FAF9F5] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <ChevronRight class="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+      <AdminPagination
+        v-model:current-page="page"
+        :total-items="pageData?.total ?? 0"
+        item-label="khách hàng"
+        :page-size="pageData?.limit ?? ADMIN_PAGE_SIZE"
+        :disabled="isLoading"
+      />
     </section>
 
     <div
