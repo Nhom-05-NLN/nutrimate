@@ -29,3 +29,10 @@ test('keeps regular replies readable and collapses repeated disclaimers', () => 
   const disclaimer = 'Thông tin chỉ mang tính tham khảo, không thay thế tư vấn của bác sĩ hoặc chuyên gia dinh dưỡng.';
   assert.equal(formatChatMessage(`**Bạn có thể thử món này.**\n\n${disclaimer}\n${disclaimer}`), `Bạn có thể thử món này.\n\n${disclaimer}`);
 });
+
+test('formats list markers and removes orphan markdown asterisks', () => {
+  assert.equal(
+    formatChatMessage('Mình gợi ý bạn thử món này:\n* Sữa chua Vinamilk: 5 kcal\n*'),
+    'Mình gợi ý bạn thử món này:\n• Sữa chua Vinamilk: 5 kcal',
+  );
+});
