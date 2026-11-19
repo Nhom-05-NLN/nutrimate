@@ -54,7 +54,7 @@ function parsePage(value: unknown): number {
 }
 
 function parseLimit(value: unknown): number {
-  if (value === undefined) return 20;
+  if (value === undefined) return 8;
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 1000) {
     throw new AdminCustomerError('Số lượng khách hàng mỗi trang không hợp lệ.', 400);

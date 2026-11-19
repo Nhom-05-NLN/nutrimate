@@ -48,7 +48,12 @@ function toNumber(value: string): number {
   return Number(value) || 0;
 }
 
-export async function getAdminDashboard(weekStart: string): Promise<AdminDashboardData> {
+export async function getAdminDashboard(
+  periodStart: string,
+  periodEnd: string,
+  previousStart: string,
+  period: 'week' | 'month' | 'year',
+): Promise<AdminDashboardData> {
   if (!isDbConnected()) {
     throw new Error('Cơ sở dữ liệu hiện không khả dụng.');
   }
@@ -107,31 +112,32 @@ export async function getAdminDashboard(weekStart: string): Promise<AdminDashboa
     lowStockResult,
   ] = await Promise.all([
     pool.query<SummaryRow>(
-      `WITH selected_week AS (
-         SELECT $1::date AS week_start,
-                LEAST($1::date + INTERVAL '7 days', CURRENT_DATE + INTERVAL '1 day') AS period_end
+      `WITH selected_period AS (
+         SELECT $1::date AS period_start,
+                LEAST($2::date, CURRENT_DATE + INTERVAL '1 day') AS period_end,
+                $3::date AS previous_start
        )
        SELECT
          (SELECT COALESCE(SUM(total_amount), 0)
           FROM orders
           WHERE status = 'delivered'
-            AND created_at >= selected_week.week_start
-            AND created_at < selected_week.period_end)::text AS weekly_revenue,
+            AND created_at >= selected_period.period_start
+            AND created_at < selected_period.period_end)::text AS weekly_revenue,
          (SELECT COALESCE(SUM(total_amount), 0)
           FROM orders
           WHERE status = 'delivered'
-            AND created_at >= selected_week.week_start - INTERVAL '7 days'
-            AND created_at < selected_week.period_end - INTERVAL '7 days')::text AS previous_week_revenue,
+            AND created_at >= selected_period.previous_start
+            AND created_at < selected_period.period_start)::text AS previous_week_revenue,
          (SELECT COUNT(*)
           FROM orders
           WHERE status <> 'cancelled'
-            AND created_at >= selected_week.week_start
-            AND created_at < selected_week.period_end)::text AS total_orders,
+            AND created_at >= selected_period.period_start
+            AND created_at < selected_period.period_end)::text AS total_orders,
          (SELECT COUNT(*)
           FROM orders
           WHERE status = 'delivered'
-            AND created_at >= selected_week.week_start
-            AND created_at < selected_week.period_end)::text AS delivered_orders,
+            AND created_at >= selected_period.period_start
+            AND created_at < selected_period.period_end)::text AS delivered_orders,
          (SELECT COUNT(*)
           FROM orders
           WHERE status = 'pending')::text AS pending_orders,
@@ -139,26 +145,60 @@ export async function getAdminDashboard(weekStart: string): Promise<AdminDashboa
          (SELECT COUNT(*)
           FROM customers
           JOIN users ON users.id = customers.user_id
-          WHERE users.created_at >= selected_week.week_start
-            AND users.created_at < selected_week.period_end)::text AS new_customers,
+          WHERE users.created_at >= selected_period.period_start
+            AND users.created_at < selected_period.period_end)::text AS new_customers,
          (SELECT COUNT(DISTINCT health_profiles.customer_id)
           FROM health_profiles
           WHERE health_profiles.bmi IS NOT NULL)::text AS customers_with_bmi,
          (SELECT COUNT(*)
           FROM chat_messages
           WHERE role = 'user'
-            AND created_at >= selected_week.week_start
-            AND created_at < selected_week.period_end)::text AS weekly_chat_messages
-       FROM selected_week`,
-      [weekStart],
+            AND created_at >= selected_period.period_start
+            AND created_at < selected_period.period_end)::text AS weekly_chat_messages
+       FROM selected_period`,
+      [periodStart, periodEnd, previousStart],
     ),
     pool.query<WeeklySalesRow>(
-      `SELECT to_char(days.day, 'YYYY-MM-DD') AS date,
+      period === 'year'
+        ? `SELECT to_char(months.month, 'YYYY-MM-DD') AS date,
+              COALESCE(daily.revenue, 0)::text AS revenue,
+              COALESCE(daily.orders, 0)::text AS orders
+           FROM generate_series(
+             date_trunc('month', $1::date),
+             LEAST(date_trunc('month', $1::date) + INTERVAL '11 months', date_trunc('month', CURRENT_DATE)),
+             INTERVAL '1 month'
+           ) AS months(month)
+           LEFT JOIN LATERAL (
+             SELECT COALESCE(SUM(total_amount) FILTER (WHERE status = 'delivered'), 0) AS revenue,
+                    COUNT(*) FILTER (WHERE status <> 'cancelled') AS orders
+             FROM orders
+             WHERE created_at >= months.month
+               AND created_at < months.month + INTERVAL '1 month'
+           ) AS daily ON TRUE
+           ORDER BY months.month`
+        : period === 'month'
+          ? `SELECT to_char(days.day, 'YYYY-MM-DD') AS date,
               COALESCE(daily.revenue, 0)::text AS revenue,
               COALESCE(daily.orders, 0)::text AS orders
        FROM generate_series(
          $1::date,
-         LEAST($1::date + INTERVAL '6 days', CURRENT_DATE),
+         LEAST($2::date - INTERVAL '1 day', CURRENT_DATE),
+         INTERVAL '1 day'
+       ) AS days(day)
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(SUM(total_amount) FILTER (WHERE status = 'delivered'), 0) AS revenue,
+                COUNT(*) FILTER (WHERE status <> 'cancelled') AS orders
+         FROM orders
+         WHERE created_at >= days.day
+           AND created_at < days.day + INTERVAL '1 day'
+       ) AS daily ON TRUE
+       ORDER BY days.day`
+          : `SELECT to_char(days.day, 'YYYY-MM-DD') AS date,
+              COALESCE(daily.revenue, 0)::text AS revenue,
+              COALESCE(daily.orders, 0)::text AS orders
+       FROM generate_series(
+         $1::date,
+         LEAST($2::date - INTERVAL '1 day', CURRENT_DATE),
          INTERVAL '1 day'
        ) AS days(day)
        LEFT JOIN LATERAL (
@@ -169,7 +209,7 @@ export async function getAdminDashboard(weekStart: string): Promise<AdminDashboa
            AND created_at < days.day + INTERVAL '1 day'
        ) AS daily ON TRUE
        ORDER BY days.day`,
-      [weekStart],
+      period === 'year' ? [periodStart] : [periodStart, periodEnd],
     ),
     pool.query<CategorySalesRow>(
       `SELECT ${categoryName} AS name,
@@ -180,10 +220,10 @@ export async function getAdminDashboard(weekStart: string): Promise<AdminDashboa
        ${categoryJoin}
        WHERE orders.status = 'delivered'
          AND orders.created_at >= $1::date
-         AND orders.created_at < LEAST($1::date + INTERVAL '7 days', CURRENT_DATE + INTERVAL '1 day')
+       AND orders.created_at < LEAST($2::date, CURRENT_DATE + INTERVAL '1 day')
        GROUP BY ${categoryName}
        ORDER BY SUM(order_items.quantity) DESC, ${categoryName}`,
-      [weekStart],
+      [periodStart, periodEnd],
     ),
     pool.query<UrgentOrderRow>(
       `SELECT orders.id, orders.order_code, orders.customer_name, orders.customer_phone,
