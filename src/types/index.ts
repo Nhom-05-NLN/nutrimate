@@ -59,6 +59,8 @@ export interface Category {
 }
 
 export interface AdminProductItem {
+  fiber?: number;
+  sodium?: number;
   galleryImages?: string[];
   package_size?: string;
   categoryId?: string;
