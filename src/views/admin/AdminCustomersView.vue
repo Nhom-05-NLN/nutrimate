@@ -42,6 +42,24 @@ const deleteError = ref('');
 const selectedCustomer = ref<AdminCustomer | null>(null);
 const failedAvatarIds = ref(new Set<string>());
 const totalPages = computed(() => Math.max(pageData.value?.totalPages ?? 0, 1));
+const paginationItems = computed<(number | string)[]>(() => {
+  const pages = [...new Set([
+    1,
+    page.value - 1,
+    page.value,
+    page.value + 1,
+    totalPages.value,
+  ])]
+    .filter((item) => item >= 1 && item <= totalPages.value)
+    .sort((a, b) => a - b);
+
+  const items: (number | string)[] = [];
+  pages.forEach((item, index) => {
+    if (index > 0 && item - pages[index - 1] > 1) items.push('…');
+    items.push(item);
+  });
+  return items;
+});
 const firstVisibleRow = computed(() =>
   pageData.value?.customers.length ? (page.value - 1) * pageData.value.limit + 1 : 0,
 );
@@ -81,6 +99,7 @@ function currentFilters(): AdminCustomerQuery {
     bmiProfile: bmiProfileFilter.value,
     orders: orderFilter.value,
     page: page.value,
+    limit: 8,
   };
 }
 
@@ -125,6 +144,12 @@ watch([searchQuery, activeSegment, nutritionGoalFilter, bmiProfileFilter, orderF
 watch(page, () => {
   void loadCustomers();
 });
+
+function goToPage(nextPage: number | string) {
+  if (typeof nextPage === 'number' && nextPage >= 1 && nextPage <= totalPages.value) {
+    page.value = nextPage;
+  }
+}
 
 onMounted(() => {
   void loadCustomers();
@@ -301,7 +326,7 @@ async function exportCsv() {
         <h1 class="font-heading text-2xl font-black text-[#2D3B1E] sm:text-3xl">
           Quản lý khách hàng & Hồ sơ thể trạng
         </h1>
-        <p class="mt-1 text-sm text-[#7A866E]">Danh sách khách hàng được lấy trực tiếp từ cơ sở dữ liệu.</p>
+        <p class="mt-1 text-xs text-[#7A866E]">Danh sách khách hàng được lấy trực tiếp từ cơ sở dữ liệu.</p>
       </div>
       <div class="flex flex-wrap gap-2">
         <button
@@ -343,44 +368,47 @@ async function exportCsv() {
     </div>
 
     <section class="space-y-5 rounded-3xl border border-[#E3E8DC] bg-white p-5 shadow-2xs sm:p-6">
-      <div class="flex items-center gap-3 border-b border-[#F0F3EC] pb-3">
-        <button
-          type="button"
-          @click="activeSegment = 'all'"
-          class="rounded-full px-4 py-2 text-xs font-bold transition-colors"
-          :class="activeSegment === 'all' ? 'bg-[#536124] text-white' : 'text-[#7A866E] hover:bg-[#FAF9F5]'"
-        >
-          Tất cả khách hàng ({{ pageData?.totalCustomers.toLocaleString('vi-VN') ?? '—' }})
-        </button>
-        <button
-          type="button"
-          @click="activeSegment = 'frequent'"
-          class="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-colors"
-          :class="activeSegment === 'frequent' ? 'bg-[#536124] text-white' : 'text-[#7A866E] hover:bg-[#FAF9F5]'"
-        >
-          <MessageCircle class="h-3.5 w-3.5" />
-          Tương tác thường xuyên ({{ pageData?.frequentChatCustomerCount.toLocaleString('vi-VN') ?? '—' }})
-        </button>
+      <div class="flex flex-col gap-3 border-b border-[#F0F3EC] pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            @click="activeSegment = 'all'"
+            class="rounded-full px-4 py-2 text-xs font-bold transition-colors"
+            :class="activeSegment === 'all' ? 'bg-[#536124] text-white' : 'text-[#7A866E] hover:bg-[#FAF9F5]'"
+          >
+            Tất cả khách hàng ({{ pageData?.totalCustomers.toLocaleString('vi-VN') ?? '—' }})
+          </button>
+          <button
+            type="button"
+            @click="activeSegment = 'frequent'"
+            class="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-colors"
+            :class="activeSegment === 'frequent' ? 'bg-[#536124] text-white' : 'text-[#7A866E] hover:bg-[#FAF9F5]'"
+          >
+            <MessageCircle class="h-3.5 w-3.5" />
+            Tương tác thường xuyên ({{ pageData?.frequentChatCustomerCount.toLocaleString('vi-VN') ?? '—' }})
+          </button>
+        </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <label class="relative block w-full sm:max-w-md">
-          <Search class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7A866E]" />
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[1.45fr_1fr_1fr_1fr]">
+        <label class="relative block">
+          <span class="mb-1.5 block text-[11px] font-bold text-[#576449]">Tìm kiếm khách hàng</span>
+          <Search class="absolute bottom-[11px] left-3.5 h-4 w-4 text-[#7A866E]" />
           <input
             v-model="searchQuery"
             type="search"
             maxlength="100"
-            placeholder="Tìm tên, số điện thoại, email hoặc mã khách hàng..."
-            class="w-full rounded-2xl border border-[#DEE5D4] bg-[#FAF9F5] py-2.5 pl-10 pr-3 text-sm outline-none focus:border-[#536124] focus:bg-white"
+            placeholder="Tên, SĐT, email hoặc mã..."
+            class="h-11 w-full rounded-xl border border-[#DEE5D4] bg-[#FAF9F5] pl-10 pr-3 text-xs text-[#2D3B1E] outline-none placeholder:text-[#A3AC98] focus:border-[#536124] focus:bg-white"
           />
         </label>
         <label class="block">
-          <span class="sr-only">Lọc theo mục tiêu dinh dưỡng</span>
+          <span class="mb-1.5 block text-[11px] font-bold text-[#576449]">Mục tiêu dinh dưỡng</span>
           <select
             v-model="nutritionGoalFilter"
-            class="w-full rounded-2xl border border-[#DEE5D4] bg-[#FAF9F5] px-3 py-2.5 text-sm text-[#576449] outline-none focus:border-[#536124] focus:bg-white"
+            class="h-11 w-full rounded-xl border border-[#DEE5D4] bg-[#FAF9F5] px-3 text-xs text-[#576449] outline-none focus:border-[#536124] focus:bg-white"
           >
-            <option value="all">Mục tiêu dinh dưỡng: Tất cả</option>
+            <option value="all">Tất cả mục tiêu</option>
             <option value="lose_weight">Giảm cân</option>
             <option value="maintain_weight">Duy trì cân nặng</option>
             <option value="gain_weight">Tăng cân</option>
@@ -388,23 +416,23 @@ async function exportCsv() {
           </select>
         </label>
         <label class="block">
-          <span class="sr-only">Lọc theo hồ sơ BMI</span>
+          <span class="mb-1.5 block text-[11px] font-bold text-[#576449]">Hồ sơ BMI</span>
           <select
             v-model="bmiProfileFilter"
-            class="w-full rounded-2xl border border-[#DEE5D4] bg-[#FAF9F5] px-3 py-2.5 text-sm text-[#576449] outline-none focus:border-[#536124] focus:bg-white"
+            class="h-11 w-full rounded-xl border border-[#DEE5D4] bg-[#FAF9F5] px-3 text-xs text-[#576449] outline-none focus:border-[#536124] focus:bg-white"
           >
-            <option value="all">Hồ sơ BMI: Tất cả</option>
+            <option value="all">Tất cả hồ sơ</option>
             <option value="set">Đã có chỉ số BMI</option>
             <option value="unset">Chưa có chỉ số BMI</option>
           </select>
         </label>
         <label class="block">
-          <span class="sr-only">Lọc theo đơn hàng</span>
+          <span class="mb-1.5 block text-[11px] font-bold text-[#576449]">Đơn hàng</span>
           <select
             v-model="orderFilter"
-            class="w-full rounded-2xl border border-[#DEE5D4] bg-[#FAF9F5] px-3 py-2.5 text-sm text-[#576449] outline-none focus:border-[#536124] focus:bg-white"
+            class="h-11 w-full rounded-xl border border-[#DEE5D4] bg-[#FAF9F5] px-3 text-xs text-[#576449] outline-none focus:border-[#536124] focus:bg-white"
           >
-            <option value="all">Đơn hàng: Tất cả</option>
+            <option value="all">Tất cả đơn hàng</option>
             <option value="has_orders">Có đơn hàng</option>
             <option value="no_orders">Chưa có đơn hàng</option>
           </select>
@@ -531,23 +559,44 @@ async function exportCsv() {
         <span>
           {{ pageData?.total ? `Hiển thị ${firstVisibleRow}–${lastVisibleRow} trong tổng số ${pageData.total.toLocaleString('vi-VN')} khách hàng` : 'Chưa có khách hàng' }}
         </span>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5">
           <button
             type="button"
             :disabled="page <= 1 || isLoading"
-            @click="page -= 1"
+            @click="goToPage(page - 1)"
             aria-label="Trang trước"
-            class="rounded-lg border border-[#DEE5D4] p-2 hover:bg-[#FAF9F5] disabled:cursor-not-allowed disabled:opacity-40"
+            class="flex h-8 w-8 items-center justify-center rounded-xl border border-[#CCD7BC] bg-white text-[#536124] transition-colors hover:bg-[#EBF1E6] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
           >
             <ChevronLeft class="h-4 w-4" />
           </button>
-          <span class="min-w-20 text-center font-semibold text-[#576449]">Trang {{ page }} / {{ totalPages }}</span>
+          <div class="flex items-center gap-1">
+            <template v-for="(item, index) in paginationItems" :key="`${item}-${index}`">
+              <span
+                v-if="item === '…'"
+                class="flex h-8 w-8 items-center justify-center text-[#7A866E]"
+                aria-hidden="true"
+              >…</span>
+              <button
+                v-else
+                type="button"
+                @click="goToPage(item)"
+                :aria-label="`Trang ${item}`"
+                :aria-current="item === page ? 'page' : undefined"
+                class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-xs font-bold transition-all"
+                :class="item === page
+                  ? 'bg-[#536124] text-white shadow-xs'
+                  : 'border border-[#CCD7BC] bg-white text-[#2D3B1E] hover:bg-[#FAF9F5]'"
+              >
+                {{ item }}
+              </button>
+            </template>
+          </div>
           <button
             type="button"
             :disabled="page >= totalPages || isLoading"
-            @click="page += 1"
+            @click="goToPage(page + 1)"
             aria-label="Trang tiếp theo"
-            class="rounded-lg border border-[#DEE5D4] p-2 hover:bg-[#FAF9F5] disabled:cursor-not-allowed disabled:opacity-40"
+            class="flex h-8 w-8 items-center justify-center rounded-xl border border-[#CCD7BC] bg-white text-[#536124] transition-colors hover:bg-[#EBF1E6] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
           >
             <ChevronRight class="h-4 w-4" />
           </button>
