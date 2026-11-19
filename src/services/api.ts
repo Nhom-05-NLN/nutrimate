@@ -221,6 +221,12 @@ export async function fetchProductById(id: string): Promise<Product> {
   return res.data;
 }
 
+export async function fetchRelatedProducts(id: string): Promise<Product[]> {
+  const response = await fetchJson<ApiResponse<Product[]>>(`/products/${encodeURIComponent(id)}/related`);
+  if (!response.data) throw new Error(response.message || 'Không thể tải sản phẩm liên quan.');
+  return response.data;
+}
+
 export async function postOrder(payload: CreateOrderPayload, accessToken?: string | null): Promise<Order> {
   const res = await fetchJson<ApiResponse<Order>>('/orders', {
     method: 'POST',

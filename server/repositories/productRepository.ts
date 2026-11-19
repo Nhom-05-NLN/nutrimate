@@ -284,6 +284,19 @@ export async function findProductById(id: string, executeQuery = queryPostgres):
   return row ? mapRowToProduct(row) : null;
 }
 
+export async function findRelatedProducts(id: string, executeQuery = queryPostgres): Promise<Product[]> {
+  const result = await executeQuery<ProductRow>(`
+    SELECT related.* FROM (${productReadSql}) related
+    JOIN products current_product ON current_product.category_id::text = related.category
+    WHERE (current_product.product_id::text = $1 OR current_product.code = $1)
+      AND current_product.status = TRUE AND related.status = TRUE
+      AND related.id <> current_product.product_id
+    ORDER BY related.sold_count DESC, related.id ASC
+    LIMIT 4
+  `, [id]);
+  return result.rows.map(mapRowToProduct);
+}
+
 export async function createProduct(newProd: Product): Promise<Product> {
   const images = [...new Set(newProd.galleryImages ?? (newProd.image ? [newProd.image] : []))];
   const mainImage = images[0] ?? '';

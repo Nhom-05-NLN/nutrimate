@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useProductStore, FIGMA_SEED_PRODUCTS } from '../stores/productStore';
 import { useAuthStore } from '../stores/authStore';
 import { useCartStore } from '../stores/cartStore';
 import { useToastStore } from '../stores/toastStore';
-import { fetchProductById, fetchProductReviews, type ProductReview } from '../services/api';
+import { fetchProductById, fetchRelatedProducts, fetchProductReviews, type ProductReview } from '../services/api';
 import { Product } from '../types';
 import { DEFAULT_USER_AVATAR } from '../constants/avatar';
 import {
@@ -24,7 +23,6 @@ import {
 
 const route = useRoute();
 const router = useRouter();
-const productStore = useProductStore();
 const authStore = useAuthStore();
 const cartStore = useCartStore();
 const toastStore = useToastStore();
@@ -89,14 +87,22 @@ const discountPercent = computed(() => {
 });
 
 // Sản phẩm liên quan: chỉ hiển thị các sản phẩm CÙNG DANH MỤC
-const relatedProducts = computed<Product[]>(() => {
-  const all = productStore.products.length > 0 ? productStore.products : FIGMA_SEED_PRODUCTS;
-  if (!product.value) return [];
+const relatedProducts = ref<Product[]>([]);
+const relatedLoading = ref(false);
+const relatedError = ref('');
+let detailRequest = 0;
 
-  return all
-    .filter((p) => p.id !== product.value?.id && p.category === product.value?.category)
-    .slice(0, 4);
-});
+async function loadRelatedProducts(id: string, request: number) {
+  relatedLoading.value = true;
+  try {
+    const products = await fetchRelatedProducts(id);
+    if (request === detailRequest) relatedProducts.value = products;
+  } catch (error) {
+    if (request === detailRequest) relatedError.value = error instanceof Error ? error.message : 'Không thể tải sản phẩm liên quan.';
+  } finally {
+    if (request === detailRequest) relatedLoading.value = false;
+  }
+}
 
 // Điểm đánh giá hiển thị (được cập nhật động theo sản phẩm hoặc danh sách review)
 const displayRating = computed(() => Number((product.value?.rating ?? 0).toFixed(1)));
@@ -151,6 +157,10 @@ const normalizedIngredients = computed<string[]>(() => {
 
 // Lấy thông tin sản phẩm từ API
 async function loadProductDetail(productId: string) {
+  const request = ++detailRequest;
+  relatedProducts.value = [];
+  relatedError.value = '';
+  relatedLoading.value = false;
   isLoading.value = true;
   errorMessage.value = null;
   activeImageIndex.value = 0;
@@ -159,11 +169,14 @@ async function loadProductDetail(productId: string) {
 
   try {
     const data = await fetchProductById(productId);
+    if (request !== detailRequest) return;
     loadedProduct.value = data;
+    void loadRelatedProducts(productId, request);
   } catch (error) {
+    if (request !== detailRequest) return;
     errorMessage.value = error instanceof Error ? error.message : 'Không thể tải sản phẩm từ cơ sở dữ liệu.';
   } finally {
-    isLoading.value = false;
+    if (request === detailRequest) isLoading.value = false;
   }
 }
 
@@ -196,9 +209,6 @@ function goToProduct(targetId: string) {
 
 
 onMounted(() => {
-  if (productStore.products.length === 0) {
-    productStore.loadProducts();
-  }
   const id = String(route.params.id || 'prod-granola');
   loadProductDetail(id);
   loadReviews(id);
@@ -651,28 +661,28 @@ watch(
 
             <div class="space-y-2 text-sm text-[#242424]">
               <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
-                <span class="font-bold">Tổng chất béo (Total Fat)</span>
-                <span class="shrink-0 font-bold">{{ formatNutritionValue(product.nutrition?.fat) }}</span>
+                <span class="font-semibold">Chất đạm</span>
+                <span class="shrink-0">{{ formatNutritionValue(product.nutrition?.protein) }}</span>
               </div>
               <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
-                <span class="font-bold">Natri (Sodium)</span>
-                <span class="shrink-0 font-bold">{{ formatNutritionValue(product.nutrition?.sodium, 'mg') }}</span>
-              </div>
-              <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
-                <span class="font-bold">Tổng Carbohydrate</span>
-                <span class="shrink-0 font-bold">{{ formatNutritionValue(product.nutrition?.carbs) }}</span>
-              </div>
-              <div class="flex justify-between gap-4 pl-4 text-[#7A866E] text-xs">
-                <span>Chất xơ tiêu hóa</span>
-                <span class="shrink-0">{{ formatNutritionValue(product.nutrition?.fiber) }}</span>
-              </div>
-              <div class="flex justify-between gap-4 pl-4 text-[#7A866E] text-xs">
-                <span>Đường tổng</span>
+                <span class="font-semibold">Đường</span>
                 <span class="shrink-0">{{ formatNutritionValue(product.nutrition?.sugar) }}</span>
               </div>
               <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
-                <span class="font-bold">Chất đạm</span>
-                <span class="shrink-0 font-bold">{{ formatNutritionValue(product.nutrition?.protein) }}</span>
+                <span class="font-semibold">Tinh bột / Carbs</span>
+                <span class="shrink-0">{{ formatNutritionValue(product.nutrition?.carbs) }}</span>
+              </div>
+              <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
+                <span class="font-semibold">Tổng chất béo</span>
+                <span class="shrink-0">{{ formatNutritionValue(product.nutrition?.fat) }}</span>
+              </div>
+              <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
+                <span class="font-semibold">Natri</span>
+                <span class="shrink-0">{{ formatNutritionValue(product.nutrition?.sodium, 'mg') }}</span>
+              </div>
+              <div class="flex justify-between gap-4 py-1 border-b border-[#F0F3EC]">
+                <span class="font-semibold">Chất xơ</span>
+                <span class="shrink-0">{{ formatNutritionValue(product.nutrition?.fiber) }}</span>
               </div>
             </div>
           </div>
@@ -680,7 +690,7 @@ watch(
       </div>
 
       <!-- Section "Các sản phẩm liên quan" -->
-      <div v-if="relatedProducts.length > 0" class="pt-10 border-t border-[#E3E8DC]">
+      <div v-if="relatedLoading || relatedError || relatedProducts.length > 0" class="pt-10 border-t border-[#E3E8DC]">
         <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 class="font-heading text-2xl font-black text-[#242424]">Các sản phẩm liên quan</h3>
@@ -694,7 +704,9 @@ watch(
           </RouterLink>
         </div>
 
-        <!-- Grid thẻ sản phẩm tương tự trang Sản phẩm -->
+        <p v-if="relatedLoading" class="text-sm text-[#7A866E]">Đang tải sản phẩm liên quan...</p>
+        <p v-else-if="relatedError" role="alert" class="text-sm text-rose-600">{{ relatedError }}</p>
+        <!-- Related product cards -->
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           <div
             v-for="rel in relatedProducts"

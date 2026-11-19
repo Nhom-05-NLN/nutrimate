@@ -8,6 +8,7 @@ const router = Router();
 router.get('/', productController.getProducts);
 router.get('/sales-summary', requireAdmin, productController.getSalesSummary);
 router.get('/:id/reviews', getReviews);
+router.get('/:id/related', productController.getRelatedProducts);
 router.post('/:id/reviews', requireAuth, createReview);
 router.get('/:id', productController.getProductById);
 router.post('/', productController.createProduct);

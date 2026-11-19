@@ -1,7 +1,12 @@
 import { Request, Response } from 'express';
 import * as productService from '../services/productService.js';
-import { getTotalSoldProducts } from '../repositories/productRepository.js';
+import { getTotalSoldProducts, findRelatedProducts } from '../repositories/productRepository.js';
 import { ApiResponse, Product, ProductFilterQuery, PaginatedProductResponse } from '../types/index.js';
+
+export async function getRelatedProducts(req: Request<{ id: string }>, res: Response) {
+  try { res.json({ success: true, data: await findRelatedProducts(req.params.id) }); }
+  catch { res.status(503).json({ success: false, message: 'Không thể tải sản phẩm liên quan từ cơ sở dữ liệu.' }); }
+}
 
 export async function getSalesSummary(_req: Request, res: Response): Promise<void> {
   try {
