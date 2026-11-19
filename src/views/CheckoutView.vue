@@ -11,7 +11,6 @@ import ShippingAddressForm from '../components/checkout/ShippingAddressForm.vue'
 import VietQrModal from '../components/checkout/VietQrModal.vue';
 import MomoPaymentModal from '../components/checkout/MomoPaymentModal.vue';
 import {
-  ChevronRight,
   Truck,
   CreditCard,
   QrCode,
@@ -362,15 +361,6 @@ function handlePaymentModalClose() {
 
 <template>
   <div class="max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-10">
-    <!-- Breadcrumb -->
-    <nav class="flex items-center gap-2 text-sm font-medium text-[#7E8B73]" aria-label="Breadcrumb">
-      <RouterLink to="/" class="hover:text-[#242424]">Trang chủ</RouterLink>
-      <ChevronRight class="w-4 h-4" />
-      <RouterLink to="/cart" class="hover:text-[#242424]">Giỏ hàng</RouterLink>
-      <ChevronRight class="w-4 h-4" />
-      <span class="text-[#242424] font-bold">Thanh toán & Đặt hàng</span>
-    </nav>
-
     <!-- 3-Step Stepper Header (Figma 05) -->
     <div class="bg-white p-5 sm:p-7 rounded-3xl border border-[#E3E8DC] shadow-2xs">
       <div class="flex items-center justify-between max-w-3xl mx-auto">

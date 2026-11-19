@@ -6,7 +6,6 @@ import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import CartItemRow from '../components/cart/CartItemRow.vue';
 import {
-  ChevronRight,
   ArrowRight,
   ShieldCheck,
   RefreshCw,
@@ -81,13 +80,6 @@ const suggestedUpsells = [
 
 <template>
   <div class="max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-10">
-    <!-- Breadcrumb -->
-    <nav class="flex items-center gap-2 text-sm font-medium text-[#7E8B73]" aria-label="Breadcrumb">
-      <RouterLink to="/" class="hover:text-[#242424]">Trang chủ</RouterLink>
-      <ChevronRight class="w-4 h-4" />
-      <span class="text-[#242424] font-bold">Giỏ hàng của bạn</span>
-    </nav>
-
     <!-- Header Title -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <h1 class="font-heading text-2xl sm:text-3xl lg:text-4xl font-black text-[#242424]">

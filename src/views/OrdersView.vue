@@ -14,7 +14,6 @@ import OrderDetailModal from '../components/orders/OrderDetailModal.vue';
 import VietQrModal from '../components/checkout/VietQrModal.vue';
 import MomoPaymentModal from '../components/checkout/MomoPaymentModal.vue';
 import {
-  ChevronRight,
   Search,
   X,
   PackageX,
@@ -323,15 +322,6 @@ async function handleCancelOrder(order: Order) {
 
 <template>
   <div class="max-w-[1316px] mx-auto px-4 sm:px-8 py-8 space-y-10">
-    <!-- Breadcrumb -->
-    <nav class="flex items-center gap-2 text-sm font-medium text-[#7E8B73]" aria-label="Breadcrumb">
-      <RouterLink to="/" class="hover:text-[#242424]">Trang chủ</RouterLink>
-      <ChevronRight class="w-4 h-4" />
-      <RouterLink to="/profile" class="hover:text-[#242424]">Tài khoản cá nhân</RouterLink>
-      <ChevronRight class="w-4 h-4" />
-      <span class="text-[#242424] font-bold">Đơn hàng của tôi</span>
-    </nav>
-
     <!-- Header & Search (CN_22) -->
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-5">
       <div>
