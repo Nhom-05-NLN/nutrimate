@@ -2,18 +2,14 @@
 import { ref, computed } from 'vue';
 import {
   X,
-  Edit,
   Star,
   ShieldCheck,
   Eye,
   Flame,
   Dumbbell,
   Wheat,
-  Droplet,
   CandyOff,
   Sparkles,
-  ExternalLink,
-  Layers,
   HeartHandshake,
   CheckCircle2,
 } from 'lucide-vue-next';
@@ -37,6 +33,25 @@ const activeImageIndex = ref(0);
 const galleryImages = computed(() => props.product?.image ? [props.product.image] : []);
 const productDescription = computed(() => props.product?.description || 'Chưa có mô tả.');
 const productIngredients = computed(() => props.product?.ingredients ?? []);
+const nutritionScope = computed(() => {
+  const product = props.product;
+  if (!product?.unit?.trim()) return '1 đơn vị sản phẩm';
+  return ['1', product.unit.trim(), product.package_size?.trim()].filter(Boolean).join(' ');
+});
+const nutritionRows = computed(() => [
+  { label: 'Năng lượng / Calo', value: props.product?.calo, unit: 'kcal' },
+  { label: 'Tổng chất béo', value: props.product?.fat, unit: 'g' },
+  { label: 'Tinh bột / Carbs', value: props.product?.carbs, unit: 'g' },
+  { label: 'Chất xơ', value: props.product?.fiber, unit: 'g' },
+  { label: 'Đường', value: props.product?.sugar, unit: 'g' },
+  { label: 'Chất đạm', value: props.product?.protein, unit: 'g' },
+  { label: 'Natri', value: props.product?.sodium, unit: 'mg' },
+]);
+
+function formatNutrient(value: number | undefined, unit: string): string {
+  if (value == null || !Number.isFinite(value)) return '-';
+  return `${value.toLocaleString('vi-VN', { maximumFractionDigits: 3 })} ${unit}`;
+}
 
 // Tính % giảm giá
 const discountPercent = computed(() => {
@@ -70,7 +85,7 @@ function handleEdit() {
     class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
   >
     <div
-      class="bg-[#FAF9F5] rounded-3xl max-w-4xl w-full my-6 overflow-hidden shadow-2xl border border-[#E3E8DC] animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]"
+      class="bg-[#FAF9F5] rounded-xl max-w-4xl w-full my-6 overflow-hidden shadow-2xl border border-[#E3E8DC] animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]"
     >
       <!-- 1. MODAL TOP HEADER: Tiêu đề gọn gàng -->
       <div class="px-6 py-4 bg-white border-b border-[#ECEFE7] flex items-center justify-between shrink-0">
@@ -117,9 +132,9 @@ function handleEdit() {
             </div>
           </div>
 
-          <!-- Thông tin chính: Cột ảnh nhỏ gọn cân xứng + Cột thông tin chi tiết -->
+          <!-- Thông tin chính: Cột ảnh + Cột thông tin chi tiết -->
           <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start pt-1">
-            <!-- Cột Trái: Ảnh sản phẩm nhỏ gọn (md:col-span-4 hoặc cố định chiều rộng hợp lý) -->
+            <!-- Cột Trái: Ảnh sản phẩm -->
             <div class="md:col-span-4 flex flex-col items-center sm:items-start space-y-3">
               <div class="w-full max-w-[220px] mx-auto md:mx-0 aspect-square rounded-2xl overflow-hidden bg-[#FAF9F5] border border-[#CCD7BC] relative shadow-inner">
                 <img
@@ -227,7 +242,7 @@ function handleEdit() {
               :class="activeTab === 'nutrition' ? 'bg-white text-[#536124] border-t-2 border-[#536124] shadow-2xs' : 'text-[#7A866E] hover:text-[#2D3B1E]'"
             >
               <Flame class="w-3.5 h-3.5" />
-              <span>Bảng Dinh Dưỡng Chuẩn (% DV)</span>
+              <span>Thông tin dinh dưỡng</span>
             </button>
           </div>
 
@@ -261,7 +276,7 @@ function handleEdit() {
               </div>
             </div>
 
-            <!-- TAB 2: BẢNG THÔNG TIN DINH DƯỠNG CHUẨN KHOA HỌC (% DV) -->
+            <!-- TAB 2: BẢNG THÔNG TIN DINH DƯỠNG -->
             <div v-else class="space-y-5">
               <!-- 4 Thẻ Macro nổi bật -->
               <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
@@ -269,8 +284,8 @@ function handleEdit() {
                   <div class="w-7 h-7 mx-auto rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mb-1.5">
                     <Flame class="w-4 h-4" />
                   </div>
-                  <span class="text-xs text-[#7A866E] block font-medium">Năng lượng</span>
-                  <span class="font-heading text-xl font-black text-[#2D3B1E]">
+                  <span class="text-xs text-[#7A866E] block font-medium">Năng lượng / Calo</span>
+                  <span class="font-heading text-xl font-semibold text-[#2D3B1E]">
                     {{ product.calo }} <span class="text-xs font-normal">kcal</span>
                   </span>
                 </div>
@@ -279,8 +294,8 @@ function handleEdit() {
                   <div class="w-7 h-7 mx-auto rounded-xl bg-emerald-100 text-[#536124] flex items-center justify-center mb-1.5">
                     <Dumbbell class="w-4 h-4" />
                   </div>
-                  <span class="text-xs text-[#7A866E] block font-medium">Chất đạm (Protein)</span>
-                  <span class="font-heading text-xl font-black text-[#536124]">
+                  <span class="text-xs text-[#7A866E] block font-medium">Chất đạm</span>
+                  <span class="font-heading text-xl font-semibold text-[#2D3B1E]">
                     {{ product.protein }} <span class="text-xs font-normal">g</span>
                   </span>
                 </div>
@@ -289,8 +304,8 @@ function handleEdit() {
                   <div class="w-7 h-7 mx-auto rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center mb-1.5">
                     <Wheat class="w-4 h-4" />
                   </div>
-                  <span class="text-xs text-[#7A866E] block font-medium">Tinh bột (Carbs)</span>
-                  <span class="font-heading text-xl font-black text-[#2D3B1E]">
+                  <span class="text-xs text-[#7A866E] block font-medium">Tinh bột / Carbs</span>
+                  <span class="font-heading text-xl font-semibold text-[#2D3B1E]">
                     {{ product.carbs || 0 }} <span class="text-xs font-normal">g</span>
                   </span>
                 </div>
@@ -299,55 +314,24 @@ function handleEdit() {
                   <div class="w-7 h-7 mx-auto rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center mb-1.5">
                     <CandyOff class="w-4 h-4" />
                   </div>
-                  <span class="text-xs text-[#7A866E] block font-medium">Đường (Sugar)</span>
-                  <span class="font-heading text-xl font-black text-[#2D3B1E]">
+                  <span class="text-xs text-[#7A866E] block font-medium">Đường</span>
+                  <span class="font-heading text-xl font-semibold text-[#2D3B1E]">
                     {{ product.sugar }} <span class="text-xs font-normal">g</span>
                   </span>
                 </div>
               </div>
 
-              <!-- Bảng Nutrition Facts chuẩn khoa học -->
               <div class="p-5 rounded-2xl bg-white border border-[#E3E8DC] space-y-3">
-                <div class="border-b-2 border-[#242424] pb-2 flex items-center justify-between">
-                  <div>
-                    <h5 class="font-heading text-sm font-black text-[#242424] uppercase tracking-wider">
-                      Bảng Giá Trị Dinh Dưỡng Chi Tiết
-                    </h5>
-                    <span class="text-[11px] text-[#7A866E]">Quy cách: {{ [product.unit, product.package_size].filter(Boolean).join(' ') || '—' }}</span>
-                  </div>
-                  <span class="text-[11px] font-bold text-[#7A866E]">% GIÁ TRỊ HÀNG NGÀY (% DV)*</span>
+                <div class="border-b-2 border-[#242424] pb-2 space-y-1">
+                  <h5 class="font-heading text-sm font-black text-[#242424] uppercase tracking-wider">Thông tin dinh dưỡng chi tiết</h5>
+                  <p class="text-[11px] text-[#7A866E]">Giá trị dinh dưỡng trong {{ nutritionScope }}</p>
                 </div>
-
-                <div class="divide-y divide-[#F0F3EC] text-xs">
-                  <div class="py-2 flex justify-between">
-                    <span><strong>Tổng chất béo (Total Fat)</strong> {{ product.fat || 0 }}g</span>
-                    <span class="font-bold text-[#2D3B1E]">{{ Math.round(((product.fat || 0) / 78) * 100) }}%</span>
+                <dl class="divide-y divide-[#F0F3EC] text-xs">
+                  <div v-for="row in nutritionRows" :key="row.label" class="py-2.5 flex items-center justify-between gap-4">
+                    <dt class="font-semibold text-[#242424]">{{ row.label }}</dt>
+                    <dd class="shrink-0 font-semibold text-[#2D3B1E]">{{ formatNutrient(row.value, row.unit) }}</dd>
                   </div>
-                  <div class="py-1.5 pl-4 flex justify-between text-[#7A866E]">
-                    <span>Chất béo bão hòa {{ Math.round((product.fat || 0) * 0.15 * 10) / 10 }}g</span>
-                    <span>{{ Math.round((((product.fat || 0) * 0.15) / 20) * 100) }}%</span>
-                  </div>
-                  <div class="py-2 flex justify-between">
-                    <span><strong>Tổng Carbohydrate</strong> {{ product.carbs || 0 }}g</span>
-                    <span class="font-bold text-[#2D3B1E]">{{ Math.round(((product.carbs || 0) / 275) * 100) }}%</span>
-                  </div>
-                  <div class="py-1.5 pl-4 flex justify-between text-[#7A866E]">
-                    <span>Chất xơ tiêu hóa ~3g</span>
-                    <span>11%</span>
-                  </div>
-                  <div class="py-1.5 pl-4 flex justify-between text-[#7A866E]">
-                    <span>Đường tổng (Total Sugar) {{ product.sugar }}g</span>
-                    <span>-</span>
-                  </div>
-                  <div class="py-2 flex justify-between">
-                    <span><strong>Chất đạm (Protein)</strong> {{ product.protein }}g</span>
-                    <span class="font-bold text-[#536124]">{{ Math.round(((product.protein) / 50) * 100) }}%</span>
-                  </div>
-                </div>
-
-                <p class="text-[10px] text-[#8C9484] pt-2 border-t border-[#ECEFE7] leading-relaxed">
-                  * Phần trăm Giá trị Hàng ngày (% DV) dựa trên nhu cầu dinh dưỡng 2.000 calo/ngày tiêu chuẩn của người trưởng thành.
-                </p>
+                </dl>
               </div>
             </div>
           </div>
@@ -360,7 +344,7 @@ function handleEdit() {
           <button
             type="button"
             @click="handleClose"
-            class="px-5 py-2.5 rounded-2xl border border-[#DEE5D4] text-xs font-bold text-[#576449] hover:bg-stone-50 transition-colors cursor-pointer"
+            class="px-5 py-2.5 rounded-xl border border-[#DEE5D4] text-xs font-bold text-[#576449] hover:bg-stone-50 transition-colors cursor-pointer"
           >
             Đóng
           </button>

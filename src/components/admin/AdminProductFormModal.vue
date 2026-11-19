@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { Package, X, Loader2 } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { Package, X, Loader2, ChevronDown } from 'lucide-vue-next';
 import type { AdminProductItem } from './AdminProductDetailModal.vue';
 import ProductImagesEditor from './ProductImagesEditor.vue';
+import { reserveAdminProductSku, releaseAdminProductSku } from '../../services/api';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -16,6 +17,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'submit', data: {
     sku: string;
+    skuReservation?: string;
     name: string;
     category: string;
     price: number;
@@ -27,6 +29,8 @@ const emit = defineEmits<{
     carbs?: number;
     fat?: number;
     sugar: number;
+    fiber: number;
+    sodium: number;
     status: 'Đang bán' | 'Tạm ngừng';
     image: string;
     galleryImages: string[];
@@ -46,9 +50,18 @@ const form = ref({
   carbs: 0,
   fat: 0,
   sugar: 0,
+  fiber: 0,
+  sodium: 0,
   status: 'Đang bán' as 'Đang bán' | 'Tạm ngừng',
   image: '',
   galleryImages: [] as string[],
+});
+
+const nutritionScope = computed(() => {
+  const unit = form.value.unit.trim();
+  const packageSize = form.value.package_size.trim();
+  if (!unit) return '1 đơn vị sản phẩm';
+  return ['1', unit, packageSize].filter(Boolean).join(' ');
 });
 
 const formErrors = ref({
@@ -61,11 +74,37 @@ const formErrors = ref({
 });
 
 const isUploading = ref(false);
+const nutritionError = ref('');
+const skuLoading = ref(false);
+const skuReservation = ref('');
+let skuRequest = 0;
+
+async function loadSku() {
+  const request = ++skuRequest;
+  skuLoading.value = true;
+  formErrors.value.sku = '';
+  try {
+    const result = await reserveAdminProductSku();
+    if (request !== skuRequest || !props.modelValue || props.mode !== 'create') {
+      await releaseAdminProductSku(result.skuReservation);
+      return;
+    }
+    form.value.sku = result.sku;
+    skuReservation.value = result.skuReservation;
+  } catch (error) {
+    if (request === skuRequest) formErrors.value.sku = error instanceof Error ? error.message : 'Không thể cấp mã SKU.';
+  } finally { if (request === skuRequest) skuLoading.value = false; }
+}
 
 watch(
   () => props.modelValue,
   (isOpen) => {
+    if (skuReservation.value) void releaseAdminProductSku(skuReservation.value).catch(() => {});
+    skuRequest++;
+    skuLoading.value = false;
+    skuReservation.value = '';
     if (isOpen) {
+      nutritionError.value = '';
       isUploading.value = false;
       formErrors.value = { sku: '', name: '', price: '', stock: '', calo: '', protein: '' };
       if (props.mode === 'edit' && props.initialData) {
@@ -82,6 +121,8 @@ watch(
           carbs: props.initialData.carbs || 0,
           fat: props.initialData.fat || 0,
           sugar: props.initialData.sugar,
+          fiber: props.initialData.fiber ?? 0,
+          sodium: props.initialData.sodium ?? 0,
           status: props.initialData.status,
           image: props.initialData.image,
           galleryImages: [...(props.initialData.galleryImages ?? (props.initialData.image ? [props.initialData.image] : []))],
@@ -90,7 +131,7 @@ watch(
         form.value = {
           unit: '',
           package_size: '',
-          sku: `NM-PRD-${Math.floor(10 + Math.random() * 90)}`,
+          sku: '',
           name: '',
           category: props.categories[0]?.id || '',
           price: 0,
@@ -100,10 +141,13 @@ watch(
           carbs: 0,
           fat: 0,
           sugar: 0,
+          fiber: 0,
+          sodium: 0,
           status: 'Đang bán',
           image: '',
           galleryImages: [],
         };
+        void loadSku();
       }
     }
   },
@@ -111,6 +155,14 @@ watch(
 );
 
 function validateProductForm(): boolean {
+  nutritionError.value = '';
+  if (['calo', 'protein', 'carbs', 'fat', 'sugar', 'fiber', 'sodium'].some(field => {
+    const value = form.value[field as 'calo' | 'protein' | 'carbs' | 'fat' | 'sugar' | 'fiber' | 'sodium'];
+    return typeof value !== 'number' || !Number.isFinite(value) || value < 0;
+  })) {
+    nutritionError.value = 'Các chỉ số dinh dưỡng phải là số không âm hợp lệ.';
+    return false;
+  }
   let isValid = true;
   formErrors.value = { sku: '', name: '', price: '', stock: '', calo: '', protein: '' };
 
@@ -119,7 +171,7 @@ function validateProductForm(): boolean {
     isValid = false;
   }
 
-  if (!form.value.sku.trim()) {
+  if (props.mode === 'edit' && !form.value.sku.trim()) {
     formErrors.value.sku = 'Mã SKU không được để trống.';
     isValid = false;
   }
@@ -151,12 +203,14 @@ function validateProductForm(): boolean {
 }
 
 function handleSubmit() {
+  if (props.mode === 'create' && (skuLoading.value || !skuReservation.value)) return;
   if (props.saving || isUploading.value || !validateProductForm()) {
     return;
   }
 
   emit('submit', {
     sku: form.value.sku.trim().toUpperCase(),
+    ...(props.mode === 'create' ? { skuReservation: skuReservation.value } : {}),
     name: form.value.name.trim(),
     category: form.value.category,
     price: form.value.price,
@@ -168,16 +222,32 @@ function handleSubmit() {
     carbs: form.value.carbs,
     fat: form.value.fat,
     sugar: form.value.sugar,
+    fiber: form.value.fiber,
+    sodium: form.value.sodium,
     status: form.value.status,
     image: form.value.galleryImages[0] ?? '',
     galleryImages: [...form.value.galleryImages],
   });
 }
 
-function handleClose() {
+async function handleClose() {
   if (props.saving || isUploading.value) return;
+  if (skuReservation.value) {
+    try {
+      await releaseAdminProductSku(skuReservation.value);
+      skuReservation.value = '';
+    } catch {
+      formErrors.value.sku = 'Không thể giải phóng mã SKU. Vui lòng thử lại.';
+      return;
+    }
+  }
   emit('update:modelValue', false);
 }
+
+onBeforeUnmount(() => {
+  skuRequest++;
+  if (skuReservation.value) void releaseAdminProductSku(skuReservation.value).catch(() => {});
+});
 </script>
 
 <template>
@@ -216,13 +286,15 @@ function handleClose() {
             <input
               type="text"
               v-model="form.sku"
-              placeholder="NM-GRN-01"
+              readonly
+              :placeholder="skuLoading ? 'Đang cấp mã SKU...' : 'Mã SKU'"
               class="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF9F5] border font-mono text-[#2D3B1E] focus:outline-[#536124]"
               :class="formErrors.sku ? 'border-rose-400 bg-rose-50/20' : 'border-[#DEE5D4]'"
             />
             <span v-if="formErrors.sku" class="text-[11px] text-rose-500 font-medium mt-1 block">
               {{ formErrors.sku }}
             </span>
+            <button v-if="mode === 'create' && formErrors.sku" type="button" @click="loadSku" :disabled="skuLoading" class="text-xs text-[#536124] underline mt-1">Thử lại</button>
           </div>
 
           <div>
@@ -245,25 +317,31 @@ function handleClose() {
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label class="block font-bold text-[#2D3B1E] mb-1.5">Danh mục dinh dưỡng</label>
+            <div class="relative">
             <select
               v-model="form.category"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124]"
+              class="w-full appearance-none pl-3.5 pr-10 py-2.5 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124]"
             >
               <option v-for="cat in categories" :key="cat.id" :value="cat.id">
                 {{ cat.name }}
               </option>
             </select>
+            <ChevronDown aria-hidden="true" class="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A866E]" />
+            </div>
           </div>
 
           <div>
             <label class="block font-bold text-[#2D3B1E] mb-1.5">Trạng thái bán</label>
+            <div class="relative">
             <select
               v-model="form.status"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124]"
+              class="w-full appearance-none pl-3.5 pr-10 py-2.5 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124]"
             >
               <option value="Đang bán">Đang bán</option>
               <option value="Tạm ngừng">Tạm ngừng</option>
             </select>
+            <ChevronDown aria-hidden="true" class="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#7A866E]" />
+            </div>
           </div>
         </div>
 
@@ -285,11 +363,12 @@ function handleClose() {
             </span>
           </div>
 
-          <div v-if="mode === 'create'">
+          <div>
             <label for="product-initial-stock" class="block font-bold text-[#2D3B1E] mb-1.5">
-              Số lượng <span class="text-rose-500">*</span>
+              {{ mode === 'edit' ? 'Tồn kho hiện tại' : 'Số lượng' }} <span v-if="mode === 'create'" class="text-rose-500">*</span>
             </label>
             <input
+              v-if="mode === 'create'"
               id="product-initial-stock"
               v-model.number="form.stock"
               type="number"
@@ -300,6 +379,9 @@ function handleClose() {
               class="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF9F5] border text-[#2D3B1E] focus:outline-[#536124]"
               :class="formErrors.stock ? 'border-rose-400 bg-rose-50/20' : 'border-[#DEE5D4]'"
             />
+            <output v-else id="product-initial-stock" class="block w-full px-3.5 py-2.5 rounded-xl bg-stone-100 border border-[#DEE5D4] text-[#576449] cursor-default">
+              {{ form.stock }}
+            </output>
             <span v-if="formErrors.stock" class="text-[11px] text-rose-500 font-medium mt-1 block">
               {{ formErrors.stock }}
             </span>
@@ -321,12 +403,16 @@ function handleClose() {
           </div>
         </div>
 
-        <!-- Thông số Macro -->
+        <!-- Giá trị dinh dưỡng trên 1 đơn vị sản phẩm -->
         <div class="p-4 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] space-y-3">
-          <span class="font-bold text-[#2D3B1E] block">Chỉ số Dinh dưỡng Macro (100g)</span>
-          <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div class="space-y-1">
+            <span class="font-bold text-[#2D3B1E] block">Giá trị dinh dưỡng 
+              <span class="text-[#7A866E] font-normal text-[11px]">({{ nutritionScope }})</span>
+            </span>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
             <div>
-              <label class="text-[11px] text-[#7A866E] block mb-1">Calo (kcal)</label>
+              <label class="text-[11px] text-[#7A866E] block mb-1">Năng lượng / Calo (kcal)</label>
               <input
                 type="number"
                 v-model.number="form.calo"
@@ -335,7 +421,7 @@ function handleClose() {
               />
             </div>
             <div>
-              <label class="text-[11px] text-[#7A866E] block mb-1">Đạm (Protein g)</label>
+              <label class="text-[11px] text-[#7A866E] block mb-1">Chất đạm (g)</label>
               <input
                 type="number"
                 v-model.number="form.protein"
@@ -344,7 +430,7 @@ function handleClose() {
               />
             </div>
             <div>
-              <label class="text-[11px] text-[#7A866E] block mb-1">Tinh bột (Carbs g)</label>
+              <label class="text-[11px] text-[#7A866E] block mb-1">Tinh bột / Carbs (g)</label>
               <input
                 type="number"
                 v-model.number="form.carbs"
@@ -353,7 +439,7 @@ function handleClose() {
               />
             </div>
             <div>
-              <label class="text-[11px] text-[#7A866E] block mb-1">Chất béo (Fat g)</label>
+              <label class="text-[11px] text-[#7A866E] block mb-1">Chất béo (g)</label>
               <input
                 type="number"
                 v-model.number="form.fat"
@@ -362,7 +448,7 @@ function handleClose() {
               />
             </div>
             <div>
-              <label class="text-[11px] text-[#7A866E] block mb-1">Đường (Sugar g)</label>
+              <label class="text-[11px] text-[#7A866E] block mb-1">Đường (g)</label>
               <input
                 type="number"
                 v-model.number="form.sugar"
@@ -371,7 +457,18 @@ function handleClose() {
                 class="w-full px-3 py-2 rounded-xl bg-white border border-[#DEE5D4] text-center font-bold"
               />
             </div>
+            <div>
+              <label for="product-fiber" class="text-[11px] text-[#7A866E] block mb-1">Chất xơ (g)</label>
+              <input id="product-fiber" v-model.number="form.fiber" type="number" min="0" step="any"
+                class="w-full px-3 py-2 rounded-xl bg-white border border-[#DEE5D4] text-center font-bold" />
+            </div>
+            <div>
+              <label for="product-sodium" class="text-[11px] text-[#7A866E] block mb-1">Natri (mg)</label>
+              <input id="product-sodium" v-model.number="form.sodium" type="number" min="0" step="any"
+                class="w-full px-3 py-2 rounded-xl bg-white border border-[#DEE5D4] text-center font-bold" />
+            </div>
           </div>
+          <p v-if="nutritionError" role="alert" class="text-[11px] text-rose-500">{{ nutritionError }}</p>
         </div>
 
         </div>
@@ -392,7 +489,7 @@ function handleClose() {
         <button
           type="button"
           @click="handleSubmit"
-          :disabled="saving || isUploading"
+          :disabled="saving || isUploading || (mode === 'create' && (skuLoading || !skuReservation))"
           class="px-5 py-2.5 rounded-2xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
         >
           <Loader2 v-if="saving || isUploading" class="w-3.5 h-3.5 animate-spin" />

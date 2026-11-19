@@ -75,6 +75,18 @@ export async function fetchAdminProducts(): Promise<AdminProductsData> {
   return response.data;
 }
 
+export async function reserveAdminProductSku(): Promise<{ sku: string; skuReservation: string }> {
+  const response = await fetchJson<ApiResponse<{ sku: string; skuReservation: string }>>('/admin/products/reserve-sku', { method: 'POST' });
+  if (!response.data) throw new Error(response.message || 'Không thể cấp mã SKU.');
+  return response.data;
+}
+
+export async function releaseAdminProductSku(skuReservation: string) {
+  return fetchJson<ApiResponse<null>>('/admin/products/release-sku', {
+    method: 'POST', body: JSON.stringify({ skuReservation }), keepalive: true,
+  });
+}
+
 export async function saveAdminProduct(payload: Omit<import('../types').AdminProductItem,'id'>, id?: string) {
   return fetchJson<ApiResponse<{ id: string }>>(`/admin/products${id ? '/' + encodeURIComponent(id) : ''}`, {
     method: id ? 'PUT' : 'POST', body: JSON.stringify(payload),

@@ -1,0 +1,3 @@
+BEGIN;
+CREATE SEQUENCE IF NOT EXISTS product_sku_sequence;
+COMMIT;
