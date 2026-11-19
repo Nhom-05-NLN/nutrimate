@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { X, Layers, Tag, FileText } from 'lucide-vue-next';
+import { X, Layers, FileText } from 'lucide-vue-next';
 import { computed } from 'vue';
 import type { AdminCategoryRecord as AdminCategoryItem } from '../../types';
 
@@ -30,7 +30,7 @@ function handleClose() {
     class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-hidden"
   >
     <div
-      class="bg-white rounded-3xl max-w-lg w-full max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden shadow-2xl border border-[#E3E8DC] animate-in fade-in zoom-in-95 duration-200"
+      class="bg-white rounded-xl max-w-lg w-full max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden shadow-2xl border border-[#E3E8DC] animate-in fade-in zoom-in-95 duration-200"
     >
       <!-- Modal Header -->
       <div class="shrink-0 px-6 py-4 bg-[#FAF9F5] border-b border-[#ECEFE7] flex items-center justify-between">
@@ -56,33 +56,20 @@ function handleClose() {
 
       <!-- Modal Body -->
       <div class="min-h-0 flex-1 flex flex-col gap-4 overflow-hidden p-4 sm:p-6 text-xs">
-        <!-- Tên danh mục & Trạng thái -->
+        <!-- Thông tin danh mục -->
         <div class="shrink-0 p-4 rounded-2xl bg-[#FAF9F5] border border-[#E3E8DC] space-y-3">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <span class="text-[11px] font-bold text-[#7A866E] uppercase tracking-wider block">Tên danh mục</span>
-              <h2 class="font-heading text-xl font-black text-[#2D3B1E] mt-0.5 break-words">
-                {{ category.name }}
-              </h2>
-              <span class="mt-2 inline-block rounded-full px-2.5 py-1 text-[10px] font-bold" :class="category.status ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-500'">
+          <dl class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-3">
+            <dt class="text-[#7A866E]">Mã danh mục:</dt>
+            <dd class="font-mono font-bold text-[#536124] break-words">{{ category.code || category.id }}</dd>
+            <dt class="text-[#7A866E]">Tên danh mục:</dt>
+            <dd class="font-bold text-[#2D3B1E] break-words">{{ category.name }}</dd>
+            <dt class="text-[#7A866E]">Trạng thái:</dt>
+            <dd>
+              <span class="inline-block rounded-full px-2.5 py-1 text-[10px] font-bold" :class="category.status ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-500'">
                 {{ category.status ? 'Đang hiển thị' : 'Đang ẩn' }}
               </span>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3 pt-2 border-t border-[#ECEFE7]">
-            <div class="space-y-0.5">
-              <span class="text-[11px] text-[#7A866E] flex items-center gap-1">
-                <Tag class="w-3.5 h-3.5 text-[#536124]" />
-                <span>Mã danh mục:</span>
-              </span>
-              <span class="font-mono font-bold text-[#536124] bg-[#EBF1E6] px-2 py-0.5 rounded-md inline-block">
-                {{ category.code || category.id }}
-              </span>
-            </div>
-
-
-          </div>
+            </dd>
+          </dl>
         </div>
 
         <!-- Thông tin chi tiết: Mô tả & Số sản phẩm liên kết -->

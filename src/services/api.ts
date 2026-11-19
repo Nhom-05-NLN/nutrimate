@@ -26,13 +26,19 @@ import {
 
 const API_BASE = '/api';
 
+export async function reserveAdminCategoryCode(): Promise<{code:string;codeReservation:string}> {
+  const response = await fetchJson<ApiResponse<{ code: string;codeReservation:string }>>('/admin/categories/reserve-code', {method:'POST'});
+  if (!response.data) throw new Error(response.message || 'Không thể lấy mã danh mục.');
+  return response.data;
+}
+
 export async function fetchAdminCategories(): Promise<import('../types').AdminCategoryRecord[]> {
   const response = await fetchJson<ApiResponse<import('../types').AdminCategoryRecord[]>>('/admin/categories');
   if (!response.data) throw new Error(response.message || 'Không thể tải danh mục.');
   return response.data;
 }
 
-export async function saveAdminCategory(payload: { name: string; description: string; status: boolean }, id?: string) {
+export async function saveAdminCategory(payload: { name: string; description: string; status: boolean; code?:string;codeReservation?:string }, id?: string) {
   return fetchJson<ApiResponse<{ id: string }>>(`/admin/categories${id ? '/' + encodeURIComponent(id) : ''}`, {
     method:id ? 'PUT' : 'POST',body:JSON.stringify(payload),
   });
@@ -927,4 +933,8 @@ export async function deleteAdminCustomer(id: string): Promise<void> {
   });
   if (!response.data?.deleted) throw new Error(response.message || 'Không thể xóa khách hàng.');
   notifyAdminCustomerCountChanged();
+}
+
+export async function releaseAdminCategoryCode(codeReservation:string) {
+  return fetchJson<ApiResponse<null>>('/admin/categories/release-code', {method:'POST',body:JSON.stringify({codeReservation}),keepalive:true});
 }

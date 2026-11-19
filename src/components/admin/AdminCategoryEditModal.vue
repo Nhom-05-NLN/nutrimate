@@ -47,7 +47,7 @@ function handleClose() {
     class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
   >
     <div
-      class="bg-white rounded-3xl max-w-lg w-full my-8 overflow-hidden shadow-2xl border border-[#E3E8DC] animate-in fade-in zoom-in-95 duration-200"
+      class="bg-white rounded-xl max-w-lg w-full my-8 overflow-hidden shadow-2xl border border-[#E3E8DC] animate-in fade-in zoom-in-95 duration-200"
     >
       <!-- Modal Header -->
       <div class="px-6 py-4 bg-[#FAF9F5] border-b border-[#ECEFE7] flex items-center justify-between">
