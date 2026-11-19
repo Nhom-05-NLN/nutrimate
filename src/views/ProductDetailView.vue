@@ -7,6 +7,7 @@ import { useCartStore } from '../stores/cartStore';
 import { useToastStore } from '../stores/toastStore';
 import { fetchProductById, fetchProductReviews, type ProductReview } from '../services/api';
 import { Product } from '../types';
+import { DEFAULT_USER_AVATAR } from '../constants/avatar';
 import {
   ChevronRight,
   Star,
@@ -109,6 +110,11 @@ function formatNutritionValue(value: number | undefined, unit = 'g'): string {
 
 function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+}
+
+function handleReviewAvatarError(event: Event) {
+  const image = event.target as HTMLImageElement;
+  if (image.getAttribute('src') !== DEFAULT_USER_AVATAR) image.src = DEFAULT_USER_AVATAR;
 }
 
 // Chuẩn hóa danh sách chuỗi
@@ -590,9 +596,13 @@ watch(
                 >
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2.5">
-                      <div class="w-8 h-8 rounded-full bg-[#EBF7E5] text-[#4D6A34] font-black text-xs flex items-center justify-center">
-                        {{ rev.author.charAt(0) }}
-                      </div>
+                      <img
+                        :src="rev.avatarUrl?.trim() || DEFAULT_USER_AVATAR"
+                        :alt="`Ảnh đại diện của ${rev.author}`"
+                        class="w-8 h-8 rounded-full object-cover shrink-0 bg-[#EBF7E5]"
+                        loading="lazy"
+                        @error="handleReviewAvatarError"
+                      />
                       <div>
                         <div class="flex items-center gap-2">
                           <span class="font-bold text-sm text-[#242424]">{{ rev.author }}</span>
@@ -671,10 +681,17 @@ watch(
 
       <!-- Section "Các sản phẩm liên quan" -->
       <div v-if="relatedProducts.length > 0" class="pt-10 border-t border-[#E3E8DC]">
-        <div class="mb-6 flex items-center justify-between">
+        <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 class="font-heading text-2xl font-black text-[#242424]">Các sản phẩm liên quan</h3>
           </div>
+          <RouterLink
+            to="/catalog"
+            class="inline-flex items-center gap-1.5 rounded-xl border border-[#CCD7BC] px-3 py-1.5 text-sm font-bold text-[#4D6A34] hover:bg-[#EBF7E5] transition-colors"
+          >
+            Xem thêm
+            <ChevronRight class="w-4 h-4" />
+          </RouterLink>
         </div>
 
         <!-- Grid thẻ sản phẩm tương tự trang Sản phẩm -->
@@ -682,7 +699,7 @@ watch(
           <div
             v-for="rel in relatedProducts"
             :key="rel.id"
-            class="group relative flex flex-col bg-white rounded-xl border border-[#E3E8DC] hover:border-[#4D6A34] hover:shadow-xl transition-all duration-200 overflow-hidden"
+            class="group relative flex flex-col bg-white rounded-xl border border-[#E3E8DC] shadow-[0_1px_3px_rgb(45_59_30/0.08)] transition-[border-color,box-shadow,transform] duration-[180ms] ease-[ease] hover:-translate-y-[3px] hover:border-[#6B7A3A] hover:shadow-[0_14px_28px_rgb(45_59_30/0.22)] focus-within:-translate-y-[3px] focus-within:border-[#6B7A3A] focus-within:shadow-[0_14px_28px_rgb(45_59_30/0.22)] motion-reduce:transition-none overflow-hidden"
           >
             <!-- Product Image -->
             <div class="relative aspect-4/3 w-full bg-[#FAF9F5] overflow-hidden cursor-pointer" @click="goToProduct(rel.id)">
@@ -690,7 +707,7 @@ watch(
                 :src="rel.image"
                 :alt="rel.name"
                 loading="lazy"
-                class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                class="w-full h-full object-cover"
               />
             </div>
 

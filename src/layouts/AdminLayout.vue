@@ -360,11 +360,29 @@ const adminPageTitle = computed(() =>
   navItems.value.find((item) => item.path === route.path)?.label ?? 'Quản trị',
 );
 const currentWeekStart = getCurrentWeekStart();
+const dashboardPeriod = computed<'week' | 'month' | 'year'>(() =>
+  route.query.period === 'month' || route.query.period === 'year'
+    ? route.query.period
+    : 'week',
+);
+const currentMonth = new Date().toISOString().slice(0, 7);
+const currentYear = String(new Date().getUTCFullYear());
+const availableYears = computed(() =>
+  Array.from({ length: 10 }, (_, index) => String(Number(currentYear) - index)),
+);
 const selectedDashboardWeek = computed(() => {
   const week = route.query.week;
   return typeof week === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(week) && week <= currentWeekStart
     ? week
     : currentWeekStart;
+});
+const selectedDashboardMonth = computed(() => {
+  const month = typeof route.query.month === 'string' ? route.query.month : currentMonth;
+  return /^\d{4}-\d{2}$/.test(month) && month <= currentMonth ? month : currentMonth;
+});
+const selectedDashboardYear = computed(() => {
+  const year = typeof route.query.year === 'string' ? route.query.year : currentYear;
+  return /^\d{4}$/.test(year) && Number(year) <= Number(currentYear) ? year : currentYear;
 });
 const dashboardWeekLabel = computed(() => {
   const start = new Date(`${selectedDashboardWeek.value}T00:00:00.000Z`);
@@ -384,6 +402,13 @@ const dashboardWeekLabel = computed(() => {
   }).format(end);
   return `${startLabel} – ${endLabel}`;
 });
+const dashboardMonthLabel = computed(() =>
+  new Intl.DateTimeFormat('vi-VN', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${selectedDashboardMonth.value}-01T00:00:00.000Z`)),
+);
 const canViewPreviousDashboardWeek = computed(() => selectedDashboardWeek.value > '0001-01-01');
 const todayLabel = new Date().toLocaleDateString('vi-VN', {
   day: '2-digit',
@@ -409,6 +434,39 @@ function changeDashboardWeek(offset: number): void {
     query: {
       ...route.query,
       week: nextWeek === currentWeekStart ? undefined : nextWeek,
+    },
+  });
+}
+
+function changeDashboardMonth(offset: number): void {
+  const date = new Date(`${selectedDashboardMonth.value}-01T00:00:00.000Z`);
+  date.setUTCMonth(date.getUTCMonth() + offset);
+  const nextMonth = date.toISOString().slice(0, 7);
+  void router.replace({
+    query: {
+      ...route.query,
+      month: nextMonth === currentMonth ? undefined : nextMonth,
+    },
+  });
+}
+
+function selectDashboardMonth(event: Event): void {
+  const value = (event.target as HTMLInputElement).value;
+  if (!/^\d{4}-\d{2}$/.test(value) || value > currentMonth) return;
+  void router.replace({
+    query: {
+      ...route.query,
+      month: value === currentMonth ? undefined : value,
+    },
+  });
+}
+
+function changeDashboardYear(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value;
+  void router.replace({
+    query: {
+      ...route.query,
+      year: value === currentYear ? undefined : value,
     },
   });
 }
@@ -756,26 +814,52 @@ async function handleAdminLogout() {
             v-if="route.name === 'admin-dashboard'"
             class="hidden sm:flex items-center gap-1.5 rounded-full bg-[#FAF9F5] border border-[#CCD7BC] px-2 py-1 text-xs font-bold text-[#2D3B1E]"
           >
-            <Calendar class="ml-1 h-3.5 w-3.5 shrink-0 text-[#536124]" />
-            <button
-              type="button"
-              class="flex h-6 w-6 items-center justify-center rounded-full text-[#536124] transition hover:bg-[#E9EFE2] disabled:cursor-not-allowed disabled:opacity-40"
-              :disabled="!canViewPreviousDashboardWeek"
-              :aria-label="`Xem thống kê tuần trước ${dashboardWeekLabel}`"
-              @click="changeDashboardWeek(-1)"
-            >
-              <ChevronLeft class="h-3.5 w-3.5" />
-            </button>
-            <span class="min-w-32 text-center">{{ dashboardWeekLabel }}</span>
-            <button
-              type="button"
-              class="flex h-6 w-6 items-center justify-center rounded-full text-[#536124] transition hover:bg-[#E9EFE2] disabled:cursor-not-allowed disabled:opacity-40"
-              :disabled="selectedDashboardWeek === currentWeekStart"
-              :aria-label="`Xem thống kê tuần sau ${dashboardWeekLabel}`"
-              @click="changeDashboardWeek(1)"
-            >
-              <ChevronRight class="h-3.5 w-3.5" />
-            </button>
+            <template v-if="dashboardPeriod === 'week'">
+              <Calendar class="ml-1 h-3.5 w-3.5 shrink-0 text-[#536124]" />
+              <button
+                type="button"
+                class="flex h-6 w-6 items-center justify-center rounded-full text-[#536124] transition hover:bg-[#E9EFE2] disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="!canViewPreviousDashboardWeek"
+                aria-label="Xem thống kê tuần trước"
+                @click="changeDashboardWeek(-1)"
+              >
+                <ChevronLeft class="h-3.5 w-3.5" />
+              </button>
+              <span class="min-w-32 text-center">{{ dashboardWeekLabel }}</span>
+              <button
+                type="button"
+                class="flex h-6 w-6 items-center justify-center rounded-full text-[#536124] transition hover:bg-[#E9EFE2] disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="selectedDashboardWeek === currentWeekStart"
+                aria-label="Xem thống kê tuần sau"
+                @click="changeDashboardWeek(1)"
+              >
+                <ChevronRight class="h-3.5 w-3.5" />
+              </button>
+            </template>
+
+            <template v-else-if="dashboardPeriod === 'month'">
+              <Calendar class="ml-1 h-3.5 w-3.5 shrink-0 text-[#536124]" />
+              <input
+                type="month"
+                :value="selectedDashboardMonth"
+                :max="currentMonth"
+                aria-label="Chọn tháng thống kê"
+                class="h-7 rounded-lg border-0 bg-transparent px-1 text-xs font-bold text-[#2D3B1E] outline-none"
+                @change="selectDashboardMonth"
+              />
+            </template>
+
+            <template v-else>
+              <Calendar class="ml-1 h-3.5 w-3.5 shrink-0 text-[#536124]" />
+              <select
+                :value="selectedDashboardYear"
+                aria-label="Chọn năm thống kê"
+                class="h-7 rounded-lg border-0 bg-transparent px-2 text-xs font-bold text-[#2D3B1E] outline-none"
+                @change="changeDashboardYear"
+              >
+                <option v-for="year in availableYears" :key="year" :value="year">Năm {{ year }}</option>
+              </select>
+            </template>
           </div>
           <div
             v-else

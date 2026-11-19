@@ -95,9 +95,13 @@ export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
-export async function fetchAdminDashboard(weekStart: string): Promise<AdminDashboardData> {
+export async function fetchAdminDashboard(
+  startDate: string,
+  period: 'week' | 'month' | 'year' = 'week',
+): Promise<AdminDashboardData> {
+  const dateParam = period === 'week' ? 'week' : 'date';
   const res = await fetchJson<ApiResponse<AdminDashboardData>>(
-    `/admin/dashboard?week=${encodeURIComponent(weekStart)}`,
+    `/admin/dashboard?period=${period}&${dateParam}=${encodeURIComponent(startDate)}`,
   );
   if (!res.data) {
     throw new Error(res.message || 'Không thể tải dữ liệu dashboard.');

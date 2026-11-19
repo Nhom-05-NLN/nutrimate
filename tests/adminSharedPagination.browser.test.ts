@@ -403,8 +403,16 @@ test('browser: shared admin pagination on categories, customers, vouchers, knowl
     await expectPaged('/admin/customers', 2, 9, 16, 17, 'khách hàng', 8);
     const pagedCall = apiCalls.filter(item => item.method === 'GET' && item.pathname === '/api/admin/customers' && item.search.includes('page=2'));
     assert.ok(pagedCall.some(item => item.search.includes('limit=8') && item.search.includes('page=2')));
-    await setSearch('Tìm tên, số điện thoại, email hoặc mã khách hàng...', '');
+    const beforeSearch = apiCalls.filter(item => item.method === 'GET' && item.pathname === '/api/admin/customers').length;
+    await setSearch('Tên, SĐT, email hoặc mã...', 'unique');
+    const filteredCustomers = await expectPaged('/admin/customers', 1, 1, 1, 1, 'khách hàng', 1);
+    assert.deepEqual(filteredCustomers.rows, ['Lan Unique']);
     await delay(300);
+    const searchCalls = apiCalls.filter(item => item.method === 'GET' && item.pathname === '/api/admin/customers').slice(beforeSearch);
+    assert.equal(searchCalls.length, 1, 'Changing filters on page 2 should send one customer request');
+    assert.match(searchCalls[0]!.search, /search=unique/);
+    await setSearch('Tên, SĐT, email hoặc mã...', '');
+    await expectPaged('/admin/customers', 1, 1, 8, 17, 'khách hàng', 8);
 
     await call('Page.navigate', { url: `${origin}/admin/vouchers` });
     await expectPaged('/admin/vouchers', 1, 1, 8, 17, 'mã giảm giá', 8);

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import type { AdminDashboardData } from '../../types';
 import { fetchAdminDashboard } from '../../services/api';
 import {
@@ -14,11 +14,15 @@ import {
 } from 'lucide-vue-next';
 
 const route = useRoute();
+const router = useRouter();
 const dashboard = ref<AdminDashboardData | null>(null);
 const isLoading = ref(true);
 const loadError = ref('');
 const categoryColors = ['#4D6A34', '#7F9C5B', '#A8C28E', '#D4E2C4'];
 const currentWeekStart = getCurrentWeekStart();
+const selectedPeriod = ref<'week' | 'month' | 'year'>(
+  route.query.period === 'month' || route.query.period === 'year' ? route.query.period : 'week',
+);
 let dashboardRequestId = 0;
 const selectedWeekStart = computed(() => {
   const week = route.query.week;
@@ -26,10 +30,16 @@ const selectedWeekStart = computed(() => {
     ? week
     : currentWeekStart;
 });
+const selectedPeriodStart = computed(() => {
+  if (selectedPeriod.value === 'week') return selectedWeekStart.value;
+  if (selectedPeriod.value === 'month') {
+    const month = typeof route.query.month === 'string' ? route.query.month : new Date().toISOString().slice(0, 7);
+    return /^\d{4}-\d{2}$/.test(month) ? `${month}-01` : new Date().toISOString().slice(0, 8).concat('01');
+  }
+  const year = typeof route.query.year === 'string' ? route.query.year : String(new Date().getUTCFullYear());
+  return /^\d{4}$/.test(year) ? `${year}-01-01` : `${new Date().getUTCFullYear()}-01-01`;
+});
 
-const weeklyRevenueMax = computed(() =>
-  Math.max(1, ...(dashboard.value?.weeklySales.map((day) => day.revenue) ?? [])),
-);
 const peakSalesDay = computed(() =>
   dashboard.value?.weeklySales.reduce(
     (peak, day) => (day.revenue > peak.revenue ? day : peak),
@@ -54,6 +64,48 @@ const weeklyOrderCount = computed(() =>
 const hasWeeklyRevenue = computed(() =>
   dashboard.value?.weeklySales.some((day) => day.revenue > 0) ?? false,
 );
+const periodLabelForCopy = computed(() =>
+  selectedPeriod.value === 'year'
+    ? 'năm'
+    : selectedPeriod.value === 'month'
+      ? 'tháng'
+      : 'tuần',
+);
+const areaChart = computed(() => {
+  const sales = dashboard.value?.weeklySales ?? [];
+  const width = 700;
+  const left = 58;
+  const right = 18;
+  const top = 18;
+  const bottom = 174;
+  const plotWidth = width - left - right;
+  const plotHeight = bottom - top;
+  const rawMax = Math.max(1, ...sales.map((day) => day.revenue));
+  const magnitude = 10 ** Math.max(0, Math.floor(Math.log10(rawMax)) - 1);
+  const maxRevenue = Math.ceil(rawMax / magnitude) * magnitude;
+
+  const points = sales.map((day, index) => {
+    const x = sales.length > 1
+      ? left + (plotWidth * index) / (sales.length - 1)
+      : left + plotWidth / 2;
+    const y = bottom - (day.revenue / maxRevenue) * plotHeight;
+    return { x, y, ...day };
+  });
+
+  const linePath = points.length
+    ? points.reduce((path, point, index) => {
+      if (index === 0) return `M ${point.x} ${point.y}`;
+      const previous = points[index - 1];
+      const middleX = (previous.x + point.x) / 2;
+      return `${path} C ${middleX} ${previous.y}, ${middleX} ${point.y}, ${point.x} ${point.y}`;
+    }, '')
+    : '';
+  const areaPath = points.length
+    ? `${linePath} L ${points[points.length - 1].x} ${bottom} L ${points[0].x} ${bottom} Z`
+    : '';
+
+  return { width, left, right, top, bottom, plotWidth, plotHeight, maxRevenue, points, linePath, areaPath };
+});
 const selectedWeekLabel = computed(() => {
   const start = new Date(`${selectedWeekStart.value}T00:00:00.000Z`);
   const end = new Date(start);
@@ -71,6 +123,20 @@ const selectedWeekLabel = computed(() => {
   }).format(end);
   return `${startLabel} – ${endLabel}`;
 });
+const selectedPeriodLabel = computed(() => {
+  const start = new Date(`${selectedPeriodStart.value}T00:00:00.000Z`);
+  if (selectedPeriod.value === 'year') {
+    return `Năm ${start.getUTCFullYear()}`;
+  }
+  if (selectedPeriod.value === 'month') {
+    return new Intl.DateTimeFormat('vi-VN', {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(start);
+  }
+  return selectedWeekLabel.value;
+});
 
 async function loadDashboard() {
   const requestId = ++dashboardRequestId;
@@ -78,7 +144,7 @@ async function loadDashboard() {
   loadError.value = '';
   dashboard.value = null;
   try {
-    const result = await fetchAdminDashboard(selectedWeekStart.value);
+    const result = await fetchAdminDashboard(selectedPeriodStart.value, selectedPeriod.value);
     if (requestId === dashboardRequestId) dashboard.value = result;
   } catch (error: unknown) {
     if (requestId === dashboardRequestId) {
@@ -109,6 +175,16 @@ function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
+function formatAxisVnd(amount: number): string {
+  if (amount >= 1_000_000) {
+    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(amount / 1_000_000)} tr`;
+  }
+  if (amount >= 1_000) {
+    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(amount / 1_000)}k`;
+  }
+  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(amount);
+}
+
 function formatWeekday(dateValue: string): string {
   const [year, month, day] = dateValue.split('-').map(Number);
   return new Intl.DateTimeFormat('vi-VN', { weekday: 'long' }).format(
@@ -116,15 +192,16 @@ function formatWeekday(dateValue: string): string {
   );
 }
 
-function formatCompactVnd(amount: number): string {
-  if (amount >= 1_000_000) {
-    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(amount / 1_000_000)} tr`;
-  }
-  return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(amount / 1_000)}k`;
-}
-
 function formatMonthDay(dateValue: string): number {
   return Number(dateValue.slice(-2));
+}
+
+function formatAreaLabel(dateValue: string): string {
+  if (selectedPeriod.value === 'year') {
+    const month = Number(dateValue.slice(5, 7));
+    return `T${month}`;
+  }
+  return String(formatMonthDay(dateValue));
 }
 
 function formatPaymentMethod(method: string): string {
@@ -153,9 +230,26 @@ function maskPhone(phone: string): string {
   return digits.length > 3 ? `${'*'.repeat(digits.length - 3)}${digits.slice(-3)}` : phone;
 }
 
-watch(selectedWeekStart, () => {
+watch([selectedWeekStart, selectedPeriod, selectedPeriodStart], () => {
   void loadDashboard();
 }, { immediate: true });
+
+watch(
+  () => route.query.period,
+  (period) => {
+    selectedPeriod.value = period === 'month' || period === 'year' ? period : 'week';
+  },
+);
+
+function setDashboardPeriod(period: 'week' | 'month' | 'year'): void {
+  selectedPeriod.value = period;
+  void router.replace({
+    query: {
+      ...route.query,
+      period: period === 'week' ? undefined : period,
+    },
+  });
+}
 </script>
 
 <template>
@@ -171,12 +265,37 @@ watch(selectedWeekStart, () => {
       </button>
     </div>
 
+    <div class="flex flex-col gap-3 rounded-2xl border border-[#E3E8DC] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p class="font-heading text-base font-black text-[#2D3B1E] sm:text-lg">Thống kê</p>
+        <p class="mt-1 text-sm text-[#7A866E]">Chọn khoảng thời gian hiển thị dữ liệu</p>
+      </div>
+      <div class="flex items-center gap-1.5 rounded-xl bg-[#F6F8F3] p-1.5">
+        <button
+          v-for="option in ([
+            { value: 'week', label: 'Theo tuần' },
+            { value: 'month', label: 'Theo tháng' },
+            { value: 'year', label: 'Theo năm' },
+          ] as const)"
+          :key="option.value"
+          type="button"
+          @click="setDashboardPeriod(option.value)"
+          class="rounded-lg px-4 py-2.5 text-sm font-bold transition-colors"
+          :class="selectedPeriod === option.value
+            ? 'bg-[#536124] text-white shadow-xs'
+            : 'text-[#7A866E] hover:bg-white hover:text-[#2D3B1E]'"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+    </div>
+
     <!-- Top 4 KPIs Cards (Figma 10) -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
       <!-- 1. Doanh thu -->
       <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-2">
         <div class="flex items-center justify-between text-xs text-[#7A866E]">
-          <span class="font-bold">Doanh thu · {{ selectedWeekLabel }}</span>
+          <span class="font-bold">Doanh thu · {{ selectedPeriodLabel }}</span>
           <div class="w-8 h-8 rounded-xl bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center">
             <DollarSign class="w-4 h-4" />
           </div>
@@ -186,14 +305,14 @@ watch(selectedWeekStart, () => {
         </div>
         <div class="flex items-center gap-1.5 text-xs font-bold" :class="(dashboard?.summary.revenueChangePercent ?? 0) >= 0 ? 'text-[#4D6A34]' : 'text-rose-700'">
           <span>{{ dashboard?.summary.revenueChangePercent === null ? 'Chưa có dữ liệu so sánh' : dashboard ? `${dashboard.summary.revenueChangePercent >= 0 ? '+' : ''}${dashboard.summary.revenueChangePercent.toFixed(1)}%` : 'Đang tải…' }}</span>
-          <span v-if="dashboard && dashboard.summary.revenueChangePercent !== null" class="text-[#7A866E] font-normal">so với tuần trước</span>
+          <span v-if="dashboard && dashboard.summary.revenueChangePercent !== null" class="text-[#7A866E] font-normal">so với {{ periodLabelForCopy }} trước</span>
         </div>
       </div>
 
       <!-- 2. Đơn hàng trong tuần, không tính đơn đã hủy -->
       <div class="bg-white p-6 rounded-3xl border border-[#E3E8DC] shadow-2xs space-y-2">
         <div class="flex items-center justify-between text-xs text-[#7A866E]">
-          <span class="font-bold">Đơn hàng · {{ selectedWeekLabel }}</span>
+          <span class="font-bold">Đơn hàng · {{ selectedPeriodLabel }}</span>
           <div class="w-8 h-8 rounded-xl bg-[#EBF1E6] text-[#4D6A34] flex items-center justify-center">
             <ShoppingCart class="w-4 h-4" />
           </div>
@@ -219,7 +338,7 @@ watch(selectedWeekStart, () => {
           {{ dashboard ? formatNumber(dashboard.summary.totalCustomers) : '—' }} <span class="text-xs font-normal text-[#7A866E]">khách</span>
         </div>
         <div class="flex items-center justify-between text-xs text-[#7A866E]">
-          <span class="text-[#4D6A34] font-bold">+{{ dashboard ? formatNumber(dashboard.summary.newCustomers) : '—' }} mới tuần này</span>
+          <span class="text-[#4D6A34] font-bold">+{{ dashboard ? formatNumber(dashboard.summary.newCustomers) : '—' }} mới trong {{ periodLabelForCopy }}</span>
           <span>{{ dashboard ? formatNumber(dashboard.summary.customersWithBmi) : '—' }} có BMI</span>
         </div>
       </div>
@@ -236,7 +355,7 @@ watch(selectedWeekStart, () => {
           {{ dashboard ? formatNumber(dashboard.summary.weeklyChatMessages) : '—' }} <span class="text-xs font-normal text-[#7A866E]">lượt</span>
         </div>
         <div class="flex items-center justify-between text-xs text-[#7A866E]">
-          <span>Tin nhắn NutriBot trong tuần</span>
+          <span>Tin nhắn NutriBot trong {{ periodLabelForCopy }}</span>
         </div>
       </div>
     </div>
@@ -248,43 +367,132 @@ watch(selectedWeekStart, () => {
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#F0F3EC] pb-4">
           <div>
             <h3 class="font-heading text-sm font-bold text-[#2D3B1E]">
-              Doanh thu theo ngày · {{ selectedWeekLabel }}
+              Doanh thu {{ selectedPeriod === 'week' ? 'theo ngày' : selectedPeriod === 'month' ? 'theo ngày trong tháng' : 'theo tháng trong năm' }} · {{ selectedPeriodLabel }}
             </h3>
             <p class="text-xs text-[#7A866E]">Tổng tiền đơn đã giao; số đơn không tính đơn hủy</p>
           </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <div class="flex h-52 min-w-[700px] items-end justify-between gap-2 px-2 pt-5 sm:gap-3 sm:px-4">
-            <div
-              v-for="day in dashboard?.weeklySales ?? []"
-              :key="day.date"
-              class="group relative flex h-full min-w-4 flex-1 flex-col items-center justify-end gap-2"
-            >
-              <div class="pointer-events-none absolute bottom-12 z-10 hidden min-w-max -translate-y-2 rounded-lg bg-[#26351D] px-3 py-2 text-[10px] text-white shadow-lg group-hover:block">
-                <p class="font-bold">{{ formatWeekday(day.date) }} {{ formatMonthDay(day.date) }} · {{ formatVnd(day.revenue) }}</p>
-                <p class="mt-1 text-white/75">{{ formatNumber(day.orders) }} đơn (không tính đơn hủy)</p>
-              </div>
-              <span
-                v-if="peakSalesDay?.date === day.date && day.revenue > 0"
-                class="absolute bottom-[calc(100%-2.5rem)] z-[1] rounded-md bg-[#26351D] px-2 py-1 text-[9px] font-bold text-white"
+        <div class="relative h-52 overflow-x-auto">
+          <svg
+            class="h-52 w-full min-w-[700px]"
+            viewBox="0 0 700 208"
+            preserveAspectRatio="none"
+            role="img"
+            aria-label="Biểu đồ miền doanh thu theo ngày"
+          >
+            <defs>
+              <linearGradient id="revenueArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#536124" stop-opacity="0.42" />
+                <stop offset="70%" stop-color="#8FA66C" stop-opacity="0.16" />
+                <stop offset="100%" stop-color="#DDE5CD" stop-opacity="0.04" />
+              </linearGradient>
+              <filter id="pointShadow" x="-100%" y="-100%" width="300%" height="300%">
+                <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#536124" flood-opacity="0.22" />
+              </filter>
+            </defs>
+
+            <g v-for="step in 5" :key="step">
+              <text
+                :x="areaChart.left - 10"
+                :y="areaChart.bottom - (areaChart.plotHeight * (step - 1)) / 4 + 4"
+                text-anchor="end"
+                fill="#98A08F"
+                font-size="9"
+                font-weight="700"
+              >{{ formatAxisVnd(areaChart.maxRevenue * (step - 1) / 4) }}</text>
+              <line
+                :x1="areaChart.left"
+                :x2="700 - areaChart.right"
+                :y1="areaChart.bottom - (areaChart.plotHeight * (step - 1)) / 4"
+                :y2="areaChart.bottom - (areaChart.plotHeight * (step - 1)) / 4"
+                :stroke="step === 1 ? '#D9E0CF' : '#EDF1E8'"
+                stroke-width="1"
+              />
+            </g>
+
+            <path
+              v-if="areaChart.areaPath"
+              :d="areaChart.areaPath"
+              fill="url(#revenueArea)"
+            />
+            <path
+              v-if="areaChart.linePath"
+              :d="areaChart.linePath"
+              fill="none"
+              stroke="#4D6A34"
+              stroke-width="3.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              vector-effect="non-scaling-stroke"
+            />
+
+            <g v-for="point in areaChart.points" :key="point.date">
+              <line
+                v-if="point.revenue > 0"
+                :x1="point.x"
+                :x2="point.x"
+                :y1="point.y"
+                :y2="areaChart.bottom"
+                stroke="#DDE5CD"
+                stroke-width="1"
+                stroke-dasharray="3 5"
+                opacity="0.7"
+              />
+              <circle
+                v-if="peakSalesDay?.date === point.date && point.revenue > 0"
+                :cx="point.x"
+                :cy="point.y"
+                r="9"
+                fill="#536124"
+                opacity="0.12"
+              />
+              <circle
+                :cx="point.x"
+                :cy="point.y"
+                r="4"
+                fill="#FFFFFF"
+                stroke="#4D6A34"
+                stroke-width="2.5"
+                filter="url(#pointShadow)"
+                vector-effect="non-scaling-stroke"
               >
-                Đỉnh: {{ formatCompactVnd(day.revenue) }}
-              </span>
-              <div class="flex h-36 w-full max-w-[42px] flex-col-reverse overflow-hidden rounded-lg bg-[#F0F4EA] shadow-inner">
-                <div
-                  class="w-full shrink-0 rounded-t-md bg-[#4D6A34] transition-[height] duration-300"
-                  :style="{ height: `${(day.revenue / weeklyRevenueMax) * 100}%` }"
-                ></div>
-              </div>
-              <span class="whitespace-nowrap text-[10px] font-semibold text-[#7A866E] sm:text-[11px]">
-                {{ formatMonthDay(day.date) }}
-              </span>
-            </div>
-            <p v-if="!isLoading && dashboard && !hasWeeklyRevenue" class="w-full self-center text-center text-xs text-[#7A866E]">
-              Chưa có doanh thu đơn đã giao trong tuần này.
-            </p>
-          </div>
+                <title>{{ formatWeekday(point.date) }} {{ formatMonthDay(point.date) }} · {{ formatVnd(point.revenue) }} · {{ formatNumber(point.orders) }} đơn</title>
+              </circle>
+              <g v-if="peakSalesDay?.date === point.date && point.revenue > 0">
+                <rect
+                  :x="Math.max(areaChart.left, point.x - 34)"
+                  :y="Math.max(4, point.y - 34)"
+                  width="68"
+                  height="22"
+                  rx="8"
+                  fill="#26351D"
+                />
+                <text
+                  :x="Math.max(areaChart.left, point.x - 34) + 34"
+                  :y="Math.max(4, point.y - 34) + 14"
+                  text-anchor="middle"
+                  fill="#FFFFFF"
+                  font-size="9"
+                  font-weight="800"
+                >{{ formatAxisVnd(point.revenue) }}</text>
+              </g>
+              <text
+                :x="point.x"
+                y="198"
+                text-anchor="middle"
+                fill="#7A866E"
+                font-size="11"
+                font-weight="700"
+              >{{ formatAreaLabel(point.date) }}</text>
+            </g>
+          </svg>
+          <p
+            v-if="!isLoading && dashboard && !hasWeeklyRevenue"
+            class="pointer-events-none absolute inset-0 flex items-center justify-center pb-6 text-center text-xs text-[#7A866E]"
+          >
+            Chưa có doanh thu đơn đã giao trong {{ periodLabelForCopy }} này.
+          </p>
         </div>
 
         <div class="flex flex-col gap-3 border-t border-[#F0F3EC] pt-3 text-xs text-[#7A866E] sm:flex-row sm:items-center sm:justify-between">
@@ -295,11 +503,11 @@ watch(selectedWeekStart, () => {
               <span v-if="peakRevenueChange !== null" class="text-[#7A866E]">
                 (tăng {{ peakRevenueChange.toFixed(0) }}% so với trung bình ngày có doanh thu khác)
               </span>
-              <span class="ml-1 text-[#7A866E]">· {{ formatNumber(weeklyOrderCount) }} đơn không hủy trong tuần</span>
+              <span class="ml-1 text-[#7A866E]">· {{ formatNumber(weeklyOrderCount) }} đơn không hủy trong {{ periodLabelForCopy }}</span>
             </span>
-            <span v-else>Chưa có doanh thu đơn đã giao trong tuần.</span>
+            <span v-else>Chưa có doanh thu đơn đã giao trong {{ periodLabelForCopy }}.</span>
           </span>
-          <span class="shrink-0 text-[11px] font-bold text-[#4D6A34]">{{ selectedWeekLabel }}</span>
+          <span class="shrink-0 text-[11px] font-bold text-[#4D6A34]">{{ selectedPeriodLabel }}</span>
         </div>
       </div>
 
@@ -308,9 +516,9 @@ watch(selectedWeekStart, () => {
         <div>
           <div class="flex items-center justify-between border-b border-[#F0F3EC] pb-3">
             <h3 class="font-heading text-sm font-bold text-[#2D3B1E]">Tỷ lệ phân bổ danh mục</h3>
-            <span class="text-[10px] font-bold text-[#7A866E] bg-[#FAF9F5] px-2 py-0.5 rounded-md border border-[#E3E8DC]">{{ selectedWeekLabel }}</span>
+            <span class="text-[10px] font-bold text-[#7A866E] bg-[#FAF9F5] px-2 py-0.5 rounded-md border border-[#E3E8DC]">{{ selectedPeriodLabel }}</span>
           </div>
-          <p class="text-xs text-[#7A866E] mt-2">Sản phẩm đã giao trong tuần</p>
+          <p class="text-xs text-[#7A866E] mt-2">Sản phẩm đã giao trong {{ periodLabelForCopy }}</p>
 
           <div class="h-4 w-full rounded-full bg-slate-100 overflow-hidden flex mt-4">
             <div
