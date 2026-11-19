@@ -21,12 +21,13 @@ test('category list uses real ID relationships and has no seeded empty fallback'
   const empty = (async (sql: string) => {
     assert.match(sql,/p.category_id=c.category_id/);
     assert.match(sql,/c.status/);
-    assert.doesNotMatch(sql,/c\.(slug|created_at|code)/);
+    assert.doesNotMatch(sql,/c\.(slug|created_at)/);
+    assert.match(sql,/c.code/);
     return { rows:[] };
   }) as unknown as typeof queryPostgres;
   assert.deepEqual(await listAdminCategories(empty),[]);
-  const row = (async () => ({ rows:[{ id:'4',name:'Category',description:'',productCount:0,products:[] }] })) as unknown as typeof queryPostgres;
-  assert.equal((await listAdminCategories(row))[0]?.code,'CAT-04');
+  const row = (async () => ({ rows:[{ id:'4',code:'CAT-001',name:'Category',description:'',productCount:0,products:[] }] })) as unknown as typeof queryPostgres;
+  assert.equal((await listAdminCategories(row))[0]?.code,'CAT-001');
 });
 
 test('category CRUD endpoints require authentication',async () => {
