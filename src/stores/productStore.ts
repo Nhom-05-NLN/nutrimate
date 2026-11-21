@@ -244,7 +244,9 @@ export const useProductStore = defineStore('product', () => {
     }
   }
 
+  let productRequest = 0;
   async function loadProducts(page?: number) {
+    const request = ++productRequest;
     if (page !== undefined && page > 0) {
       currentPage.value = page;
     }
@@ -255,13 +257,20 @@ export const useProductStore = defineStore('product', () => {
     error.value = null;
     try {
       const result = await fetchProducts(filter.value);
-      if (result && result.products.length > 0) {
-        products.value = result.products;
-        totalProducts.value = result.total;
-        totalPages.value = result.totalPages;
-        currentPage.value = result.page;
+      if (request !== productRequest) return;
+      products.value = result.products;
+      totalProducts.value = result.total;
+      totalPages.value = result.totalPages;
+      currentPage.value = result.page;
+    } catch (err) {
+      if (request !== productRequest) return;
+      if (filter.value.nutritionBounds && Object.keys(filter.value.nutritionBounds).length) {
+        products.value = [];
+        totalProducts.value = 0;
+        totalPages.value = 1;
+        error.value = err instanceof Error ? err.message : 'Không thể tải sản phẩm.';
+        return;
       }
-    } catch {
       // Fallback to local FIGMA_SEED_PRODUCTS
       const offset = (currentPage.value - 1) * pageSize.value;
       const fallbackProducts = FIGMA_SEED_PRODUCTS.filter((product) =>
@@ -276,7 +285,7 @@ export const useProductStore = defineStore('product', () => {
       totalProducts.value = fallbackProducts.length;
       totalPages.value = Math.max(1, Math.ceil(fallbackProducts.length / pageSize.value));
     } finally {
-      isLoading.value = false;
+      if (request === productRequest) isLoading.value = false;
     }
   }
 
