@@ -180,6 +180,7 @@ export async function fetchCategories(): Promise<Category[]> {
 
 export async function fetchProducts(filter: ProductFilterQuery = {}): Promise<PaginatedProductResult> {
   const query = new URLSearchParams();
+  if (filter.nutritionBounds && Object.keys(filter.nutritionBounds).length) query.set('nutritionBounds',JSON.stringify(filter.nutritionBounds));
   if (filter.categories?.length) query.set('categories', filter.categories.join(','));
   if (filter.category && filter.category !== 'all') {
     query.set('category', filter.category);
@@ -217,6 +218,12 @@ export async function fetchProducts(filter: ProductFilterQuery = {}): Promise<Pa
     limit: res.limit || filter.limit || 12,
     totalPages: res.totalPages || Math.ceil((res.total || items.length) / (res.limit || filter.limit || 12)) || 1,
   };
+}
+
+export async function fetchNutritionSliderBounds(): Promise<import('../../shared/catalogNutrition').NutritionSliderBounds> {
+  const response = await fetchJson<ApiResponse<import('../../shared/catalogNutrition').NutritionSliderBounds>>('/products/nutrition-bounds');
+  if (!response.data) throw new Error(response.message || 'Không thể tải giới hạn dinh dưỡng.');
+  return response.data;
 }
 
 export async function fetchProductById(id: string): Promise<Product> {

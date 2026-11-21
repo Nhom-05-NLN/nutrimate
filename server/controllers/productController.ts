@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import { parseNutritionBounds } from '../../shared/catalogNutrition.js';
+import { getNutritionSliderBounds } from '../repositories/productRepository.js';
 import * as productService from '../services/productService.js';
 import { getTotalSoldProducts, findRelatedProducts } from '../repositories/productRepository.js';
 import { ApiResponse, Product, ProductFilterQuery, PaginatedProductResponse } from '../types/index.js';
@@ -6,6 +8,11 @@ import { ApiResponse, Product, ProductFilterQuery, PaginatedProductResponse } fr
 export async function getRelatedProducts(req: Request<{ id: string }>, res: Response) {
   try { res.json({ success: true, data: await findRelatedProducts(req.params.id) }); }
   catch { res.status(503).json({ success: false, message: 'Không thể tải sản phẩm liên quan từ cơ sở dữ liệu.' }); }
+}
+
+export async function getNutritionBounds(_req: Request, res: Response) {
+  try { res.json({success:true,data:await getNutritionSliderBounds()}); }
+  catch { res.status(503).json({success:false,message:'Không thể tải giới hạn dinh dưỡng từ CSDL.'}); }
 }
 
 export async function getSalesSummary(_req: Request, res: Response): Promise<void> {
@@ -33,6 +40,15 @@ export async function getProducts(req: Request, res: Response<PaginatedProductRe
       sort: typeof sort === 'string' ? (sort as ProductFilterQuery['sort']) : undefined,
     };
 
+    try {
+      if (req.query.nutritionBounds !== undefined) {
+        if (typeof req.query.nutritionBounds !== 'string') throw new Error();
+        filter.nutritionBounds = parseNutritionBounds(JSON.parse(req.query.nutritionBounds));
+      }
+    } catch {
+      res.status(400).json({success:false,message:'Giá trị bộ lọc không hợp lệ.'});
+      return;
+    }
     const result = await productService.getProducts(filter);
     res.json({
       success: true,

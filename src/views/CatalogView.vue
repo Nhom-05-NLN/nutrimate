@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { defaultAdvancedFilters, nutritionBounds, nutritionSliders } from '../utils/catalogSliderFilters';
 import { useProductStore } from '../stores/productStore';
 import ProductCard from '../components/catalog/ProductCard.vue';
 import AdvancedFilterModal, { type AdvancedFilters } from '../components/catalog/AdvancedFilterModal.vue';
@@ -25,17 +26,10 @@ function isCategorySelected(category: string) {
 const sortBy = ref<'popular' | 'price-asc' | 'price-desc' | 'calories-asc' | 'rating-desc'>('popular');
 
 // Các tiêu chí lọc
-const filters = ref<AdvancedFilters>({
-  priceRange: 500000,
-  selectedCaloRanges: [],
-  selectedProteinRanges: [],
-  selectedCarbRanges: [],
-  selectedSugarRanges: [],
-  minRating: null,
-  onlyInStock: false,
-});
+const filters = ref<AdvancedFilters>(defaultAdvancedFilters());
 
 onMounted(() => {
+  syncAdvancedFilters();
   productStore.setSort('sold_desc');
   productStore.loadCategories();
 });
@@ -99,48 +93,16 @@ function handleCategoryChange(cat: string) {
 }
 
 function resetAllFilters() {
-  filters.value = {
-    priceRange: 500000,
-    selectedCaloRanges: [],
-    selectedProteinRanges: [],
-    selectedCarbRanges: [],
-    selectedSugarRanges: [],
-    minRating: null,
-    onlyInStock: false,
-  };
+  filters.value = defaultAdvancedFilters();
 }
-
-function removeFilter(type: string, val?: string | number) {
+function removeFilter(type:string) {
   if (type === 'price') filters.value.priceRange = 500000;
-  if (type === 'calo' && typeof val === 'string') {
-    filters.value.selectedCaloRanges = filters.value.selectedCaloRanges.filter((x) => x !== val);
-  }
-  if (type === 'protein' && typeof val === 'string') {
-    filters.value.selectedProteinRanges = filters.value.selectedProteinRanges.filter((x) => x !== val);
-  }
-  if (type === 'carb' && typeof val === 'string') {
-    filters.value.selectedCarbRanges = filters.value.selectedCarbRanges.filter((x) => x !== val);
-  }
-  if (type === 'sugar' && typeof val === 'string') {
-    filters.value.selectedSugarRanges = filters.value.selectedSugarRanges.filter((x) => x !== val);
-  }
   if (type === 'rating') filters.value.minRating = null;
   if (type === 'stock') filters.value.onlyInStock = false;
 }
-
-// Đếm số tiêu chí lọc được chọn
-const activeFilterCount = computed(() => {
-  let count = 0;
-  if (filters.value.priceRange < 500000) count++;
-  count += filters.value.selectedCaloRanges.length;
-  count += filters.value.selectedProteinRanges.length;
-  count += filters.value.selectedCarbRanges.length;
-  count += filters.value.selectedSugarRanges.length;
-  if (filters.value.minRating !== null) count++;
-  if (filters.value.onlyInStock) count++;
-  return count;
-});
-
+const activeNutrition = computed(() => nutritionSliders.filter(field => filters.value.nutrition[field.key].enabled));
+const activeFilterCount = computed(() => activeNutrition.value.length
+  + Number(filters.value.priceRange < 500000) + Number(filters.value.minRating !== null) + Number(filters.value.onlyInStock));
 const displayedProducts = computed(() => {
   let list = productStore.products;
   if (!list || list.length === 0) {
@@ -165,58 +127,6 @@ const displayedProducts = computed(() => {
     list = list.filter((p) => p.price <= filters.value.priceRange);
   }
 
-  // Mức Calories
-  if (filters.value.selectedCaloRanges.length > 0) {
-    list = list.filter((p) => {
-      const cal = p.nutrition?.calories || 0;
-      return filters.value.selectedCaloRanges.some((range) => {
-        if (range === 'under-150') return cal < 150;
-        if (range === '150-300') return cal >= 150 && cal <= 300;
-        if (range === 'over-300') return cal > 300;
-        return false;
-      });
-    });
-  }
-
-  // Hàm lượng Protein
-  if (filters.value.selectedProteinRanges.length > 0) {
-    list = list.filter((p) => {
-      const pro = p.nutrition?.protein || 0;
-      return filters.value.selectedProteinRanges.some((range) => {
-        if (range === 'under-10') return pro < 10;
-        if (range === '10-25') return pro >= 10 && pro <= 25;
-        if (range === 'over-25') return pro > 25;
-        return false;
-      });
-    });
-  }
-
-  // Hàm lượng Carbs 
-  if (filters.value.selectedCarbRanges.length > 0) {
-    list = list.filter((p) => {
-      const carb = p.nutrition?.carbs || 0;
-      return filters.value.selectedCarbRanges.some((range) => {
-        if (range === 'under-10') return carb < 10;
-        if (range === '10-30') return carb >= 10 && carb <= 30;
-        if (range === 'over-30') return carb > 30;
-        return false;
-      });
-    });
-  }
-
-  // Hàm lượng đường
-  if (filters.value.selectedSugarRanges.length > 0) {
-    list = list.filter((p) => {
-      const sugar = p.nutrition?.sugar || 0;
-      return filters.value.selectedSugarRanges.some((range) => {
-        if (range === '0g') return sugar === 0;
-        if (range === 'under-3g') return sugar <= 3;
-        if (range === 'natural') return sugar > 0 && sugar <= 5;
-        return false;
-      });
-    });
-  }
-
   // Đánh giá khách hàng
   if (filters.value.minRating !== null) {
     list = list.filter((p) => (p.rating || 0) >= (filters.value.minRating || 0));
@@ -229,6 +139,10 @@ const displayedProducts = computed(() => {
 
   return list;
 });
+function syncAdvancedFilters() {
+  productStore.filter.nutritionBounds = nutritionBounds(filters.value);
+}
+watch(() => filters.value.nutrition, () => { syncAdvancedFilters(); void productStore.loadProducts(1); }, {deep:true});
 
 const startItem = computed(() => {
   if (productStore.totalProducts === 0) return 0;
@@ -344,24 +258,9 @@ const paginationItems = computed(() => {
           <X class="w-3.5 h-3.5 cursor-pointer hover:text-red-600" @click="removeFilter('price')" />
         </span>
 
-        <span v-for="r in filters.selectedCaloRanges" :key="r" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EBF1E6] text-xs font-medium text-[#3B4E24]">
-          Calo: {{ r === 'under-150' ? '< 150 kcal' : r === '150-300' ? '150-300 kcal' : '> 300 kcal' }}
-          <X class="w-3.5 h-3.5 cursor-pointer hover:text-red-600" @click="removeFilter('calo', r)" />
-        </span>
-
-        <span v-for="r in filters.selectedProteinRanges" :key="r" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EBF1E6] text-xs font-medium text-[#3B4E24]">
-          Đạm: {{ r === 'under-10' ? '< 10g' : r === '10-25' ? '10-25g' : '> 25g High-Pro' }}
-          <X class="w-3.5 h-3.5 cursor-pointer hover:text-red-600" @click="removeFilter('protein', r)" />
-        </span>
-
-        <span v-for="r in filters.selectedCarbRanges" :key="r" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EBF1E6] text-xs font-medium text-[#3B4E24]">
-          Carb: {{ r === 'under-10' ? '< 10g' : r === '10-30' ? '10-30g' : '> 30g' }}  
-          <X class="w-3.5 h-3.5 cursor-pointer hover:text-red-600" @click="removeFilter('carb', r)" />
-        </span>
-
-        <span v-for="r in filters.selectedSugarRanges" :key="r" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EBF1E6] text-xs font-medium text-[#3B4E24]">
-          Đường: {{ r === 'zero' ? 'Không đường' : r === 'under-3g' ? '< 3g' : r === '3g-10g' ? '3-10g' : 'Đường tự nhiên' }}
-          <X class="w-3.5 h-3.5 cursor-pointer hover:text-red-600" @click="removeFilter('sugar', r)" />
+        <span v-for="field in activeNutrition" :key="field.key" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EBF1E6] text-xs font-medium text-[#3B4E24]">
+          {{ field.label }} {{ filters.nutrition[field.key].direction === 'max' ? '≤' : '≥' }} {{ filters.nutrition[field.key].value.toLocaleString('vi-VN') }} {{ field.unit }}
+          <button type="button" @click="filters.nutrition[field.key].enabled = false" :aria-label="'Xóa lọc ' + field.label" class="cursor-pointer"><X class="w-3.5 h-3.5" /></button>
         </span>
 
         <span v-if="filters.minRating !== null" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EBF1E6] text-xs font-medium text-[#3B4E24]">
@@ -407,6 +306,7 @@ const paginationItems = computed(() => {
         </div>
       </div>
 
+      <p v-else-if="productStore.error" role="alert" class="py-8 text-center text-sm text-rose-600">{{ productStore.error }}</p>
       <!-- Products Grid -->
       <div v-else-if="displayedProducts.length > 0" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         <ProductCard
@@ -473,7 +373,6 @@ const paginationItems = computed(() => {
     <AdvancedFilterModal
       v-model:is-open="isFilterModalOpen"
       v-model:filters="filters"
-      :displayed-count="displayedProducts.length"
       @reset="resetAllFilters"
     />
   </div>
