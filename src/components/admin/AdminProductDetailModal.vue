@@ -251,7 +251,7 @@ function handleEdit() {
             <div v-if="activeTab === 'info'" class="space-y-5 text-xs sm:text-sm text-[#4E5C3E]">
               <div>
                 <h4 class="font-heading text-sm font-bold text-[#2D3B1E] mb-2">Mô tả sản phẩm:</h4>
-                <p class="leading-relaxed bg-[#FAF9F5] p-4 rounded-2xl border border-[#E3E8DC]">
+                <p class="leading-relaxed whitespace-pre-line bg-[#FAF9F5] p-4 rounded-2xl border border-[#E3E8DC]">
                   {{ productDescription }}
                 </p>
               </div>
@@ -271,7 +271,7 @@ function handleEdit() {
 
               <!-- Gợi ý sử dụng lành mạnh -->
               <div class="space-y-2 pt-2">
-                <h4 class="font-heading text-sm font-bold text-[#2D3B1E]">Hướng dẫn sử dụng & Bảo quản:</h4>
+                <h4 class="font-heading text-sm font-bold text-[#2D3B1E]">Hướng dẫn sử dụng:</h4>
                 <p class="whitespace-pre-line text-xs text-[#576449]">{{ product.usageInstruction || 'Chưa có hướng dẫn sử dụng.' }}</p>
               </div>
             </div>
