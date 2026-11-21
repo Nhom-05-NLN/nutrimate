@@ -262,6 +262,9 @@ test('product suggestions use real product context even when nutrition knowledge
   const suggestionService = createChatService(suggestionRepository, async messages => {
     generated = true;
     assert.match(messages[0]?.content ?? '', /kể cả khi knowledge_base trống hoặc không khớp/i);
+    assert.match(messages[0]?.content ?? '', /giọng điệu thân thiện/i);
+    assert.match(messages[0]?.content ?? '', /xưng "mình", gọi người dùng là "bạn"/i);
+    assert.match(messages[0]?.content ?? '', /không dùng cú pháp Markdown/i);
     assert.match(messages[0]?.content ?? '', /Đậu gà/);
     return 'Bạn có thể thử Đậu gà rang: 8 g protein và 1 g đường mỗi khẩu phần.';
   }, async () => ({

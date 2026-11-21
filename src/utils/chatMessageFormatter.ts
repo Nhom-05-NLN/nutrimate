@@ -33,7 +33,12 @@ function formatMarkdownTable(lines: string[], start: number): { text: string; ne
 }
 
 export function formatChatMessage(text: string): string {
-  const normalizedText = text.replace(/\*\*/g, '').replace(repeatedDisclaimer, disclaimer);
+  const normalizedText = text
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/(^|[\s(])\*([^*\n]+)\*(?=$|[\s).,!?:;])/g, '$1$2')
+    .replace(/^\s*\*\s*$/gm, '')
+    .replace(/^\s*[-*]\s+/gm, '• ')
+    .replace(repeatedDisclaimer, disclaimer);
   const lines = normalizedText.split(/\r?\n/);
   const formattedLines: string[] = [];
 
