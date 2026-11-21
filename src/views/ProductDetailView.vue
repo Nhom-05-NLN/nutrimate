@@ -543,7 +543,7 @@ watch(
                 <h3 class="font-heading text-xl font-bold text-[#242424] mb-2.5">
                   {{ product.name }}
                 </h3>
-                <p class="leading-relaxed">
+                <p class="leading-relaxed whitespace-pre-line">
                   {{ product.description || 'Chưa có mô tả chi tiết cho sản phẩm này.' }}
                 </p>
               </div>

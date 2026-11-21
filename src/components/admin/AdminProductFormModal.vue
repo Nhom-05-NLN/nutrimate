@@ -34,6 +34,9 @@ const emit = defineEmits<{
     status: 'Đang bán' | 'Tạm ngừng';
     image: string;
     galleryImages: string[];
+    description: string;
+    ingredients: string[];
+    usageInstruction: string;
   }): void;
 }>();
 
@@ -55,6 +58,9 @@ const form = ref({
   status: 'Đang bán' as 'Đang bán' | 'Tạm ngừng',
   image: '',
   galleryImages: [] as string[],
+  description: '',
+  ingredientsText: '',
+  usageInstruction: '',
 });
 
 const nutritionScope = computed(() => {
@@ -124,6 +130,9 @@ watch(
           fiber: props.initialData.fiber ?? 0,
           sodium: props.initialData.sodium ?? 0,
           status: props.initialData.status,
+          description: props.initialData.description ?? '',
+          ingredientsText: (props.initialData.ingredients ?? []).join('\n'),
+          usageInstruction: props.initialData.usageInstruction ?? '',
           image: props.initialData.image,
           galleryImages: [...(props.initialData.galleryImages ?? (props.initialData.image ? [props.initialData.image] : []))],
         };
@@ -146,6 +155,9 @@ watch(
           status: 'Đang bán',
           image: '',
           galleryImages: [],
+          description: '',
+          ingredientsText: '',
+          usageInstruction: '',
         };
         void loadSku();
       }
@@ -227,6 +239,9 @@ function handleSubmit() {
     status: form.value.status,
     image: form.value.galleryImages[0] ?? '',
     galleryImages: [...form.value.galleryImages],
+    description: form.value.description.trim(),
+    ingredients: form.value.ingredientsText.split(/\r?\n/).map(value => value.trim()).filter(Boolean),
+    usageInstruction: form.value.usageInstruction.trim(),
   });
 }
 
@@ -331,7 +346,7 @@ onBeforeUnmount(() => {
           </div>
 
           <div>
-            <label class="block font-bold text-[#2D3B1E] mb-1.5">Trạng thái bán</label>
+            <label class="block font-bold text-[#2D3B1E] mb-1.5">Trạng thái</label>
             <div class="relative">
             <select
               v-model="form.status"
@@ -471,6 +486,27 @@ onBeforeUnmount(() => {
           <p v-if="nutritionError" role="alert" class="text-[11px] text-rose-500">{{ nutritionError }}</p>
         </div>
 
+          <section class="space-y-3 border-t border-[#ECEFE7] pt-4">
+            <div>
+              <label for="product-description" class="block font-bold text-[#2D3B1E] mb-1.5">Mô tả sản phẩm</label>
+              <textarea id="product-description" v-model="form.description" rows="3" maxlength="10000" :disabled="saving"
+                placeholder="Giới thiệu đặc điểm và thông tin sản phẩm..."
+                class="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124] resize-y" />
+            </div>
+            <div>
+              <label for="product-ingredients" class="block font-bold text-[#2D3B1E] mb-1.5">Thành phần nguyên liệu</label>
+              <textarea id="product-ingredients" v-model="form.ingredientsText" rows="3" maxlength="10000" :disabled="saving"
+                placeholder="Nhập mỗi thành phần trên một dòng"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124] resize-y" />
+              <p class="text-[11px] text-[#7A866E] mt-1">Mỗi thành phần một dòng, tối đa 200 thành phần.</p>
+            </div>
+            <div>
+              <label for="product-usage" class="block font-bold text-[#2D3B1E] mb-1.5">Hướng dẫn sử dụng</label>
+              <textarea id="product-usage" v-model="form.usageInstruction" rows="3" maxlength="10000" :disabled="saving"
+                placeholder="Cách dùng, cách bảo quản và lưu ý..."
+                class="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF9F5] border border-[#DEE5D4] text-[#2D3B1E] focus:outline-[#536124] resize-y" />
+            </div>
+          </section>
         </div>
         <div class="min-w-0 p-5 sm:p-6 border-t lg:border-t-0 lg:border-l border-[#ECEFE7] bg-[#FAF9F5]/50 lg:overflow-y-auto overscroll-contain">
           <ProductImagesEditor v-model="form.galleryImages" :disabled="saving" @uploading="isUploading = $event" />
