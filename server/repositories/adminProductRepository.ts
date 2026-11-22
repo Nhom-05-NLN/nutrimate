@@ -3,6 +3,9 @@ import { getPool, queryPostgres } from '../db/index.js';
 import { randomUUID } from 'node:crypto';
 
 export interface ProductInput {
+  description?: string;
+  ingredients?: string[];
+  usageInstruction?: string;
   skuReservation?: string;
   galleryImages: string[];
   unit: string;
@@ -56,6 +59,16 @@ export async function listAdminProducts(executeQuery = queryPostgres) {
 }
 
 export function validateProduct(body: Record<string, unknown>, requireSku = true): ProductInput {
+  for (const field of ['description', 'usageInstruction']) {
+    if (body[field] !== undefined && (typeof body[field] !== 'string' || (body[field] as string).length > 10000)) {
+      throw new ProductInputError('Mô tả và hướng dẫn sử dụng phải là văn bản tối đa 10.000 ký tự.');
+    }
+  }
+  if (body.ingredients !== undefined && (!Array.isArray(body.ingredients) || body.ingredients.length > 200 ||
+      body.ingredients.some(value => typeof value !== 'string' || value.length > 10000) ||
+      body.ingredients.join('\n').length > 10000)) {
+    throw new ProductInputError('Thành phần phải là danh sách tối đa 200 mục và tổng cộng 10.000 ký tự.');
+  }
   let reservedSku = '';
   if (!requireSku && body.skuReservation !== undefined) {
     if (typeof body.sku !== 'string' || typeof body.skuReservation !== 'string' || !/^NM-PRD-\d{4}$/.test(body.sku)) {
@@ -101,6 +114,9 @@ export function validateProduct(body: Record<string, unknown>, requireSku = true
     price: body.price as number, calo: body.calo as number, protein: body.protein as number,
     carbs: body.carbs as number, fat: body.fat as number, sugar: body.sugar as number,
     fiber: fiber as number, sodium: sodium as number,
+    description: body.description === undefined ? undefined : (body.description as string).trim(),
+    usageInstruction: body.usageInstruction === undefined ? undefined : (body.usageInstruction as string).trim(),
+    ingredients: body.ingredients === undefined ? undefined : (body.ingredients as string[]).map(value => value.trim()).filter(Boolean),
     status: body.status as ProductInput['status'], image: galleryImages[0] ?? '' };
 }
 
@@ -158,10 +174,13 @@ export async function writeProduct(client: PoolClient, data: ProductInput, id?: 
   }
   const values = [sku,data.name,data.category,data.price,data.image,data.status === 'Đang bán',data.unit,data.package_size];
   const saved = id
-    ? await client.query(`UPDATE products SET code=$1,name=$2,category_id=$3,price=$4,image_url=$5,status=$6,unit=$7,package_size=$8,updated_at=NOW()
-        WHERE product_id::text=$9 RETURNING product_id`, [...values,id])
-    : await client.query(`INSERT INTO products (code,name,category_id,price,image_url,status,unit,package_size,stock_quantity,ingredients)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'') RETURNING product_id`, [...values,data.stock]);
+    ? await client.query(`UPDATE products SET code=$1,name=$2,category_id=$3,price=$4,image_url=$5,status=$6,unit=$7,package_size=$8,
+        description=COALESCE($10,description),ingredients=COALESCE($11,ingredients),usage_instruction=COALESCE($12,usage_instruction),updated_at=NOW()
+        WHERE product_id::text=$9 RETURNING product_id`, [...values,id,data.description ?? null,
+          data.ingredients === undefined ? null : JSON.stringify(data.ingredients),data.usageInstruction ?? null])
+    : await client.query(`INSERT INTO products (code,name,category_id,price,image_url,status,unit,package_size,stock_quantity,description,ingredients,usage_instruction)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING product_id`,
+        [...values,data.stock,data.description ?? '',JSON.stringify(data.ingredients ?? []),data.usageInstruction ?? '']);
   const productId = saved.rows[0]?.product_id;
   if (!productId) throw new ProductInputError('Không tìm thấy sản phẩm.',404);
   await client.query('DELETE FROM product_images WHERE product_id=$1', [productId]);
