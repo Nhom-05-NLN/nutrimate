@@ -711,7 +711,7 @@ watch(
           <div
             v-for="rel in relatedProducts"
             :key="rel.id"
-            class="group relative flex flex-col bg-white rounded-xl border border-[#E3E8DC] shadow-[0_1px_3px_rgb(45_59_30/0.08)] transition-[border-color,box-shadow,transform] duration-[180ms] ease-[ease] hover:-translate-y-[3px] hover:border-[#6B7A3A] hover:shadow-[0_14px_28px_rgb(45_59_30/0.22)] focus-within:-translate-y-[3px] focus-within:border-[#6B7A3A] focus-within:shadow-[0_14px_28px_rgb(45_59_30/0.22)] motion-reduce:transition-none overflow-hidden"
+            class="related-product-card group relative flex flex-col bg-white rounded-xl border border-[#E3E8DC] overflow-hidden"
           >
             <!-- Product Image -->
             <div class="relative aspect-4/3 w-full bg-[#FAF9F5] overflow-hidden cursor-pointer" @click="goToProduct(rel.id)">
@@ -787,3 +787,23 @@ watch(
 
   </div>
 </template>
+
+<style scoped>
+.related-product-card {
+  box-shadow: 0 1px 3px rgb(45 59 30 / 8%);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.related-product-card:hover,
+.related-product-card:focus-within {
+  transform: translateY(-3px);
+  border-color: #6b7a3a;
+  box-shadow: 0 14px 28px rgb(45 59 30 / 22%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .related-product-card {
+    transition: none;
+  }
+}
+</style>

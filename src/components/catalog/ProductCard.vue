@@ -31,7 +31,7 @@ function goToDetail() {
 
 <template>
   <div
-    class="group relative flex flex-col bg-white rounded-xl border border-[#E3E8DC] hover:border-[#4D6A34] hover:shadow-xl transition-all duration-200 overflow-hidden"
+    class="product-card group relative flex flex-col bg-white rounded-xl border border-[#E3E8DC] overflow-hidden"
     :class="{ 'opacity-85': !isInStock }"
   >
     <!-- Product Image -->
@@ -40,8 +40,7 @@ function goToDetail() {
         :src="product.image"
         :alt="product.name"
         loading="lazy"
-        class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-        :class="{ 'grayscale-25': !isInStock }"
+        class="w-full h-full object-cover"
       />
     </div>
 
@@ -82,7 +81,7 @@ function goToDetail() {
         </div>
         <!-- 3. Carbs -->
         <div class="px-1 border-l border-[#E3E8DC]">
-          <span class="text-[10px] text-[#7A866E] uppercase block font-semibold">Carb</span>
+          <span class="text-[10px] text-[#7A866E] uppercase block font-semibold">Carbs</span>
           <span class="text-sm font-extrabold text-[#2D3B1E]">{{ product.nutrition?.carbs ?? 0 }}g</span>
         </div>
         <!-- 4. Sugar -->
@@ -118,3 +117,23 @@ function goToDetail() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.product-card {
+  box-shadow: 0 1px 3px rgb(45 59 30 / 8%);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.product-card:hover,
+.product-card:focus-within {
+  transform: translateY(-3px);
+  border-color: #6b7a3a;
+  box-shadow: 0 14px 28px rgb(45 59 30 / 22%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-card {
+    transition: none;
+  }
+}
+</style>

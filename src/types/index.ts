@@ -255,6 +255,7 @@ export interface AdminDashboardData {
 }
 
 export interface ProductFilterQuery {
+  nutritionBounds?: import('../../shared/catalogNutrition').NutritionBounds;
   categories?: string[];
   category?: string;
   diet?: string;

@@ -6,6 +6,7 @@ import { getReviews, createReview } from '../controllers/productReviewController
 const router = Router();
 
 router.get('/', productController.getProducts);
+router.get('/nutrition-bounds', productController.getNutritionBounds);
 router.get('/sales-summary', requireAdmin, productController.getSalesSummary);
 router.get('/:id/reviews', getReviews);
 router.get('/:id/related', productController.getRelatedProducts);

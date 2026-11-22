@@ -1,4 +1,5 @@
 import { Product, ProductFilterQuery } from '../types/index.js';
+import { parseNutritionBounds, nutrientKeys, roundSliderBounds, type NutritionSliderBounds } from '../../shared/catalogNutrition.js';
 import type { ChatSuggestedProduct } from '../types/chat.js';
 import { INITIAL_PRODUCTS } from '../db/seedData.js';
 import { getPool, isDbConnected, queryPostgres } from '../db/index.js';
@@ -114,6 +115,19 @@ function mapRowToProduct(row: ProductRow): Product {
   };
 }
 
+export async function getNutritionSliderBounds(executeQuery = queryPostgres): Promise<NutritionSliderBounds> {
+  const columns = nutrientKeys.map(key =>
+    `MIN(n.${key}) FILTER (WHERE n.${key} >= 0) AS ${key}_min, MAX(n.${key}) FILTER (WHERE n.${key} >= 0) AS ${key}_max`
+  ).join(', ');
+  const result = await executeQuery(`SELECT ${columns} FROM nutrition_facts n
+    JOIN products p ON p.product_id=n.product_id WHERE p.status=TRUE`);
+  const row = result.rows[0] ?? {};
+  return Object.fromEntries(nutrientKeys.map(key => [key,roundSliderBounds(
+    row[`${key}_min`] == null ? null : Number(row[`${key}_min`]),
+    row[`${key}_max`] == null ? null : Number(row[`${key}_max`])
+  )])) as NutritionSliderBounds;
+}
+
 export async function findProducts(
   filter: ProductFilterQuery,
   requirePostgres = false,
@@ -129,6 +143,10 @@ export async function findProducts(
       const conditions: string[] = ['status = TRUE'];
       const values: unknown[] = [];
       let paramIdx = 1;
+      for (const [column, bounds] of Object.entries(parseNutritionBounds(filter.nutritionBounds ?? {}))) {
+        if (bounds!.min !== undefined) { conditions.push(`${column} >= $${paramIdx++}`); values.push(bounds!.min); }
+        if (bounds!.max !== undefined) { conditions.push(`${column} <= $${paramIdx++}`); values.push(bounds!.max); }
+      }
 
       if (requireCompleteNutrition) {
         conditions.push('calories IS NOT NULL AND protein IS NOT NULL AND carbs IS NOT NULL AND fat IS NOT NULL AND sugar IS NOT NULL');

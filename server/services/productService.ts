@@ -5,7 +5,7 @@ export async function getProducts(filter: ProductFilterQuery) {
   const page = filter.page && filter.page > 0 ? Number(filter.page) : 1;
   const limit = filter.limit && filter.limit > 0 ? Number(filter.limit) : 12;
 
-  const { products, total } = await productRepo.findProducts({ ...filter, page, limit });
+  const { products, total } = await productRepo.findProducts({ ...filter, page, limit }, Boolean(filter.nutritionBounds && Object.keys(filter.nutritionBounds).length));
 
   return {
     products,
