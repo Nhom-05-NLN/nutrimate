@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Package, X, Loader2, ChevronDown } from 'lucide-vue-next';
 import type { AdminProductItem } from './AdminProductDetailModal.vue';
 import ProductImagesEditor from './ProductImagesEditor.vue';
-import { reserveAdminProductSku, releaseAdminProductSku } from '../../services/api';
+import { fetchNextAdminProductSku } from '../../services/api';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -17,7 +17,6 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'submit', data: {
     sku: string;
-    skuReservation?: string;
     name: string;
     category: string;
     price: number;
@@ -82,7 +81,6 @@ const formErrors = ref({
 const isUploading = ref(false);
 const nutritionError = ref('');
 const skuLoading = ref(false);
-const skuReservation = ref('');
 let skuRequest = 0;
 
 async function loadSku() {
@@ -90,13 +88,11 @@ async function loadSku() {
   skuLoading.value = true;
   formErrors.value.sku = '';
   try {
-    const result = await reserveAdminProductSku();
+    const result = await fetchNextAdminProductSku();
     if (request !== skuRequest || !props.modelValue || props.mode !== 'create') {
-      await releaseAdminProductSku(result.skuReservation);
       return;
     }
-    form.value.sku = result.sku;
-    skuReservation.value = result.skuReservation;
+    form.value.sku = result;
   } catch (error) {
     if (request === skuRequest) formErrors.value.sku = error instanceof Error ? error.message : 'Không thể cấp mã SKU.';
   } finally { if (request === skuRequest) skuLoading.value = false; }
@@ -105,10 +101,8 @@ async function loadSku() {
 watch(
   () => props.modelValue,
   (isOpen) => {
-    if (skuReservation.value) void releaseAdminProductSku(skuReservation.value).catch(() => {});
     skuRequest++;
     skuLoading.value = false;
-    skuReservation.value = '';
     if (isOpen) {
       nutritionError.value = '';
       isUploading.value = false;
@@ -215,14 +209,13 @@ function validateProductForm(): boolean {
 }
 
 function handleSubmit() {
-  if (props.mode === 'create' && (skuLoading.value || !skuReservation.value)) return;
+  if (props.mode === 'create' && (skuLoading.value || !form.value.sku)) return;
   if (props.saving || isUploading.value || !validateProductForm()) {
     return;
   }
 
   emit('submit', {
     sku: form.value.sku.trim().toUpperCase(),
-    ...(props.mode === 'create' ? { skuReservation: skuReservation.value } : {}),
     name: form.value.name.trim(),
     category: form.value.category,
     price: form.value.price,
@@ -245,23 +238,13 @@ function handleSubmit() {
   });
 }
 
-async function handleClose() {
+function handleClose() {
   if (props.saving || isUploading.value) return;
-  if (skuReservation.value) {
-    try {
-      await releaseAdminProductSku(skuReservation.value);
-      skuReservation.value = '';
-    } catch {
-      formErrors.value.sku = 'Không thể giải phóng mã SKU. Vui lòng thử lại.';
-      return;
-    }
-  }
   emit('update:modelValue', false);
 }
 
 onBeforeUnmount(() => {
   skuRequest++;
-  if (skuReservation.value) void releaseAdminProductSku(skuReservation.value).catch(() => {});
 });
 </script>
 
@@ -310,6 +293,9 @@ onBeforeUnmount(() => {
               {{ formErrors.sku }}
             </span>
             <button v-if="mode === 'create' && formErrors.sku" type="button" @click="loadSku" :disabled="skuLoading" class="text-xs text-[#536124] underline mt-1">Thử lại</button>
+            <p v-if="mode === 'create'" class="mt-1 text-xs text-[#7A866E]">
+              Mã dự kiến; mã chính thức được cấp khi lưu và có thể thay đổi nếu thêm đồng thời.
+            </p>
           </div>
 
           <div>
@@ -525,7 +511,7 @@ onBeforeUnmount(() => {
         <button
           type="button"
           @click="handleSubmit"
-          :disabled="saving || isUploading || (mode === 'create' && (skuLoading || !skuReservation))"
+          :disabled="saving || isUploading || (mode === 'create' && (skuLoading || !form.sku))"
           class="px-5 py-2.5 rounded-2xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
         >
           <Loader2 v-if="saving || isUploading" class="w-3.5 h-3.5 animate-spin" />

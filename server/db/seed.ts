@@ -161,10 +161,6 @@ export async function seedDatabase(): Promise<void> {
         ]
       );
 
-      await client.query(
-        'INSERT INTO inventory (product_id, quantity, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP)',
-        [dbProductId, prod.stock]
-      );
     }
 
     // 5. Seed Giỏ hàng & Mục giỏ hàng (Cart & CartItem - M3)

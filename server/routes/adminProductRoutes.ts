@@ -1,21 +1,16 @@
 import { Router } from 'express';
 import { requireAdmin } from '../middleware/authMiddleware.js';
-import { reserveProductSku, releaseProductSku } from '../repositories/adminProductRepository.js';
+import { getNextProductSku } from '../repositories/adminProductRepository.js';
 import { listAdminProducts, validateProduct, saveProduct, deleteProduct, ProductInputError } from '../repositories/adminProductRepository.js';
 
 const router = Router();
 router.use(requireAdmin);
-router.post('/release-sku', async (req, res) => {
-  if (typeof req.body?.skuReservation !== 'string') {
-    res.status(400).json({ success: false, message: 'Mã giữ chỗ không hợp lệ.' });
-    return;
+router.get('/next-sku', async (_req, res) => {
+  try { res.json({ success: true, data: { sku: await getNextProductSku() } }); }
+  catch (error) {
+    const status = error instanceof ProductInputError ? error.status : 503;
+    res.status(status).json({ success: false, message: 'Không thể lấy mã tự động. Vui lòng thử lại.' });
   }
-  try { await releaseProductSku(req.body.skuReservation); res.json({ success: true }); }
-  catch { res.status(503).json({ success: false, message: 'Không thể giải phóng mã SKU.' }); }
-});
-router.post('/reserve-sku', async (_req, res) => {
-  try { res.json({ success: true, data: await reserveProductSku() }); }
-  catch { res.status(503).json({ success: false, message: 'Không thể cấp mã SKU. Vui lòng thử lại.' }); }
 });
 router.get('/', async (_req,res) => {
   try { res.json({ success:true,data:await listAdminProducts() }); }
