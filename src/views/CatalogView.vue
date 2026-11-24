@@ -5,7 +5,7 @@ import { useProductStore } from '../stores/productStore';
 import ProductCard from '../components/catalog/ProductCard.vue';
 import AdvancedFilterModal, { type AdvancedFilters } from '../components/catalog/AdvancedFilterModal.vue';
 import EmptyIllustration from '../components/common/EmptyIllustration.vue';
-import { Search, SlidersHorizontal, X, ChevronDown } from 'lucide-vue-next';
+import { Search, SlidersHorizontal, X, ChevronDown, Leaf } from 'lucide-vue-next';
 
 const productStore = useProductStore();
 
@@ -38,6 +38,21 @@ const categoryTabs = computed(() => [
   { key: 'all', label: 'Tất cả' },
   ...productStore.categories.map(category => ({ key: category.id, label: category.name })),
 ]);
+
+const categoryDescriptions = computed(() => productStore.categories.filter(category =>
+  selectedCategories.value.includes(category.id) && category.description?.trim()
+));
+const collapsedDescriptions = ref<Record<string, boolean>>({});
+
+function toggleCategoryDescription(id: string) {
+  collapsedDescriptions.value[id] = !collapsedDescriptions.value[id];
+}
+
+watch(selectedCategories, ids => {
+  collapsedDescriptions.value = Object.fromEntries(
+    Object.entries(collapsedDescriptions.value).filter(([id]) => ids.includes(id))
+  );
+});
 
 function handleSortChange(event: Event) {
   const target = event.target as HTMLSelectElement;
@@ -243,6 +258,46 @@ const paginationItems = computed(() => {
       >
         <span>{{ cat.label }}</span>
       </button>
+    </div>
+
+    <!-- Mô tả các danh mục đang chọn -->
+    <div
+      v-if="categoryDescriptions.length"
+      class="grid grid-cols-1 gap-2"
+      :class="categoryDescriptions.length > 1 ? 'md:grid-cols-2' : ''"
+    >
+      <section
+        v-for="category in categoryDescriptions"
+        :key="category.id"
+        class="self-start rounded-lg border border-[#E3E8DC] bg-white overflow-hidden"
+      >
+        <button
+          type="button"
+          @click="toggleCategoryDescription(category.id)"
+          :aria-expanded="!collapsedDescriptions[category.id]"
+          :aria-controls="`category-description-${category.id}`"
+          class="flex w-full items-center gap-2 px-3 py-2 text-left cursor-pointer hover:bg-[#FAF9F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#4D6A34]"
+        >
+          <span class="shrink-0 text-[#4D6A34]">
+            <Leaf class="h-4 w-4" aria-hidden="true" />
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block break-words text-xs font-semibold text-[#4D6A34]">{{ category.name }}</span>
+          </span>
+          <ChevronDown
+            class="h-3.5 w-3.5 shrink-0 text-[#7A866E] transition-transform motion-reduce:transition-none"
+            :class="collapsedDescriptions[category.id] ? '' : 'rotate-180'"
+            aria-hidden="true"
+          />
+        </button>
+        <p
+          v-show="!collapsedDescriptions[category.id]"
+          :id="`category-description-${category.id}`"
+          class="px-3 pb-2 text-xs leading-5 text-[#576449] whitespace-pre-line break-words"
+        >
+          {{ category.description.trim() }}
+        </p>
+      </section>
     </div>
 
     <!-- Active Filter Tags Bar -->
