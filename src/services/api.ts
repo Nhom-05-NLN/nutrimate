@@ -26,10 +26,10 @@ import {
 
 const API_BASE = '/api';
 
-export async function reserveAdminCategoryCode(): Promise<{code:string;codeReservation:string}> {
-  const response = await fetchJson<ApiResponse<{ code: string;codeReservation:string }>>('/admin/categories/reserve-code', {method:'POST'});
+export async function fetchNextAdminCategoryCode(): Promise<string> {
+  const response = await fetchJson<ApiResponse<{ code: string }>>('/admin/categories/next-code', { cache: 'no-store' });
   if (!response.data) throw new Error(response.message || 'Không thể lấy mã danh mục.');
-  return response.data;
+  return response.data.code;
 }
 
 export async function fetchAdminCategories(): Promise<import('../types').AdminCategoryRecord[]> {
@@ -38,7 +38,7 @@ export async function fetchAdminCategories(): Promise<import('../types').AdminCa
   return response.data;
 }
 
-export async function saveAdminCategory(payload: { name: string; description: string; status: boolean; code?:string;codeReservation?:string }, id?: string) {
+export async function saveAdminCategory(payload: { name: string; description: string; status: boolean }, id?: string) {
   return fetchJson<ApiResponse<{ id: string }>>(`/admin/categories${id ? '/' + encodeURIComponent(id) : ''}`, {
     method:id ? 'PUT' : 'POST',body:JSON.stringify(payload),
   });
@@ -81,16 +81,10 @@ export async function fetchAdminProducts(): Promise<AdminProductsData> {
   return response.data;
 }
 
-export async function reserveAdminProductSku(): Promise<{ sku: string; skuReservation: string }> {
-  const response = await fetchJson<ApiResponse<{ sku: string; skuReservation: string }>>('/admin/products/reserve-sku', { method: 'POST' });
-  if (!response.data) throw new Error(response.message || 'Không thể cấp mã SKU.');
-  return response.data;
-}
-
-export async function releaseAdminProductSku(skuReservation: string) {
-  return fetchJson<ApiResponse<null>>('/admin/products/release-sku', {
-    method: 'POST', body: JSON.stringify({ skuReservation }), keepalive: true,
-  });
+export async function fetchNextAdminProductSku(): Promise<string> {
+  const response = await fetchJson<ApiResponse<{ sku: string }>>('/admin/products/next-sku', { cache: 'no-store' });
+  if (!response.data) throw new Error(response.message || 'Không thể lấy mã SKU.');
+  return response.data.sku;
 }
 
 export async function saveAdminProduct(payload: Omit<import('../types').AdminProductItem,'id'>, id?: string) {
@@ -946,8 +940,4 @@ export async function deleteAdminCustomer(id: string): Promise<void> {
   });
   if (!response.data?.deleted) throw new Error(response.message || 'Không thể xóa khách hàng.');
   notifyAdminCustomerCountChanged();
-}
-
-export async function releaseAdminCategoryCode(codeReservation:string) {
-  return fetchJson<ApiResponse<null>>('/admin/categories/release-code', {method:'POST',body:JSON.stringify({codeReservation}),keepalive:true});
 }

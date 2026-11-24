@@ -1,18 +1,16 @@
 import { Router } from 'express';
 import { requireAdmin } from '../middleware/authMiddleware.js';
-import { reserveCategoryCode, releaseCategoryCode } from '../repositories/adminCategoryRepository.js';
+import { getNextCategoryCode } from '../repositories/adminCategoryRepository.js';
 import { listAdminCategories, validateCategory, writeCategory, removeCategory, categoryTransaction, CategoryInputError } from '../repositories/adminCategoryRepository.js';
 
 const router = Router();
 router.use(requireAdmin);
-router.post('/reserve-code', async (_req,res) => {
-  try { res.json({success:true,data:await reserveCategoryCode()}); }
-  catch (error) { res.status(error instanceof CategoryInputError ? error.status : 503).json({success:false,message:'Không thể cấp mã danh mục.'}); }
-});
-router.post('/release-code', async (req,res) => {
-  if (typeof req.body?.codeReservation !== 'string') {res.status(400).json({success:false}); return;}
-  try {await releaseCategoryCode(req.body.codeReservation);res.json({success:true});}
-  catch {res.status(503).json({success:false,message:'Không thể giải phóng mã danh mục.'});}
+router.get('/next-code', async (_req, res) => {
+  try { res.json({ success: true, data: { code: await getNextCategoryCode() } }); }
+  catch (error) {
+    const status = error instanceof CategoryInputError ? error.status : 503;
+    res.status(status).json({ success: false, message: 'Không thể lấy mã tự động. Vui lòng thử lại.' });
+  }
 });
 router.get('/',async (_req,res) => {
   try { res.json({ success:true,data:await listAdminCategories() }); }

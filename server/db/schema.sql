@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS health_profiles (
 COMMENT ON TABLE health_profiles IS 'Lưu hồ sơ sức khỏe, chỉ số cơ thể và mục tiêu calo của khách hàng.';
 
 -- ================================================================
--- 2. CỤM SẢN PHẨM & DINH DƯỠNG (Category, Product, NutritionFact, Inventory, ProductReview)
+-- 2. CỤM SẢN PHẨM & DINH DƯỠNG (Category, Product, NutritionFact, ProductReview)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS categories (
     category_id SERIAL PRIMARY KEY,
@@ -158,12 +158,6 @@ CREATE TABLE IF NOT EXISTS nutrition_facts (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS inventory (
-    inventory_id SERIAL PRIMARY KEY,
-    product_id INT REFERENCES products(product_id) ON DELETE CASCADE,
-    quantity INT NOT NULL DEFAULT 0 CHECK (quantity >= 0),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
 
 CREATE TABLE IF NOT EXISTS product_reviews (
     review_id SERIAL PRIMARY KEY,
@@ -494,18 +488,8 @@ EXECUTE FUNCTION fn_sync_order_payment();
 ALTER TABLE products ADD COLUMN IF NOT EXISTS unit VARCHAR(50) NOT NULL DEFAULT '';
 ALTER TABLE products ADD COLUMN IF NOT EXISTS package_size VARCHAR(100) NOT NULL DEFAULT '';
 
--- Preserve cart, inventory and order rows while removing obsolete references.
-DO $$
-BEGIN
-  IF to_regclass('public.product_variants') IS NOT NULL THEN
-    UPDATE inventory i SET product_id = v.product_id
-    FROM product_variants v
-    WHERE i.variant_id = v.variant_id AND i.product_id IS NULL;
-  END IF;
-END $$;
-
+-- Remove obsolete variant references from carts and orders.
 ALTER TABLE cart_items DROP COLUMN IF EXISTS variant_id;
-ALTER TABLE inventory DROP COLUMN IF EXISTS variant_id;
 ALTER TABLE order_items DROP COLUMN IF EXISTS variant_id;
 ALTER TABLE order_items DROP COLUMN IF EXISTS variant_name;
 DROP TABLE IF EXISTS product_variants;
@@ -536,11 +520,6 @@ ALTER TABLE nutrition_facts DROP COLUMN IF EXISTS serving_size;
 SELECT pg_advisory_xact_lock(hashtext('nutrimate.product-sku-allocation'));
 LOCK TABLE products IN ACCESS EXCLUSIVE MODE;
 
-CREATE TABLE IF NOT EXISTS product_sku_reservations (
-  sku VARCHAR(11) PRIMARY KEY CHECK (sku ~ '^NM-PRD-[0-9]{4}$'),
-  token UUID NOT NULL UNIQUE,
-  expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '24 hours'
-);
 
 DO $$
 BEGIN
@@ -548,7 +527,6 @@ BEGIN
     RAISE EXCEPTION 'SKU format supports at most 9999 products';
   END IF;
   IF EXISTS (SELECT 1 FROM products WHERE code IS NULL OR code !~ '^NM-PRD-[0-9]{4}$') THEN
-    DELETE FROM product_sku_reservations;
     UPDATE products SET code = '__SKU_MIGRATION__' || product_id::text;
     WITH numbered AS (
       SELECT product_id, ROW_NUMBER() OVER (ORDER BY product_id) AS position FROM products
@@ -580,13 +558,10 @@ END $$;
 ALTER TABLE categories ALTER COLUMN code SET NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS categories_code_unique ON categories(code);
 
--- Used codes remain here after category deletion, so they cannot be reused.
-CREATE TABLE IF NOT EXISTS category_code_allocations (
-  code VARCHAR(7) PRIMARY KEY CHECK (code ~ '^CAT-[0-9]{3}$'),
-  token UUID UNIQUE,
-  used BOOLEAN NOT NULL DEFAULT FALSE,
-  expires_at TIMESTAMPTZ
-);
-INSERT INTO category_code_allocations (code,used)
-SELECT code,TRUE FROM categories ON CONFLICT (code) DO UPDATE SET used=TRUE,token=NULL,expires_at=NULL;
+-- Code previews read existing products/categories; final codes are allocated when saving.
+CREATE UNIQUE INDEX IF NOT EXISTS products_code_unique ON products (UPPER(code));
+DROP TABLE IF EXISTS product_sku_reservations;
+DROP TABLE IF EXISTS category_code_allocations;
 
+-- Stock is stored on products.stock_quantity.
+DROP TABLE IF EXISTS inventory;

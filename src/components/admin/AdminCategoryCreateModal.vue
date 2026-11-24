@@ -2,7 +2,7 @@
 import { onBeforeUnmount, ref, watch } from 'vue';
 import { X, FolderPlus, AlertCircle } from 'lucide-vue-next';
 import type { AdminCategoryRecord as AdminCategoryItem } from '../../types';
-import { reserveAdminCategoryCode, releaseAdminCategoryCode } from '../../services/api';
+import { fetchNextAdminCategoryCode } from '../../services/api';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -12,30 +12,26 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
-  (e: 'submit', payload: { name: string; description: string; status: boolean;code:string;codeReservation:string }): void;
+  (e: 'submit', payload: { name: string; description: string; status: boolean }): void;
 }>();
 const form = ref({ code: '', name: '', description: '', status: true });
 const errors = ref({ code: '', name: '', description: '' });
 const codeLoading = ref(false);
-const codeReservation = ref('');
 let codeRequest = 0;
 async function loadCode() {
   const request = ++codeRequest;
   codeLoading.value = true;
   errors.value.code = '';
   try {
-    const result = await reserveAdminCategoryCode();
-    if (request !== codeRequest || !props.modelValue) {await releaseAdminCategoryCode(result.codeReservation);return;}
-    form.value.code = result.code;
-    codeReservation.value = result.codeReservation;
+    const result = await fetchNextAdminCategoryCode();
+    if (request !== codeRequest || !props.modelValue) return;
+    form.value.code = result;
   } catch (error) {
     if (request === codeRequest && props.modelValue) errors.value.code = error instanceof Error ? error.message : 'Không thể lấy mã danh mục.';
   } finally { if (request === codeRequest) codeLoading.value = false; }
 }
 watch(() => props.modelValue, (open) => {
   codeRequest++;
-  if (codeReservation.value) void releaseAdminCategoryCode(codeReservation.value).catch(() => {});
-  codeReservation.value = '';
   if (!open) return;
   errors.value = { code: '', name: '', description: '' };
   form.value = {
@@ -48,26 +44,22 @@ watch(() => props.modelValue, (open) => {
 }, { immediate: true });
 
 function handleSubmit() {
-  if (props.saving || codeLoading.value || !codeReservation.value) return;
+  if (props.saving || codeLoading.value || !form.value.code) return;
   errors.value = { code: '', name: '', description: '' };
   const name = form.value.name.trim();
   const description = form.value.description.trim();
   if (name.length < 2 || name.length > 100) errors.value.name = 'Tên danh mục phải từ 2–100 ký tự.';
   if (description.length > 5000) errors.value.description = 'Mô tả tối đa 5000 ký tự.';
   if (errors.value.name || errors.value.description) return;
-  emit('submit', { name, description, status: form.value.status,code:form.value.code,codeReservation:codeReservation.value });
+  emit('submit', { name, description, status: form.value.status });
 }
-async function handleClose() {
+function handleClose() {
   if (props.saving) return;
-  if (codeReservation.value) {
-    try {await releaseAdminCategoryCode(codeReservation.value);codeReservation.value='';}
-    catch {errors.value.code='Không thể giải phóng mã. Vui lòng thử lại.';return;}
-  }
   emit('update:modelValue', false);
 }
+
 onBeforeUnmount(() => {
   codeRequest++;
-  if (codeReservation.value) void releaseAdminCategoryCode(codeReservation.value).catch(() => {});
 });
 </script>
 
@@ -122,7 +114,7 @@ onBeforeUnmount(() => {
               <span>{{ errors.code }}</span>
             </p>
             <button v-if="errors.code" type="button" @click="loadCode" :disabled="codeLoading" class="text-xs text-[#536124] underline">Thử lại</button>
-            <p class="text-[10px] text-[#7A866E]">Mã được cấp tự động và giữ nguyên khi lưu.</p>
+            <p class="text-[10px] text-[#7A866E]">Mã dự kiến; mã chính thức được cấp khi lưu và có thể thay đổi nếu thêm đồng thời.</p>
           </div>
 
           <!-- Tên danh mục -->
@@ -188,7 +180,7 @@ onBeforeUnmount(() => {
           </button>
           <button
             type="submit"
-            :disabled="saving || codeLoading || !codeReservation"
+            :disabled="saving || codeLoading || !form.code"
             class="px-5 py-2.5 rounded-xl bg-[#536124] hover:bg-[#434F1D] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Tạo danh mục
