@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import {
   X,
   Star,
@@ -30,7 +30,15 @@ const emit = defineEmits<{
 const activeTab = ref<'info' | 'nutrition' | 'ingredients'>('info');
 const activeImageIndex = ref(0);
 
-const galleryImages = computed(() => props.product?.image ? [props.product.image] : []);
+const galleryImages = computed(() => {
+  const product = props.product;
+  if (product?.galleryImages?.length) return product.galleryImages;
+  return product?.image ? [product.image] : [];
+});
+
+watch([() => props.modelValue, galleryImages], () => {
+  activeImageIndex.value = 0;
+});
 const productDescription = computed(() => props.product?.description || 'Chưa có mô tả.');
 const productIngredients = computed(() => props.product?.ingredients ?? []);
 const nutritionScope = computed(() => {
@@ -138,7 +146,8 @@ function handleEdit() {
             <div class="md:col-span-4 flex flex-col items-center sm:items-start space-y-3">
               <div class="w-full max-w-[220px] mx-auto md:mx-0 aspect-square rounded-2xl overflow-hidden bg-[#FAF9F5] border border-[#CCD7BC] relative shadow-inner">
                 <img
-                  :src="galleryImages[activeImageIndex] || product.image"
+                  v-if="galleryImages.length"
+                  :src="galleryImages[activeImageIndex] || galleryImages[0]"
                   :alt="product.name"
                   class="w-full h-full object-cover transition-all duration-300"
                 />
@@ -151,16 +160,21 @@ function handleEdit() {
               </div>
 
               <!-- Thumbnails nhỏ gọn -->
-              <div class="flex items-center gap-2 justify-center md:justify-start w-full max-w-[220px]">
+              <div
+                v-if="galleryImages.length > 1"
+                class="grid grid-cols-4 gap-2 w-full max-w-[220px] mx-auto md:mx-0"
+              >
                 <button
                   v-for="(img, idx) in galleryImages"
                   :key="idx"
                   type="button"
                   @click="activeImageIndex = idx"
-                  class="w-12 h-12 rounded-xl overflow-hidden border-2 transition-all cursor-pointer shrink-0"
+                  :aria-label="`Xem ảnh ${idx + 1} của ${product.name}`"
+                  :aria-pressed="activeImageIndex === idx"
+                  class="aspect-square rounded-xl overflow-hidden border-2 transition-all cursor-pointer"
                   :class="activeImageIndex === idx ? 'border-[#536124] scale-95 shadow-xs ring-2 ring-[#536124]/20' : 'border-[#E3E8DC] opacity-70 hover:opacity-100'"
                 >
-                  <img :src="img" :alt="`Thumb ${idx}`" class="w-full h-full object-cover" />
+                  <img :src="img" :alt="`${product.name} - ảnh ${idx + 1}`" class="w-full h-full object-cover" />
                 </button>
               </div>
             </div>

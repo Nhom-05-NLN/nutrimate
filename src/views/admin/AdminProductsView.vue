@@ -298,17 +298,6 @@ function openDetailModal(prod: AdminProductItem) {
             <ChevronDown aria-hidden="true" class="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#7A866E]" />
           </div>
         </div>
-
-        <button
-          v-if="searchQuery || selectedCategoryFilter !== 'all' || selectedStatusFilter !== 'all'"
-          type="button"
-          @click="resetFilters"
-          class="px-3 py-2 rounded-xl text-xs font-bold text-[#536124] hover:bg-[#EBF1E6] flex items-center gap-1.5 transition-colors cursor-pointer"
-          title="Đặt lại bộ lọc"
-        >
-          <RotateCcw class="w-3.5 h-3.5" />
-          <span>Đặt lại</span>
-        </button>
       </div>
 
       <p v-if="loading" class="py-8 text-center text-sm text-[#7A866E]">Đang tải sản phẩm...</p>
